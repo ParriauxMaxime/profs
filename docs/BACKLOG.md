@@ -6,23 +6,42 @@ spec → plan → implementation cycle.
 
 ## 1. Grilles d'évaluation (rubrics) — highest value
 
-**Status: deferred to Plan B.** Not part of phase 2A; still open below.
+**Status: delivered, phase 2B.** `src/modules/rubric` (`RubricsPage`,
+`RubricAssessmentPage`, `RubricGrid`), `src/domain/rubric.ts`, `src/db/rubrics.ts`
+and `src/db/cascade.ts`'s `deleteRubricAssessment`/`deleteRubricTemplate`.
 
 A teacher enters a list of criteria and gets a double-entry table: students down
 one axis, criteria across the other, each cell an acquisition level **1 to 4**.
+It is used live, while assessing students — during an oral, a practical, a group
+exercise — so the grid is a fast-entry surface first and a report second: large
+tap targets (`LevelButtons`), one tap per level with the same tap clearing it,
+no dialogs, no save button, phone-shape below `md` and a pinned-column matrix
+above it.
 
-The decisive requirement: **it is used live, while assessing students** — during
-an oral, a practical, a group exercise. That makes it a fast-entry surface first
-and a report second: large tap targets, one tap per level, no dialogs, no save
-button, works on a phone held in one hand.
+What shipped, against the open questions this entry originally raised:
+- **Standalone, not attached to a gradebook column.** A rubric assessment
+  belongs to a gradebook and a period (for filtering) but a 1–4 level never
+  converts to a mark out of 20 — see the invariant in `CLAUDE.md`.
+- **Reusable via a template library.** `rubricTemplates` holds named criteria
+  lists; `createAssessmentFromTemplate` copies them into a new assessment with
+  fresh criterion ids, so editing a template later cannot rewrite a grid
+  already graded.
+- **The 1–4 scale renders as both a label and a colour** (non acquis / en
+  cours d'acquisition / acquis / expert, from `RUBRIC_LEVEL_COLORS`), never
+  colour alone.
 
-Open questions for its spec:
-- Is a rubric attached to a gradebook column (so it feeds the average), standalone,
-  or both? A 1–4 level is not a mark out of 20 — decide whether and how it converts.
-- Are rubrics reusable across classes and years (a template library), or per assessment?
-- Does a criterion carry a weight?
-- What does the 1–4 scale render as — numbers, colors, labels (non acquis / en cours /
-  acquis / expert)? French competency reporting suggests labels with colors.
+What was deliberately **not** built:
+- **Criterion weights.** `RubricCriterion` is `{ id, label }` — no weight
+  field. Nothing downstream (mean, distribution) would have used one, and a
+  weighted 1–4 scale reads as more precision than the levels actually carry.
+- **Rubric-to-average conversion.** There is still no way, and no plan, to
+  turn a rubric mean into something `studentAverage` reads. If this is ever
+  wanted, it needs its own spec — silently blending a competency scale into a
+  /20 average would misrepresent both.
+- **Cross-class rubric reporting.** Templates are shared across the workspace,
+  but there is no view aggregating rubric results across classes or across
+  assessments — each assessment's means and distributions are read on its own
+  page only.
 
 ## 2. Plan de classe (seating chart) with trombinoscope
 

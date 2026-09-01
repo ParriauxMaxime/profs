@@ -33,6 +33,10 @@ and no subscription.
 - **Behaviour log** — a per-pupil, timestamped timeline of observations
   (encouragement, warning, note home, free note), with counts and a pupil
   detail page
+- **Rubrics** — a live 1–4 competency grid (grilles d'évaluation) for scoring
+  a whole class during an oral, a practical, or a group exercise: reusable
+  templates, one tap per level, per-pupil means and per-criterion
+  distributions. Deliberately never feeds the gradebook average.
 - **Offline** — installable PWA, works with no network at all
 
 ## Privacy
