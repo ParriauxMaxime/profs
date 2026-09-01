@@ -99,6 +99,9 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-semibold text-lg">{data.gradebook.name}</h2>
         <div className="flex flex-wrap items-center gap-2">
+          <Link className="btn" to={Router.Rubrics({ gradebookId })}>
+            {t("rubric.title")}
+          </Link>
           {/* A column belongs to a period, so there is nothing to add a column
               to until one exists. */}
           {data.periods.length > 0 && (
