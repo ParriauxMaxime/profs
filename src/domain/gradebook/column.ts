@@ -21,6 +21,10 @@ export const ATTENDANCE_VALUES = ["present", "absent", "late", "excused"] as con
 
 export type AttendanceValue = (typeof ATTENDANCE_VALUES)[number];
 
+/** Defaults offered by the column creation form. */
+export const DEFAULT_COLUMN_WEIGHT = 1;
+export const DEFAULT_COLUMN_MAX = 20;
+
 /** Only numeric columns contribute to averages. */
 export function isNumericColumn(type: ColumnType): boolean {
   return type === "numeric";

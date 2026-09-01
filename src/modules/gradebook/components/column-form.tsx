@@ -1,6 +1,11 @@
 import type { GradeColumn } from "@db";
 import { useDb } from "@db/provider";
-import { COLUMN_TYPES, type ColumnType } from "@domain/gradebook/column";
+import {
+  COLUMN_TYPES,
+  type ColumnType,
+  DEFAULT_COLUMN_MAX,
+  DEFAULT_COLUMN_WEIGHT,
+} from "@domain/gradebook/column";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -19,12 +24,12 @@ export function ColumnForm({
   const db = useDb();
   const [label, setLabel] = useState(column?.label ?? "");
   const [type, setType] = useState<ColumnType>(column?.type ?? "numeric");
-  const [weight, setWeight] = useState(String(column?.weight ?? 1));
-  const [max, setMax] = useState(String(column?.max ?? 20));
+  const [weight, setWeight] = useState(String(column?.weight ?? DEFAULT_COLUMN_WEIGHT));
+  const [max, setMax] = useState(String(column?.max ?? DEFAULT_COLUMN_MAX));
 
   async function save(): Promise<void> {
-    const parsedWeight = Number(weight.replace(",", ".")) || 1;
-    const parsedMax = Number(max.replace(",", ".")) || 20;
+    const parsedWeight = Number(weight.replace(",", ".")) || DEFAULT_COLUMN_WEIGHT;
+    const parsedMax = Number(max.replace(",", ".")) || DEFAULT_COLUMN_MAX;
 
     if (column) {
       await db.columns.update(column.id, { label, type, weight: parsedWeight, max: parsedMax });

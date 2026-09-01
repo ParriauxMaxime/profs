@@ -1,6 +1,7 @@
 import { ATTENDANCE_VALUES, type ColumnType } from "@domain/gradebook/column";
 import { formatGradeValue, type GradeValue, parseGradeValue } from "@domain/gradebook/grade";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 /**
  * One grid cell. Click (or focus + Enter) turns it into the editor its column
@@ -18,9 +19,15 @@ export function EditableCell({
   value: GradeValue | undefined;
   onChange: (next: GradeValue | null) => void;
 }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  // Removing the focused input (Enter/Escape both flip `editing` off) fires a
+  // native blur in the same commit, which would otherwise re-run — or wrongly
+  // trigger — the blur handler's commit(). Set before the state flip, checked
+  // and cleared at the top of onBlur.
+  const skipBlurRef = useRef(false);
 
   useEffect(() => {
     if (editing) inputRef.current?.focus();
@@ -48,7 +55,7 @@ export function EditableCell({
         <option value="">—</option>
         {ATTENDANCE_VALUES.map((v) => (
           <option key={v} value={v}>
-            {v}
+            {t(`gradebook.attendance.${v}`)}
           </option>
         ))}
       </select>
@@ -86,10 +93,22 @@ export function EditableCell({
       inputMode={type === "numeric" ? "decimal" : "text"}
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
+      onBlur={() => {
+        if (skipBlurRef.current) {
+          skipBlurRef.current = false;
+          return;
+        }
+        commit();
+      }}
       onKeyDown={(e) => {
-        if (e.key === "Enter") commit();
-        if (e.key === "Escape") setEditing(false);
+        if (e.key === "Enter") {
+          skipBlurRef.current = true;
+          commit();
+        }
+        if (e.key === "Escape") {
+          skipBlurRef.current = true;
+          setEditing(false);
+        }
       }}
     />
   );

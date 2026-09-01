@@ -52,6 +52,12 @@
       "checkbox": "Case à cocher",
       "text": "Texte",
       "attendance": "Présence"
+    },
+    "attendance": {
+      "present": "Présent",
+      "absent": "Absent",
+      "late": "En retard",
+      "excused": "Excusé"
     }
   },
   "csv": {

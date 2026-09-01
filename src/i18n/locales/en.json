@@ -52,6 +52,12 @@
       "checkbox": "Checkbox",
       "text": "Text",
       "attendance": "Attendance"
+    },
+    "attendance": {
+      "present": "Present",
+      "absent": "Absent",
+      "late": "Late",
+      "excused": "Excused"
     }
   },
   "csv": {
