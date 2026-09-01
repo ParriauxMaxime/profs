@@ -24,7 +24,15 @@ and no subscription.
 - **Fast entry** — a phone-sized keypad for grading a whole class in class
 - **Backup** — JSON export and import to move data between your devices (no
   sync; photos are not included in the export, since a JSON file cannot carry
-  a `Blob`)
+  a `Blob` — student notes, including any accommodation details, **are**
+  included)
+- **Seating plan** — a spatial layout per class, tap to seat or unseat a
+  pupil, with a photo shown in the seat
+- **Attendance** — present / absent / late / excused, recorded per pupil per
+  session from the seating plan
+- **Behaviour log** — a per-pupil, timestamped timeline of observations
+  (encouragement, warning, note home, free note), with counts and a pupil
+  detail page
 - **Offline** — installable PWA, works with no network at all
 
 ## Privacy

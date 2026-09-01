@@ -6,6 +6,8 @@ spec → plan → implementation cycle.
 
 ## 1. Grilles d'évaluation (rubrics) — highest value
 
+**Status: deferred to Plan B.** Not part of phase 2A; still open below.
+
 A teacher enters a list of criteria and gets a double-entry table: students down
 one axis, criteria across the other, each cell an acquisition level **1 to 4**.
 
@@ -24,6 +26,10 @@ Open questions for its spec:
 
 ## 2. Plan de classe (seating chart) with trombinoscope
 
+**Status: delivered, phase 2A.** One seating layout per class (`src/modules/plan`),
+photos shown in the seat, tap-to-seat/unseat. A single layout per class shipped —
+see the deferred multiple-layouts entry below for what was cut.
+
 A spatial layout of the room, showing each student's photo where they sit.
 
 - Drag students into seats; a room can have several layouts (exam, group work).
@@ -39,6 +45,12 @@ A spatial layout of the room, showing each student's photo where they sit.
 
 ## 3. Historique des sanctions (behaviour log)
 
+**Status: delivered, phase 2A.** Append-only `BehaviourEvent` rows, four types
+(`green`/`yellow`/`red`/`note`), logged one tap from the seating plan's pupil
+card, with counts and a full timeline on the pupil page
+(`src/modules/student`). A period filter on the counts was deliberately left
+out — see below.
+
 A visual, per-student behaviour history using football-card semantics:
 **yellow card = avertissement, red card = mot dans le carnet**, with room for
 other event types.
@@ -50,6 +62,25 @@ other event types.
 - Aggregates matter: "three yellows this trimestre" is the thing a teacher reports
   to a parent or a CPE.
 - Same privacy weight as the accommodation notes: disciplinary records about minors.
+
+## 4. Multiple seating layouts per class
+
+Phase 2A ships exactly one `SeatingLayout` per class (created lazily on first
+visit to the plan page). iDoceo's "a room can have several layouts (exam,
+group work)" was explicitly deferred: it needs a layout switcher in the UI and
+a decision on which layout attendance/behaviour attach to when more than one
+exists for the same session. `deleteSeatingLayout` in `src/db/cascade.ts`
+already supports removing one of several, so the schema is not the blocker —
+the UI and the "which layout is active" question are.
+
+## 5. Behaviour counts by period
+
+The pupil page's behaviour counts (`countByType`) are deliberately computed
+over **all** events, with no period filter, by design in phase 2A. A
+teacher reporting "three warnings this trimestre" needs the count scoped to a
+period, which requires deciding how a session (dated, not period-bound) maps
+to a gradebook period. Left for a later pass rather than invented during
+phase 2A.
 
 ## Source
 

@@ -21,6 +21,21 @@ it. Student photos are not included in the export — a JSON file cannot carry a
 photo — and importing on another device is the only way to move data; there is
 no sync of any kind.
 
+## Photos, remarques et comportement
+
+- **Photos.** La photo d'un élève est stockée telle quelle sur l'appareil (un
+  `Blob` dans IndexedDB), jamais transmise, et supprimable élève par élève.
+  Elle n'est **jamais incluse dans l'export JSON** : un fichier JSON ne peut
+  pas transporter un `Blob`.
+- **Remarques (`Student.notes`).** Ce champ peut porter des informations
+  sensibles — PAP, PPRE, tiers-temps, contraintes de placement. Contrairement
+  aux photos, **les remarques sont incluses dans l'export JSON** : l'export
+  est le fichier de l'enseignant, et ce point est précisé ici pour ne pas être
+  découvert après coup.
+- **Comportement.** Chaque observation (encouragement, avertissement, mot
+  dans le carnet, note libre) est horodatée et rattachée à une séance. C'est
+  une donnée sur un mineur, conservée jusqu'à sa suppression explicite.
+
 ## Deleting data
 
 Réglages → Zone dangereuse → "Supprimer toutes les données" erases the whole

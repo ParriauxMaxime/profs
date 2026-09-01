@@ -38,11 +38,13 @@ Three layers, and the boundaries are enforced by review:
 
 Two decimal formatters, and picking the wrong one is a data bug: `formatDecimal` rounds to two decimals and is for **display**; `formatDecimalExact` preserves full stored precision and is for **seeding an editor**, so that opening a cell and committing it unchanged cannot silently rewrite the value. Both take the app's locale, never the browser's.
 
-**`src/db/`** — Dexie. `openWorkspaceDb(workspaceId)` opens `profs-<id>`; each workspace is its own database. Seven tables: `classes`, `students`, `subjects`, `gradebooks`, `periods`, `columns`, `grades`. `provider.tsx` exposes `useDb()`; `init.ts` runs once before first render; `seed.ts` creates the demo school; `backup.ts` does JSON export/import; `cascade.ts` owns every multi-table delete (see below).
+**`src/db/`** — Dexie. `openWorkspaceDb(workspaceId)` opens `profs-<id>`; each workspace is its own database. Twelve tables: the original seven (`classes`, `students`, `subjects`, `gradebooks`, `periods`, `columns`, `grades`) plus five added in phase 2A for the classroom features: `sessions` (one row per lesson), `attendance` (keyed `[sessionId+studentId]`), `behaviourEvents` (append-only observations, `classId` denormalised for a one-index class timeline), `seatingLayouts` (one room per class), and `seats` (keyed `[layoutId+row+col]`). `provider.tsx` exposes `useDb()`; `init.ts` runs once before first render; `seed.ts` creates the demo school; `backup.ts` does JSON export/import; `cascade.ts` owns every multi-table delete (see below).
+
+A `Seat` row encodes three states, and they must stay distinct: no row at all for a `[layoutId, row, col]` is a **gap** (an aisle or a doorway — nothing can ever be placed there), a row with `studentId: null` is an **empty seat**, and a row with a `studentId` is an **occupied** one. Treating "no row" and "null studentId" as the same thing loses the gap.
 
 **`src/modules/<name>/page.tsx`** — one page per route, with module-local `components/`. `design-system/` holds shared UI, `shared/` the layout. There is no `src/routes/` folder — each module owns its page. Components read the database through `useLiveQuery` and hold UI state only.
 
-Routes (`src/router.ts`, Chicane): `/`, `/classes/:classId`, `/gradebooks/:gradebookId`, `/gradebooks/:gradebookId/entry/:columnId`, `/settings`.
+Routes (`src/router.ts`, Chicane): `/`, `/classes/:classId`, `/classes/:classId/plan`, `/students/:studentId`, `/gradebooks/:gradebookId`, `/gradebooks/:gradebookId/entry/:columnId`, `/settings`.
 
 ### Invariants worth knowing before you touch anything
 
@@ -51,6 +53,9 @@ Routes (`src/router.ts`, Chicane): `/`, `/classes/:classId`, `/gradebooks/:grade
 - **Every numeric column is normalised to /20 by its own `max`** before weighting, so a /100 test and a /20 test can be averaged together. Only numeric columns count toward an average; the other five types never do.
 - **Three distinct input outcomes, and they must stay distinct**: blank input *clears* the cell (deletes the row), a valid value *stores*, and an invalid one (unparseable, negative, above the column's `max`) is *refused* — nothing is written and the existing mark survives, with the bad input left visible so it can be corrected. Both the grid cell and the fast-entry screen implement this; `isBlankInput` and `parseGradeValue` in `domain/gradebook/grade.ts` are the shared rule.
 - **Attendance and other stored values are raw domain strings.** Only the *display* is translated (`gradebook.attendance.*`). Never persist a translated label.
+- **Attendance is a property of a session, not a gradebook column type.** A lesson happened on a date to a class, and that fact must not be recordable in two places. Phase 1's column types never included attendance for this reason, and phase 2A did not add one — attendance lives in the `attendance` table, keyed to a `Session`, and is set from the seating plan's pupil card.
+- **Behaviour events are append-only.** A `BehaviourEvent` is never edited in place — `deleteBehaviourEvent` in `cascade.ts` is the only correction available, and a new observation is always a new row. This is deliberate: a behaviour log is a record of what was observed when, not a mutable field.
+- **Rubrics never feed an average.** They are a Plan B item (`docs/BACKLOG.md` #1) and, when they land, a 1–4 acquisition level is not a mark out of 20 — `studentAverage` must not be reached for by that feature without an explicit conversion decision first.
 
 ### Conventions that will trip you up
 
@@ -62,8 +67,14 @@ Routes (`src/router.ts`, Chicane): `/`, `/classes/:classId`, `/gradebooks/:grade
   - A form bound to a record needs a `key` that changes with the record — `react-hook-form` captures `defaultValues` at mount, so without one, switching the edit target writes one student's values onto another.
   - A row-local armed/confirm state needs the table's React key to be the record id. TanStack Table's `row.id` defaults to the **row index**, so `DataTable` takes a `getRowId` and callers must pass it; otherwise sorting or searching while a delete is armed retargets it onto whoever now sits at that index.
   - A control acting on a *selected* record (the period delete beside the switcher) needs a `key` on that selection, or changing the selection while armed destroys the newly selected one.
+  - The seating plan's armed seat is anchored to the seat's `[row, col]` coordinates, not a list position, since seats are never reordered but the same bug shape applies to any "one thing at a time is active" state.
+  - The pupil card selected from the seating plan takes `key={student.id}`, for the same reason as the student edit form: switching the selected pupil must reset the card's local draft state (notes, behaviour comment) rather than carrying it onto the next pupil.
   When you add any armed, staged, or draft state, ask what happens if the underlying list reorders or the selection changes underneath it.
 - IDs come from `crypto.randomUUID()`; timestamps are epoch-ms from `Date.now()`.
+
+### Schema changes are disposable, not migrated
+
+The Dexie schema is declared as a single `db.version(2).stores({...})` with no upgrade callback. Phase 2A's five new tables did not get a migration from phase 1 data: there is nothing to migrate, since attendance and behaviour didn't exist before, and any stray v1 test data is treated as garbage the "supprimer toutes les données" wipe in Réglages already handles. `backup.ts` follows the same posture — a v1 backup file is rejected outright by `WorkspaceBackup`'s schema check, not upgraded, since importing it half-populated (gradebooks but no sessions) would be worse than refusing it. The rule for the next schema change: add a table or a field, bump the version, do not write an upgrade function — a stale workspace gets wiped, not migrated.
 
 ### The demo school seeds exactly once
 
@@ -79,7 +90,7 @@ When you change UI, prove the flow rather than asserting it. If you cannot drive
 
 ### Deleting things
 
-Every multi-table delete lives in `src/db/cascade.ts` (`deleteStudent`, `deleteColumn`, `deletePeriod`, `deleteGradebook`, `deleteClass`), each one a single `rw` transaction covering every table it touches. If you find yourself writing a multi-table delete inline in a component, stop and add it there with tests instead — an orphaned grade row is invisible in the UI, never averaged, and survives export/import.
+Every multi-table delete lives in `src/db/cascade.ts` (`deleteStudent`, `deleteColumn`, `deletePeriod`, `deleteGradebook`, `deleteClass`, plus phase 2A's `deleteSession` and `deleteSeatingLayout`), each one a single `rw` transaction covering every table it touches. `deleteBehaviourEvent` is single-table but lives here too, so every delete is in one place. If you find yourself writing a multi-table delete inline in a component, stop and add it there with tests instead — an orphaned grade row is invisible in the UI, never averaged, and survives export/import.
 
 `deleteSubject` is the exception that **refuses** rather than cascades: it returns `{ deleted: false, reason: "in-use", gradebookCount }` and writes nothing when a gradebook still references the subject. Destroying gradebooks as a side effect of removing a subject is too much to do implicitly.
 
@@ -87,7 +98,9 @@ Destructive actions in the UI go through `ConfirmButton` (two-step, in place). I
 
 ## Known v1 gaps
 
-- No sync of any kind. JSON export/import in Réglages is the only way to move data between devices, and it omits student photos (they are `Blob`s and cannot survive `JSON.stringify`) — both documents say so, and any change here must keep them accurate.
+- No sync of any kind. JSON export/import in Réglages is the only way to move data between devices, and it omits student photos (they are `Blob`s and cannot survive `JSON.stringify`) — both documents say so, and any change here must keep them accurate. `Student.notes` — which can carry accommodations such as PAP, PPRE, tiers-temps — has no such exclusion and **is** included in the export; `PRIVACY.md` says so explicitly.
+- Behaviour counts on the pupil page are over all events, with no period filter (`docs/BACKLOG.md` #5) — a deliberate phase 2A scope cut, not an oversight.
+- Only one seating layout per class (`docs/BACKLOG.md` #4) — the schema supports several, the UI to switch between them doesn't exist yet.
 - A gradebook cannot be renamed after creation, and periods cannot be reordered.
 - `src/modules/dashboard/page.tsx` imports `ClassForm` from the class module. That crosses the module boundary this file otherwise describes; it is an accepted exception rather than an oversight, since both screens create classes.
 
