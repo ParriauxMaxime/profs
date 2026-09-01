@@ -5,6 +5,8 @@ import {
   deleteColumn,
   deleteGradebook,
   deletePeriod,
+  deleteSeatingLayout,
+  deleteSession,
   deleteStudent,
   deleteSubject,
 } from "./cascade";
@@ -421,6 +423,145 @@ describe("deleteSubject", () => {
 
     expect(result).toEqual({ deleted: true });
     expect(await db.subjects.count()).toBe(subjects);
+    db.close();
+  });
+});
+
+describe("deleteStudent — phase 2 rows", () => {
+  it("takes attendance, behaviour events and rubric-free seat state with it", async () => {
+    const db = openWorkspaceDb(`cascade-student-phase2-${crypto.randomUUID()}`);
+    await db.students.add({
+      id: "p1",
+      classId: "c1",
+      firstName: "Emma",
+      lastName: "Martin",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await db.sessions.add({ id: "s1", classId: "c1", date: 1, createdAt: 1 });
+    await db.attendance.put({
+      sessionId: "s1",
+      studentId: "p1",
+      value: "absent",
+      updatedAt: 1,
+    });
+    await db.behaviourEvents.add({
+      id: "e1",
+      sessionId: "s1",
+      studentId: "p1",
+      classId: "c1",
+      type: "yellow",
+      createdAt: 1,
+    });
+    await db.seats.put({ layoutId: "l1", row: 0, col: 0, studentId: "p1" });
+
+    await deleteStudent(db, "p1");
+
+    expect(await db.students.count()).toBe(0);
+    expect(await db.attendance.count()).toBe(0);
+    expect(await db.behaviourEvents.count()).toBe(0);
+    // The seat survives, emptied: deleting a pupil must not punch a hole in
+    // the room's geometry.
+    expect(await db.seats.get(["l1", 0, 0])).toEqual({
+      layoutId: "l1",
+      row: 0,
+      col: 0,
+      studentId: null,
+    });
+    db.close();
+  });
+
+  it("leaves another pupil's rows alone", async () => {
+    const db = openWorkspaceDb(`cascade-student-neighbour-${crypto.randomUUID()}`);
+    await db.attendance.bulkPut([
+      { sessionId: "s1", studentId: "p1", value: "absent", updatedAt: 1 },
+      { sessionId: "s1", studentId: "p2", value: "present", updatedAt: 1 },
+    ]);
+    await deleteStudent(db, "p1");
+    expect(await db.attendance.count()).toBe(1);
+    expect((await db.attendance.toArray())[0].studentId).toBe("p2");
+    db.close();
+  });
+});
+
+describe("deleteClass — phase 2 rows", () => {
+  it("leaves zero orphans across every classroom table", async () => {
+    const db = openWorkspaceDb(`cascade-class-phase2-${crypto.randomUUID()}`);
+    await db.classes.add({ id: "c1", name: "3B", createdAt: 1, updatedAt: 1 });
+    await db.students.add({
+      id: "p1",
+      classId: "c1",
+      firstName: "Emma",
+      lastName: "Martin",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await db.sessions.add({ id: "s1", classId: "c1", date: 1, createdAt: 1 });
+    await db.attendance.put({ sessionId: "s1", studentId: "p1", value: "late", updatedAt: 1 });
+    await db.behaviourEvents.add({
+      id: "e1",
+      sessionId: "s1",
+      studentId: "p1",
+      classId: "c1",
+      type: "red",
+      createdAt: 1,
+    });
+    await db.seatingLayouts.add({ id: "l1", classId: "c1", rows: 1, cols: 1, updatedAt: 1 });
+    await db.seats.put({ layoutId: "l1", row: 0, col: 0, studentId: "p1" });
+
+    await deleteClass(db, "c1");
+
+    for (const table of [
+      db.classes,
+      db.students,
+      db.sessions,
+      db.attendance,
+      db.behaviourEvents,
+      db.seatingLayouts,
+      db.seats,
+    ]) {
+      expect(await table.count()).toBe(0);
+    }
+    db.close();
+  });
+});
+
+describe("deleteSession", () => {
+  it("takes its attendance and behaviour events", async () => {
+    const db = openWorkspaceDb(`cascade-session-${crypto.randomUUID()}`);
+    await db.sessions.add({ id: "s1", classId: "c1", date: 1, createdAt: 1 });
+    await db.sessions.add({ id: "s2", classId: "c1", date: 2, createdAt: 2 });
+    await db.attendance.bulkPut([
+      { sessionId: "s1", studentId: "p1", value: "absent", updatedAt: 1 },
+      { sessionId: "s2", studentId: "p1", value: "present", updatedAt: 1 },
+    ]);
+    await db.behaviourEvents.bulkAdd([
+      { id: "e1", sessionId: "s1", studentId: "p1", classId: "c1", type: "yellow", createdAt: 1 },
+      { id: "e2", sessionId: "s2", studentId: "p1", classId: "c1", type: "green", createdAt: 2 },
+    ]);
+
+    await deleteSession(db, "s1");
+
+    expect(await db.sessions.count()).toBe(1);
+    expect(await db.attendance.count()).toBe(1);
+    expect(await db.behaviourEvents.count()).toBe(1);
+    expect((await db.behaviourEvents.toArray())[0].id).toBe("e2");
+    db.close();
+  });
+});
+
+describe("deleteSeatingLayout", () => {
+  it("takes its seats", async () => {
+    const db = openWorkspaceDb(`cascade-layout-${crypto.randomUUID()}`);
+    await db.seatingLayouts.add({ id: "l1", classId: "c1", rows: 1, cols: 2, updatedAt: 1 });
+    await db.seats.bulkPut([
+      { layoutId: "l1", row: 0, col: 0, studentId: null },
+      { layoutId: "l1", row: 0, col: 1, studentId: "p1" },
+      { layoutId: "l2", row: 0, col: 0, studentId: null },
+    ]);
+    await deleteSeatingLayout(db, "l1");
+    expect(await db.seatingLayouts.count()).toBe(0);
+    expect(await db.seats.count()).toBe(1);
     db.close();
   });
 });

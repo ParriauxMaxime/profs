@@ -1,9 +1,24 @@
+import { ATTENDANCE_VALUES } from "@domain/attendance";
+import { BEHAVIOUR_TYPES } from "@domain/behaviour";
 import { defaultGradebookName } from "@domain/gradebook/naming";
 import { DEFAULT_PERIOD_NAMES } from "@domain/gradebook/period";
+import { buildSeats, DEFAULT_COLS, DEFAULT_ROWS } from "@domain/seating";
 import { SUBJECT_COLORS } from "@domain/subject";
 import { hasBeenSeeded, markSeeded } from "@domain/workspaces";
 import type { AppDatabase } from ".";
-import type { Grade, Gradebook, GradeColumn, Period, Student } from "./types";
+import { startOfDay } from "./sessions";
+import type {
+  AttendanceRecord,
+  BehaviourEvent,
+  Grade,
+  Gradebook,
+  GradeColumn,
+  Period,
+  Seat,
+  SeatingLayout,
+  Session,
+  Student,
+} from "./types";
 
 /**
  * Demo data so a first-time visitor sees a working gradebook instead of an
@@ -74,6 +89,32 @@ function makeRandom(seed: number): () => number {
     state = (state * 1664525 + 1013904223) % 4294967296;
     return state / 4294967296;
   };
+}
+
+/** Picks from `items` by cumulative weight; the last item is the fallback. */
+function weightedPick<T extends string>(
+  items: readonly T[],
+  weights: readonly number[],
+  roll: number,
+): T {
+  let acc = 0;
+  for (let i = 0; i < items.length; i++) {
+    acc += weights[i];
+    if (roll < acc) return items[i];
+  }
+  return items[items.length - 1];
+}
+
+/** The `count` most recent weekdays at or before `fromMs`, oldest first. */
+function lastWeekdays(count: number, fromMs: number): number[] {
+  const days: number[] = [];
+  let cursor = startOfDay(fromMs);
+  while (days.length < count) {
+    const weekday = new Date(cursor).getDay();
+    if (weekday !== 0 && weekday !== 6) days.unshift(cursor);
+    cursor -= 24 * 60 * 60 * 1000;
+  }
+  return days;
 }
 
 export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise<boolean> {
@@ -190,9 +231,87 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     }
   }
 
+  // Classroom data: a seating plan, three lessons, attendance for each and a
+  // scattering of behaviour events. No photo is ever seeded here — a
+  // fabricated Blob would be a fabricated photograph of a fictional child.
+  const seatingLayouts: SeatingLayout[] = [];
+  const seats: Seat[] = [];
+  const sessions: Session[] = [];
+  const attendance: AttendanceRecord[] = [];
+  const behaviourEvents: BehaviourEvent[] = [];
+
+  const weekdays = lastWeekdays(3, now);
+
+  for (const schoolClass of classes) {
+    const classStudents = students.filter((s) => s.classId === schoolClass.id);
+
+    const layoutId = id();
+    seatingLayouts.push({
+      id: layoutId,
+      classId: schoolClass.id,
+      rows: DEFAULT_ROWS,
+      cols: DEFAULT_COLS,
+      updatedAt: now,
+    });
+    const classSeats = buildSeats(layoutId, DEFAULT_ROWS, DEFAULT_COLS);
+    classStudents.forEach((student, i) => {
+      if (i < classSeats.length) classSeats[i].studentId = student.id;
+    });
+    seats.push(...classSeats);
+
+    const classSessions = weekdays.map((date) => ({
+      id: id(),
+      classId: schoolClass.id,
+      date,
+      createdAt: date,
+    }));
+    sessions.push(...classSessions);
+
+    for (const session of classSessions) {
+      for (const student of classStudents) {
+        // Mostly present, a scattering of the rest.
+        const value = weightedPick(ATTENDANCE_VALUES, [0.87, 0.05, 0.05, 0.03], random());
+        attendance.push({
+          sessionId: session.id,
+          studentId: student.id,
+          value,
+          updatedAt: now,
+        });
+      }
+    }
+
+    // Roughly a dozen behaviour events per class, skewed toward green/yellow.
+    for (let i = 0; i < 12; i++) {
+      const session = classSessions[Math.floor(random() * classSessions.length)];
+      const student = classStudents[Math.floor(random() * classStudents.length)];
+      const type = weightedPick(BEHAVIOUR_TYPES, [0.4, 0.35, 0.15, 0.1], random());
+      behaviourEvents.push({
+        id: id(),
+        sessionId: session.id,
+        studentId: student.id,
+        classId: schoolClass.id,
+        type,
+        createdAt: session.date,
+      });
+    }
+  }
+
   await db.transaction(
     "rw",
-    [db.classes, db.students, db.subjects, db.gradebooks, db.periods, db.columns, db.grades],
+    [
+      db.classes,
+      db.students,
+      db.subjects,
+      db.gradebooks,
+      db.periods,
+      db.columns,
+      db.grades,
+      db.sessions,
+      db.attendance,
+      db.behaviourEvents,
+      db.seatingLayouts,
+      db.seats,
+    ],
     async () => {
       await db.classes.bulkAdd(classes);
       await db.subjects.bulkAdd(subjects);
@@ -201,6 +320,11 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       await db.periods.bulkAdd(periods);
       await db.columns.bulkAdd(columns);
       await db.grades.bulkPut(grades);
+      await db.sessions.bulkAdd(sessions);
+      await db.attendance.bulkPut(attendance);
+      await db.behaviourEvents.bulkAdd(behaviourEvents);
+      await db.seatingLayouts.bulkAdd(seatingLayouts);
+      await db.seats.bulkPut(seats);
     },
   );
 

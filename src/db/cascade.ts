@@ -17,11 +17,23 @@ export async function deleteColumn(db: AppDatabase, columnId: string): Promise<v
   });
 }
 
+/**
+ * A pupil's rows reach into six tables. The seat is emptied rather than
+ * deleted: removing it would punch a hole in the room's geometry, and a gap
+ * means something different from an empty chair.
+ */
 export async function deleteStudent(db: AppDatabase, studentId: string): Promise<void> {
-  await db.transaction("rw", [db.students, db.grades], async () => {
-    await db.grades.where("studentId").equals(studentId).delete();
-    await db.students.delete(studentId);
-  });
+  await db.transaction(
+    "rw",
+    [db.students, db.grades, db.attendance, db.behaviourEvents, db.seats],
+    async () => {
+      await db.grades.where("studentId").equals(studentId).delete();
+      await db.attendance.where("studentId").equals(studentId).delete();
+      await db.behaviourEvents.where("studentId").equals(studentId).delete();
+      await db.seats.where("studentId").equals(studentId).modify({ studentId: null });
+      await db.students.delete(studentId);
+    },
+  );
 }
 
 export async function deleteGradebook(db: AppDatabase, gradebookId: string): Promise<void> {
@@ -60,7 +72,19 @@ export async function deletePeriod(db: AppDatabase, periodId: string): Promise<v
 export async function deleteClass(db: AppDatabase, classId: string): Promise<void> {
   await db.transaction(
     "rw",
-    [db.classes, db.students, db.gradebooks, db.periods, db.columns, db.grades],
+    [
+      db.classes,
+      db.students,
+      db.gradebooks,
+      db.periods,
+      db.columns,
+      db.grades,
+      db.sessions,
+      db.attendance,
+      db.behaviourEvents,
+      db.seatingLayouts,
+      db.seats,
+    ],
     async () => {
       const gradebookIds = await db.gradebooks.where("classId").equals(classId).primaryKeys();
       if (gradebookIds.length > 0) {
@@ -74,6 +98,19 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
       if (studentIds.length > 0) {
         await db.grades.where("studentId").anyOf(studentIds).delete();
         await db.students.bulkDelete(studentIds);
+      }
+
+      const sessionIds = await db.sessions.where("classId").equals(classId).primaryKeys();
+      if (sessionIds.length > 0) {
+        await db.attendance.where("sessionId").anyOf(sessionIds).delete();
+        await db.sessions.bulkDelete(sessionIds);
+      }
+      await db.behaviourEvents.where("classId").equals(classId).delete();
+
+      const layoutIds = await db.seatingLayouts.where("classId").equals(classId).primaryKeys();
+      if (layoutIds.length > 0) {
+        await db.seats.where("layoutId").anyOf(layoutIds).delete();
+        await db.seatingLayouts.bulkDelete(layoutIds);
       }
 
       await db.classes.delete(classId);
@@ -110,5 +147,30 @@ export async function deleteSubject(
     if (gradebookCount > 0) return { deleted: false, reason: "in-use", gradebookCount };
     await db.subjects.delete(subjectId);
     return { deleted: true };
+  });
+}
+
+/** A lesson and everything recorded during it. */
+export async function deleteSession(db: AppDatabase, sessionId: string): Promise<void> {
+  await db.transaction("rw", [db.sessions, db.attendance, db.behaviourEvents], async () => {
+    await db.attendance.where("sessionId").equals(sessionId).delete();
+    await db.behaviourEvents.where("sessionId").equals(sessionId).delete();
+    await db.sessions.delete(sessionId);
+  });
+}
+
+/**
+ * Behaviour events are append-only, so removing one is the only correction
+ * available. Single-table, but it lives here so every delete is in one place.
+ */
+export async function deleteBehaviourEvent(db: AppDatabase, eventId: string): Promise<void> {
+  await db.behaviourEvents.delete(eventId);
+}
+
+/** The room and its cells. */
+export async function deleteSeatingLayout(db: AppDatabase, layoutId: string): Promise<void> {
+  await db.transaction("rw", [db.seatingLayouts, db.seats], async () => {
+    await db.seats.where("layoutId").equals(layoutId).delete();
+    await db.seatingLayouts.delete(layoutId);
   });
 }
