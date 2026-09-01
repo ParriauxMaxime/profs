@@ -52,6 +52,11 @@ body {
   background: var(--color-bg);
 }
 
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .btn-primary {
   background: var(--color-accent);
   border-color: var(--color-accent);

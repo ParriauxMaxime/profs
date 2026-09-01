@@ -8,13 +8,15 @@ and no subscription.
 
 ## Features (v1)
 
-- **A seeded demo school** — v1 ships with one pre-populated workspace
-  ("Collège Démo"). There is no UI yet to create a new class, subject, or
-  gradebook; you work within the seeded structure.
+- **A seeded demo school** — on first run, v1 creates one workspace
+  ("Mon établissement") pre-populated with two classes (3°B and 5°A), a
+  gradebook each, and grades. The demo data is offered once per workspace: if
+  you delete everything, it stays deleted. There is no UI yet to create a new
+  class, subject, or gradebook; you work within the seeded structure.
 - **Students** — add, edit, and delete students within a class, plus CSV
   import (semicolon, comma, or tab) for a whole roster at once
 - **Gradebooks** — one per class and subject, split into terms, with columns
-  you add yourself
+  you add, edit, and delete yourself
 - **Typed columns** — numeric marks with any scale, letters, icons, checkboxes,
   free text, attendance
 - **Weighted averages** — every numeric column normalised to /20 by its own
@@ -35,9 +37,13 @@ Your data never leaves your device. See [PRIVACY.md](PRIVACY.md).
 yarn install
 yarn dev        # http://localhost:3000
 yarn build      # production build into dist/
-yarn test       # unit tests
-yarn lint       # biome
+yarn preview    # serve the production build from dist/
+
+# The validation gate — all four must be green
+yarn format     # biome check --fix
+yarn lint       # biome check
 yarn typecheck  # tsc --noEmit
+yarn test       # unit tests
 ```
 
 ## Stack

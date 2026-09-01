@@ -7,7 +7,7 @@ import {
   type RosterRow,
   sniffDelimiter,
 } from "@domain/gradebook/csv";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 export function CsvImport({
@@ -34,6 +34,7 @@ export function CsvImport({
   const [firstNameCol, setFirstNameCol] = useState(1);
   const [skipFirstRow, setSkipFirstRow] = useState(true);
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const effectiveDelimiter = delimiter ?? (text ? sniffDelimiter(text) : ",");
 
@@ -61,9 +62,16 @@ export function CsvImport({
   const columnCount = rows[0]?.length ?? 0;
   const columnOptions = Array.from({ length: columnCount }, (_, i) => i);
 
+  /** Clearing the value is what lets the same filename be picked again after
+   * the teacher has corrected the file — otherwise onChange never re-fires. */
+  function resetFileInput(): void {
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
   async function onFile(file: File): Promise<void> {
     setText(await file.text());
     setDelimiter(null);
+    resetFileInput();
   }
 
   async function onImport(): Promise<void> {
@@ -95,11 +103,13 @@ export function CsvImport({
       />
 
       <input
+        ref={fileInputRef}
         type="file"
         accept=".csv,.txt,text/csv,text/plain"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) void onFile(file);
+          else resetFileInput();
         }}
       />
 
