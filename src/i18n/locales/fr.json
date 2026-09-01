@@ -68,6 +68,7 @@
       "count": "Élèves notés"
     }
   },
+  "entry": { "next": "Suivant", "backToGrid": "Retour au tableau" },
   "csv": {
     "title": "Importer une liste d'élèves",
     "pastePlaceholder": "Collez ici votre liste (Nom;Prénom)",

@@ -68,6 +68,7 @@
       "count": "Students graded"
     }
   },
+  "entry": { "next": "Next", "backToGrid": "Back to grid" },
   "csv": {
     "title": "Import a student list",
     "pastePlaceholder": "Paste your list here (Last name;First name)",
