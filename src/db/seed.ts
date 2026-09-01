@@ -1,3 +1,6 @@
+import { defaultGradebookName } from "@domain/gradebook/naming";
+import { DEFAULT_PERIOD_NAMES } from "@domain/gradebook/period";
+import { SUBJECT_COLORS } from "@domain/subject";
 import { hasBeenSeeded, markSeeded } from "@domain/workspaces";
 import type { AppDatabase } from ".";
 import type { Grade, Gradebook, GradeColumn, Period, Student } from "./types";
@@ -64,8 +67,6 @@ const FIRST_NAMES = [
   "Zoé",
 ];
 
-const PERIOD_NAMES = ["Trimestre 1", "Trimestre 2", "Trimestre 3"];
-
 /** Deterministic pseudo-random so the demo looks the same on every device. */
 function makeRandom(seed: number): () => number {
   let state = seed;
@@ -93,8 +94,8 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
   const sizes = [24, 22];
 
   const subjects = [
-    { id: id(), name: "Mathématiques", color: "#2563eb", createdAt: now, updatedAt: now },
-    { id: id(), name: "Français", color: "#16a34a", createdAt: now, updatedAt: now },
+    { id: id(), name: "Mathématiques", color: SUBJECT_COLORS[0], createdAt: now, updatedAt: now },
+    { id: id(), name: "Français", color: SUBJECT_COLORS[1], createdAt: now, updatedAt: now },
   ];
 
   const students: Student[] = [];
@@ -115,7 +116,7 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     id: id(),
     classId: schoolClass.id,
     subjectId: subjects[index].id,
-    name: `${subjects[index].name} — ${schoolClass.name}`,
+    name: defaultGradebookName(subjects[index].name, schoolClass.name),
     createdAt: now,
     updatedAt: now,
   }));
@@ -125,7 +126,7 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
   const grades: Grade[] = [];
 
   for (const gradebook of gradebooks) {
-    const gradebookPeriods = PERIOD_NAMES.map((name, order) => ({
+    const gradebookPeriods = DEFAULT_PERIOD_NAMES.map((name, order) => ({
       id: id(),
       gradebookId: gradebook.id,
       name,
