@@ -501,12 +501,27 @@ describe("resizeSeats", () => {
     { layoutId: "l1", row: 1, col: 1, studentId: "b" },
   ];
 
-  it("keeps seats inside the new bounds and adds the rest", () => {
+  it("keeps every seat when the size does not change", () => {
     const { seats, unseated } = resizeSeats(existing, "l1", 2, 2);
-    expect(seats).toHaveLength(4);
+    // Cells absent from the input are gaps; a resize that changes nothing
+    // must invent nothing.
+    expect(seats).toHaveLength(2);
     expect(seats.find((s) => s.row === 0 && s.col === 0)?.studentId).toBe("a");
     expect(seats.find((s) => s.row === 1 && s.col === 1)?.studentId).toBe("b");
     expect(unseated).toEqual([]);
+  });
+
+  it("adds seats only where the grid actually grew", () => {
+    const { seats } = resizeSeats(existing, "l1", 3, 3);
+    expect(seats).toHaveLength(7);
+    expect(seats.some((s) => s.row === 0 && s.col === 1)).toBe(false);
+  });
+
+  it("never refills an aisle the teacher carved when the room widens", () => {
+    const withAisle = buildSeats("l1", 2, 3).filter((s) => !(s.row === 0 && s.col === 1));
+    const { seats } = resizeSeats(withAisle, "l1", 2, 4);
+    expect(seats.some((s) => s.row === 0 && s.col === 1)).toBe(false);
+    expect(seats).toHaveLength(7);
   });
 
   it("reports pupils that shrinking would unseat, and does not keep them", () => {
@@ -593,25 +608,26 @@ export function resizeSeats(
 ): ResizeResult {
   const kept: Seat[] = [];
   const unseated: string[] = [];
-  const occupied = new Set<string>();
+  let oldMaxRow = -1;
+  let oldMaxCol = -1;
 
   for (const seat of existing) {
+    oldMaxRow = Math.max(oldMaxRow, seat.row);
+    oldMaxCol = Math.max(oldMaxCol, seat.col);
     if (seat.row < rows && seat.col < cols) {
       kept.push(seat);
-      occupied.add(`${seat.row}:${seat.col}`);
     } else if (seat.studentId !== null) {
       unseated.push(seat.studentId);
     }
   }
 
-  // Only cells the grid genuinely gained become seats. A cell that was inside
-  // the old bounds and absent from `existing` was a gap, and stays one.
-  const oldRows = existing.reduce((max, s) => Math.max(max, s.row + 1), 0);
-  const oldCols = existing.reduce((max, s) => Math.max(max, s.col + 1), 0);
+  // Only cells beyond the old grid's extent are genuine growth and become
+  // seats. A cell inside that extent but absent from `existing` is a gap the
+  // teacher carved — an aisle, a doorway — and widening a room must never
+  // silently refill it.
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col < cols; col += 1) {
-      if (row < oldRows && col < oldCols) continue;
-      if (occupied.has(`${row}:${col}`)) continue;
+      if (row <= oldMaxRow && col <= oldMaxCol) continue;
       kept.push({ layoutId, row, col, studentId: null });
     }
   }
