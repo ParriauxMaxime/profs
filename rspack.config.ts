@@ -54,7 +54,20 @@ export default defineConfig((_env, argv) => {
       new rspack.CopyRspackPlugin({
         patterns: [
           { from: "public/manifest.json", to: "manifest.json" },
-          { from: "public/sw.js", to: "sw.js" },
+          {
+            from: "public/sw.js",
+            to: "sw.js",
+            // The cache name carries a build stamp. Without one it never
+            // changes, so `activate` — which only drops caches under a
+            // different name — keeps every superseded hashed asset forever.
+            // That storage competes with the pupil photos in IndexedDB on the
+            // same device quota. CI passes the commit sha; a local build gets
+            // the build time, which is enough to make each build distinct.
+            transform: (content: Buffer) =>
+              content
+                .toString()
+                .replace("__BUILD_ID__", process.env.BUILD_ID || String(Date.now())),
+          },
           { from: "public/icons", to: "icons" },
         ],
       }),

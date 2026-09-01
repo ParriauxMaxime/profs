@@ -90,12 +90,25 @@ being requested from `/` instead of `/profs/`. Check `dist/index.html`'s
 copy of `dist/index.html`. If the `cp` step is missing or ran before the
 build, Pages will show its own 404 for anything but the app root.
 
-**Stale content after a deploy.** The service worker caches aggressively.
-`CACHE` in `public/sw.js` is an unversioned string (`"profs-v1"`), which is a
-known issue: a deploy that doesn't change that string won't force clients to
-drop their old cache on its own. The app has a recovery script in
-`public/index.html` that unregisters the service worker and clears caches if
-the root element stays empty for three seconds, which handles the worst case
-(app fails to boot at all), but it won't help someone looking at a
-merely-outdated screen. Bumping `CACHE` is the fix when this becomes a
-practical problem; it hasn't been made part of this pipeline.
+**Stale content after a deploy.** Largely handled, but worth understanding.
+
+Navigation requests are network-first, so an online client always gets the
+current `index.html`; assets are content-hashed, so a new build asks for
+filenames the old cache has never seen. Neither can serve stale code.
+
+The problem that did exist was storage, not staleness. `activate` deletes
+caches whose name differs from the current one, so a fixed cache name made it
+a no-op and every superseded hashed asset stayed forever — on the same device
+quota as the pupil photos in IndexedDB. `CACHE` is now `profs-__BUILD_ID__`,
+substituted at build time by the `CopyRspackPlugin` transform in
+`rspack.config.ts`: the commit sha in CI (`BUILD_ID: ${{ github.sha }}`), a
+timestamp for a local build. Each deploy therefore lands on a new cache and
+drops the previous one.
+
+If you ever build the service worker outside this pipeline, pass `BUILD_ID`
+or the literal `__BUILD_ID__` ships and every build shares one cache again.
+
+As a last resort, `public/index.html` carries a recovery script that
+unregisters the service worker and clears caches if the root element is still
+empty after three seconds. That covers "the app won't boot at all"; it does
+not help someone looking at a merely outdated screen.

@@ -79,6 +79,9 @@ jobs:
       - run: yarn build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
+          # Makes each deploy's service-worker cache distinct, so the previous
+          # build's cached assets are dropped on activate instead of piling up.
+          BUILD_ID: ${{ github.sha }}
       - run: cp dist/index.html dist/404.html
       - uses: actions/upload-pages-artifact@v3
         with:

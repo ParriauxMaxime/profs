@@ -1,4 +1,8 @@
-const CACHE = "profs-v1";
+// Substituted at build time by the CopyRspackPlugin transform in
+// rspack.config.ts — the commit sha in CI, a timestamp locally. A fixed name
+// would make `activate` a no-op and let superseded hashed assets accumulate
+// forever, on the same device quota as the pupil photos.
+const CACHE = "profs-__BUILD_ID__";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icons/icon-192.svg"];
 
 self.addEventListener("install", (event) => {
