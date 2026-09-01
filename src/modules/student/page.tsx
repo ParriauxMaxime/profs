@@ -42,7 +42,12 @@ export function StudentPage({ studentId }: { studentId: string }) {
     [db, studentId],
   );
 
-  if (student === undefined || sessions === undefined || events === undefined) {
+  if (
+    student === undefined ||
+    sessions === undefined ||
+    events === undefined ||
+    attendanceRecords === undefined
+  ) {
     return <p className="text-text-muted">{t("common.loading")}</p>;
   }
   if (student === null) {
@@ -56,7 +61,7 @@ export function StudentPage({ studentId }: { studentId: string }) {
   const attendanceCounts = Object.fromEntries(
     ATTENDANCE_VALUES.map((value) => [
       value,
-      (attendanceRecords ?? []).filter((record) => record.value === value).length,
+      attendanceRecords.filter((record) => record.value === value).length,
     ]),
   );
 
