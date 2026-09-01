@@ -2,6 +2,8 @@ import "@i18n";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app";
+import { initWorkspace } from "./db/init";
+import { DbProvider } from "./db/provider";
 import "./styles/global.css";
 
 if ("serviceWorker" in navigator) {
@@ -17,11 +19,15 @@ if ("serviceWorker" in navigator) {
   }
 }
 
-const root = document.getElementById("root");
-if (!root) throw new Error("Missing #root element");
+initWorkspace().then(() => {
+  const root = document.getElementById("root");
+  if (!root) throw new Error("Missing #root element");
 
-createRoot(root).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+  createRoot(root).render(
+    <StrictMode>
+      <DbProvider>
+        <App />
+      </DbProvider>
+    </StrictMode>,
+  );
+});
