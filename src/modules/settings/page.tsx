@@ -145,7 +145,10 @@ export function SettingsPage() {
             <p className="text-sm">
               {t("settings.importConfirmMessage", {
                 fileName: pendingImport.fileName,
-                date: new Date(pendingImport.backup.exportedAt).toLocaleString(),
+                date: new Date(pendingImport.backup.exportedAt).toLocaleString(loadLocale(), {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                }),
               })}
             </p>
             <div className="flex gap-2">
