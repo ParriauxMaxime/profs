@@ -1,1 +1,18 @@
-{}
+{
+  "name": "profs",
+  "short_name": "profs",
+  "description": "Carnet de notes local et open source pour enseignants",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#111827",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "icons/icon-192.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
