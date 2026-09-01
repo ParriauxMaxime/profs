@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { openWorkspaceDb } from ".";
-import { exportWorkspace, importWorkspace } from "./backup";
+import { exportWorkspace, importWorkspace, parseBackup } from "./backup";
 import { seedIfEmpty } from "./seed";
 
 describe("workspace backup", () => {
@@ -84,7 +84,7 @@ describe("workspace backup", () => {
 
     await expect(
       importWorkspace(db, {
-        version: 2,
+        version: 3,
         exportedAt: 0,
         classes: [],
         students: [],
@@ -93,12 +93,118 @@ describe("workspace backup", () => {
         periods: [],
         columns: [],
         grades: [],
+        sessions: [],
+        attendance: [],
+        behaviourEvents: [],
+        seatingLayouts: [],
+        seats: [],
       }),
     ).rejects.toThrow();
 
     expect(await db.classes.count()).toBe(classCountBefore);
     expect(await db.students.count()).toBe(studentCountBefore);
     expect(await db.classes.get(sampleBefore.id)).toEqual(sampleBefore);
+    db.close();
+  });
+
+  it("exports version 2 with the classroom tables", async () => {
+    const db = openWorkspaceDb("backup-export-v2");
+    await db.sessions.add({ id: "s1", classId: "c1", date: 1, createdAt: 1 });
+    await db.attendance.put({ sessionId: "s1", studentId: "p1", value: "late", updatedAt: 1 });
+    const backup = await exportWorkspace(db);
+    expect(backup.version).toBe(2);
+    expect(backup.sessions).toHaveLength(1);
+    expect(backup.attendance).toHaveLength(1);
+    db.close();
+  });
+
+  it("rejects a version 1 backup rather than half-importing it", async () => {
+    const db = openWorkspaceDb("backup-import-v1");
+    expect(() =>
+      parseBackup({
+        version: 1,
+        exportedAt: 1,
+        classes: [],
+        students: [],
+        subjects: [],
+        gradebooks: [],
+        periods: [],
+        columns: [],
+        grades: [],
+      }),
+    ).toThrow();
+    db.close();
+  });
+
+  it("round-trips the classroom tables", async () => {
+    const db = openWorkspaceDb("backup-round-trip-v2");
+    await db.sessions.add({ id: "s1", classId: "c1", date: 1, createdAt: 1 });
+    await db.behaviourEvents.add({
+      id: "e1",
+      sessionId: "s1",
+      studentId: "p1",
+      classId: "c1",
+      type: "red",
+      comment: "bavardage",
+      createdAt: 1,
+    });
+    await db.seatingLayouts.add({ id: "l1", classId: "c1", rows: 2, cols: 2, updatedAt: 1 });
+    await db.seats.put({ layoutId: "l1", row: 1, col: 1, studentId: "p1" });
+
+    const backup = await exportWorkspace(db);
+    await importWorkspace(db, backup);
+
+    expect(await db.behaviourEvents.get("e1")).toMatchObject({
+      type: "red",
+      comment: "bavardage",
+    });
+    expect(await db.seats.get(["l1", 1, 1])).toMatchObject({ studentId: "p1" });
+    db.close();
+  });
+
+  it("importing twice in a row replaces rather than accumulates, in every table", async () => {
+    const db = openWorkspaceDb("backup-double-import");
+    await seedIfEmpty(db, "backup-double-import");
+    await db.sessions.add({ id: "s1", classId: "c1", date: 1, createdAt: 1 });
+    await db.attendance.put({ sessionId: "s1", studentId: "p1", value: "late", updatedAt: 1 });
+    await db.behaviourEvents.add({
+      id: "e1",
+      sessionId: "s1",
+      studentId: "p1",
+      classId: "c1",
+      type: "red",
+      createdAt: 1,
+    });
+    await db.seatingLayouts.add({ id: "l1", classId: "c1", rows: 1, cols: 1, updatedAt: 1 });
+    await db.seats.put({ layoutId: "l1", row: 0, col: 0, studentId: "p1" });
+
+    const backup = await exportWorkspace(db);
+
+    await importWorkspace(db, JSON.parse(JSON.stringify(backup)));
+    const firstImportCounts = {
+      classes: await db.classes.count(),
+      students: await db.students.count(),
+      grades: await db.grades.count(),
+      sessions: await db.sessions.count(),
+      attendance: await db.attendance.count(),
+      behaviourEvents: await db.behaviourEvents.count(),
+      seatingLayouts: await db.seatingLayouts.count(),
+      seats: await db.seats.count(),
+    };
+
+    await importWorkspace(db, JSON.parse(JSON.stringify(backup)));
+    const secondImportCounts = {
+      classes: await db.classes.count(),
+      students: await db.students.count(),
+      grades: await db.grades.count(),
+      sessions: await db.sessions.count(),
+      attendance: await db.attendance.count(),
+      behaviourEvents: await db.behaviourEvents.count(),
+      seatingLayouts: await db.seatingLayouts.count(),
+      seats: await db.seats.count(),
+    };
+
+    expect(secondImportCounts).toEqual(firstImportCounts);
     db.close();
   });
 

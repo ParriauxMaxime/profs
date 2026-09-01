@@ -1,10 +1,23 @@
 import { gradeValueSchema } from "@domain/gradebook/grade";
 import { z } from "zod";
 import type { AppDatabase } from ".";
-import type { Grade, Gradebook, GradeColumn, Period, SchoolClass, Student, Subject } from "./types";
+import type {
+  AttendanceRecord,
+  BehaviourEvent,
+  Grade,
+  Gradebook,
+  GradeColumn,
+  Period,
+  SchoolClass,
+  Seat,
+  SeatingLayout,
+  Session,
+  Student,
+  Subject,
+} from "./types";
 
 export interface WorkspaceBackup {
-  version: 1;
+  version: 2;
   exportedAt: number;
   classes: SchoolClass[];
   students: Student[];
@@ -13,14 +26,24 @@ export interface WorkspaceBackup {
   periods: Period[];
   columns: GradeColumn[];
   grades: Grade[];
+  sessions: Session[];
+  attendance: AttendanceRecord[];
+  behaviourEvents: BehaviourEvent[];
+  seatingLayouts: SeatingLayout[];
+  seats: Seat[];
 }
 
 /**
  * Shape check only — the rows themselves are trusted, since a backup can only
  * come from this app. A wrong shape must fail loudly rather than half-import.
+ *
+ * Version 1 is rejected outright, not upgraded: phase 2 introduced no
+ * migration path, and a v1 file predates the classroom tables entirely, so
+ * half-importing it would leave a workspace with gradebooks but no sessions
+ * to hang attendance or behaviour off of.
  */
 const backupSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   exportedAt: z.number(),
   classes: z.array(z.object({ id: z.string() }).loose()),
   students: z.array(z.object({ id: z.string() }).loose()),
@@ -38,11 +61,50 @@ const backupSchema = z.object({
       })
       .loose(),
   ),
+  sessions: z.array(z.object({ id: z.string() }).loose()),
+  attendance: z.array(
+    z
+      .object({
+        sessionId: z.string(),
+        studentId: z.string(),
+      })
+      .loose(),
+  ),
+  behaviourEvents: z.array(z.object({ id: z.string() }).loose()),
+  seatingLayouts: z.array(z.object({ id: z.string() }).loose()),
+  seats: z.array(
+    z
+      .object({
+        layoutId: z.string(),
+        row: z.number(),
+        col: z.number(),
+      })
+      .loose(),
+  ),
 });
 
-/** Photos are Blobs and are not included — JSON cannot carry them. */
+/**
+ * Photos are Blobs and are not included — JSON cannot carry them.
+ *
+ * `notes` on a student *is* exported and now carries accommodations
+ * (`PRIVACY.md` documents this) — unlike the photo, it is plain text and
+ * survives `JSON.stringify` untouched, so it is not stripped here.
+ */
 export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup> {
-  const [classes, students, subjects, gradebooks, periods, columns, grades] = await Promise.all([
+  const [
+    classes,
+    students,
+    subjects,
+    gradebooks,
+    periods,
+    columns,
+    grades,
+    sessions,
+    attendance,
+    behaviourEvents,
+    seatingLayouts,
+    seats,
+  ] = await Promise.all([
     db.classes.toArray(),
     db.students.toArray(),
     db.subjects.toArray(),
@@ -50,10 +112,15 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     db.periods.toArray(),
     db.columns.toArray(),
     db.grades.toArray(),
+    db.sessions.toArray(),
+    db.attendance.toArray(),
+    db.behaviourEvents.toArray(),
+    db.seatingLayouts.toArray(),
+    db.seats.toArray(),
   ]);
 
   return {
-    version: 1,
+    version: 2,
     exportedAt: Date.now(),
     classes,
     students: students.map(({ photo: _photo, ...rest }) => rest),
@@ -62,6 +129,11 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     periods,
     columns,
     grades,
+    sessions,
+    attendance,
+    behaviourEvents,
+    seatingLayouts,
+    seats,
   };
 }
 
@@ -91,6 +163,11 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     db.periods,
     db.columns,
     db.grades,
+    db.sessions,
+    db.attendance,
+    db.behaviourEvents,
+    db.seatingLayouts,
+    db.seats,
   ];
 
   await db.transaction("rw", tables, async () => {
@@ -102,5 +179,10 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     await db.periods.bulkAdd(data.periods);
     await db.columns.bulkAdd(data.columns);
     await db.grades.bulkPut(data.grades);
+    await db.sessions.bulkAdd(data.sessions);
+    await db.attendance.bulkPut(data.attendance);
+    await db.behaviourEvents.bulkAdd(data.behaviourEvents);
+    await db.seatingLayouts.bulkAdd(data.seatingLayouts);
+    await db.seats.bulkPut(data.seats);
   });
 }
