@@ -1130,7 +1130,7 @@ it("exports version 2 with the classroom tables", async () => {
 it("rejects a version 1 backup rather than half-importing it", async () => {
   const db = freshDb("import-v1");
   expect(() =>
-    validateBackup({
+    parseBackup({
       version: 1,
       exportedAt: 1,
       classes: [],
