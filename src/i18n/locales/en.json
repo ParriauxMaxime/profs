@@ -1,0 +1,15 @@
+{
+  "app": { "name": "profs", "tagline": "The gradebook that stays on your device" },
+  "nav": { "dashboard": "Home", "settings": "Settings" },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "add": "Add",
+    "search": "Search",
+    "filter": "Filter",
+    "all": "All",
+    "noData": "No data",
+    "noResults": "No results"
+  }
+}

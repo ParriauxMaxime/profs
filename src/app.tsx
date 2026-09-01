@@ -1,0 +1,34 @@
+import { DashboardPage } from "./modules/dashboard/page";
+import { AdminLayout } from "./modules/shared/components/admin-layout";
+import { Router } from "./router";
+
+export function App() {
+  const route = Router.useRoute(["Home", "Class", "Gradebook", "Entry", "Settings"]);
+
+  if (!route) {
+    Router.replace("Home");
+    return null;
+  }
+
+  return (
+    <AdminLayout>
+      <Routes route={route} />
+    </AdminLayout>
+  );
+}
+
+type AppRoute = NonNullable<
+  ReturnType<typeof Router.useRoute<"Home" | "Class" | "Gradebook" | "Entry" | "Settings">>
+>;
+
+function Routes({ route }: { route: AppRoute }) {
+  switch (route.name) {
+    case "Home":
+      return <DashboardPage />;
+    case "Class":
+    case "Gradebook":
+    case "Entry":
+    case "Settings":
+      return <p className="text-text-muted">…</p>;
+  }
+}

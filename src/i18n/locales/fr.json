@@ -1,0 +1,15 @@
+{
+  "app": { "name": "profs", "tagline": "Le carnet de notes qui reste sur votre appareil" },
+  "nav": { "dashboard": "Accueil", "settings": "Réglages" },
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "add": "Ajouter",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "all": "Tous",
+    "noData": "Aucune donnée",
+    "noResults": "Aucun résultat"
+  }
+}
