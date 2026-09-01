@@ -146,17 +146,21 @@ rubrics, and filtering. Cheap schema (`groups`, `groupMembers`), broad payoff.
 its columns and periods but no grades, and saving a class as a template, are
 both mechanical given the cascade work already done.
 
-### 5. Student reports
+### 5. Student reports — PARKED (Maxime, 2026-09-01)
+Out of scope for now. Kept here with its open questions rather than deleted.
+
 Per-pupil printable summary: grades, average, attendance, behaviour, rubrics.
 High value and the natural consumer of everything phase 2 adds. Must be
 print/HTML — no external service, no upload.
 
-### 6. Resources manager
+### 6. Resources manager — PARKED (Maxime, 2026-09-01)
+Out of scope for now. The storage-budget question below stays unanswered.
+
 Files, audio, images attached to a class, a pupil, or a cell. Stored as Blobs in
 IndexedDB. Needs a storage-budget answer first: photos already push at quota,
 and video would blow it. Ship only with a size cap and a visible usage figure.
 
-### 7. Timetable, diary, planner
+### 7. Timetable, diary, planner — WANTED, needs its own brainstorm (Maxime, 2026-09-01)
 iDoceo's schedule drives its diary and planner. This was an explicit v1
 non-goal. Phase 2's `Session` is the seed of it — a session is already a lesson
 on a date — so a timetable becomes "generate the sessions for the term".
@@ -166,3 +170,21 @@ Largest item here; deserves its own spec.
 Class icon/colour on the dashboard; copy/move a cell, column, or pupil between
 classes; full-screen grid; XLS import beside CSV (a parser dependency — weigh
 it against the no-network, small-bundle posture).
+
+## Decisions taken 2026-09-01
+
+- **Build next, as "Plan C", in this order:** cell annotations (#1), student
+  groups (#3), calculation columns (#2). Groups land before calculations so an
+  aggregate scoped to a group does not force a rework.
+- **Cross-device stays JSON export/import.** This is the answer, not a gap. No
+  sync, no account, no third-party integration. A future session should not
+  re-open this as missing functionality.
+- **#5 and #6 are parked**, not rejected.
+- **#7 is wanted** and gets its own spec cycle. Note for whoever writes it:
+  phase 2's `Session` is already a lesson on a date, so a timetable is largely
+  "generate the term's sessions". That also means the timetable would take over
+  ownership of session lifecycle from the current lazy get-or-create, which is
+  the main thing its spec has to settle.
+- **Open question for #2, defaulting to "no" unless overridden:** may a
+  calculation column reference another calculation column? Allowing it requires
+  cycle detection; forbidding it keeps the first version simple.
