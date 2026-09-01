@@ -193,5 +193,42 @@
     "comment": "Comment",
     "none": "No events",
     "confirmDelete": "Delete this event?"
+  },
+  "rubric": {
+    "title": "Rubrics",
+    "templates": "Rubric templates",
+    "newTemplate": "New template",
+    "templateName": "Template name",
+    "noTemplates": "No templates",
+    "criteria": "Criteria",
+    "addCriterion": "Add a criterion",
+    "criterionLabel": "Label",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "confirmDeleteTemplate": "Delete this template?",
+    "assessments": "Assessments",
+    "newAssessment": "New assessment",
+    "assessmentName": "Name",
+    "fromTemplate": "From a template",
+    "blank": "Blank grid",
+    "noAssessments": "No assessments",
+    "confirmDeleteAssessment_one": "Delete this assessment and its {{count}} level?",
+    "confirmDeleteAssessment_other": "Delete this assessment and its {{count}} levels?",
+    "noCriteria": "Add a criterion to get started",
+    "notFound": "Assessment not found",
+    "mean": "Mean",
+    "distribution": "Distribution",
+    "criterionCount_one": "{{count}} criterion",
+    "criterionCount_other": "{{count}} criteria",
+    "scoredCount_one": "{{count}} student scored",
+    "scoredCount_other": "{{count}} students scored",
+    "period": "Period",
+    "source": "Rubric",
+    "level": {
+      "1": "Not achieved",
+      "2": "Developing",
+      "3": "Achieved",
+      "4": "Expert"
+    }
   }
 }

@@ -193,5 +193,42 @@
     "comment": "Commentaire",
     "none": "Aucun événement",
     "confirmDelete": "Supprimer cet événement ?"
+  },
+  "rubric": {
+    "title": "Grilles d'évaluation",
+    "templates": "Modèles de grille",
+    "newTemplate": "Nouveau modèle",
+    "templateName": "Nom du modèle",
+    "noTemplates": "Aucun modèle",
+    "criteria": "Critères",
+    "addCriterion": "Ajouter un critère",
+    "criterionLabel": "Intitulé",
+    "moveUp": "Monter",
+    "moveDown": "Descendre",
+    "confirmDeleteTemplate": "Supprimer ce modèle ?",
+    "assessments": "Évaluations",
+    "newAssessment": "Nouvelle évaluation",
+    "assessmentName": "Intitulé",
+    "fromTemplate": "À partir d'un modèle",
+    "blank": "Grille vierge",
+    "noAssessments": "Aucune évaluation",
+    "confirmDeleteAssessment_one": "Supprimer cette évaluation et son {{count}} niveau ?",
+    "confirmDeleteAssessment_other": "Supprimer cette évaluation et ses {{count}} niveaux ?",
+    "noCriteria": "Ajoutez un critère pour commencer",
+    "notFound": "Évaluation introuvable",
+    "mean": "Moyenne",
+    "distribution": "Répartition",
+    "criterionCount_one": "{{count}} critère",
+    "criterionCount_other": "{{count}} critères",
+    "scoredCount_one": "{{count}} élève noté",
+    "scoredCount_other": "{{count}} élèves notés",
+    "period": "Période",
+    "source": "Grille",
+    "level": {
+      "1": "Non acquis",
+      "2": "En cours d'acquisition",
+      "3": "Acquis",
+      "4": "Expert"
+    }
   }
 }

@@ -1,12 +1,13 @@
-import type { Subject } from "@db";
+import type { RubricTemplate, Subject } from "@db";
 import { exportWorkspace, importWorkspace, parseBackup, type WorkspaceBackup } from "@db/backup";
-import { deleteSubject } from "@db/cascade";
+import { deleteRubricTemplate, deleteSubject } from "@db/cascade";
 import { useDb } from "@db/provider";
 import { LOCALES, type Locale, loadLocale, saveLocale } from "@i18n";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ConfirmButton } from "../design-system/components/confirm-button";
+import { RubricTemplateForm } from "./components/rubric-template-form";
 import { SubjectForm } from "./components/subject-form";
 
 /** A subject a gradebook still points at: deleting it was refused. */
@@ -30,9 +31,11 @@ export function SettingsPage() {
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
   const [editingSubject, setEditingSubject] = useState<Subject | "new" | null>(null);
   const [subjectRefusal, setSubjectRefusal] = useState<SubjectRefusal | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<RubricTemplate | "new" | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const subjects = useLiveQuery(() => db.subjects.toArray(), [db]);
+  const templates = useLiveQuery(() => db.rubricTemplates.toArray(), [db]);
 
   async function onExport(): Promise<void> {
     const backup = await exportWorkspace(db);
@@ -227,6 +230,68 @@ export function SettingsPage() {
               </p>
             )}
           </div>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold text-lg">{t("rubric.templates")}</h2>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setEditingTemplate("new")}
+          >
+            {t("rubric.newTemplate")}
+          </button>
+        </div>
+
+        {editingTemplate === "new" && (
+          <RubricTemplateForm key="new" onDone={() => setEditingTemplate(null)} />
+        )}
+        {editingTemplate !== null && editingTemplate !== "new" && (
+          // Keyed by template id: the form seeds its state at mount, so
+          // switching target has to remount it.
+          <RubricTemplateForm
+            key={editingTemplate.id}
+            template={editingTemplate}
+            onDone={() => setEditingTemplate(null)}
+          />
+        )}
+
+        {templates === undefined ? (
+          <p className="text-text-muted">{t("common.loading")}</p>
+        ) : templates.length === 0 ? (
+          <p className="text-text-muted">{t("rubric.noTemplates")}</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {templates.map((template) => (
+              <li
+                key={template.id}
+                className="flex flex-wrap items-center gap-3 rounded border border-border px-3 py-2 text-sm"
+              >
+                <span className="grow font-medium">{template.name}</span>
+                <button
+                  type="button"
+                  className="text-text-muted hover:text-accent"
+                  onClick={() => setEditingTemplate(template)}
+                >
+                  {t("common.edit")}
+                </button>
+                <ConfirmButton
+                  danger
+                  variant="link"
+                  label={t("common.delete")}
+                  confirmLabel={t("rubric.confirmDeleteTemplate")}
+                  onConfirm={async () => {
+                    await deleteRubricTemplate(db, template.id);
+                    setEditingTemplate((current) =>
+                      current !== "new" && current?.id === template.id ? null : current,
+                    );
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 
