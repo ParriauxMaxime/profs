@@ -11,6 +11,7 @@ import {
   deleteSubject,
 } from "./cascade";
 import { seedIfEmpty } from "./seed";
+import { createSession } from "./sessions";
 
 describe("cascading deletes", () => {
   it("deleteColumn removes the column and every grade in it, and nothing else", async () => {
@@ -367,7 +368,12 @@ describe("deleteSubject", () => {
 
     const result = await deleteSubject(db, subjectId);
 
-    expect(result).toEqual({ deleted: false, reason: "in-use", gradebookCount: 1 });
+    expect(result).toEqual({
+      deleted: false,
+      reason: "in-use",
+      gradebookCount: 1,
+      sessionCount: 0,
+    });
     expect(await db.subjects.get(subjectId)).toBeDefined();
     expect(await db.subjects.count()).toBe(before.subjects);
     expect(await db.gradebooks.count()).toBe(before.gradebooks);
@@ -385,7 +391,36 @@ describe("deleteSubject", () => {
 
     const result = await deleteSubject(db, first.subjectId);
 
-    expect(result).toEqual({ deleted: false, reason: "in-use", gradebookCount: 2 });
+    expect(result).toEqual({
+      deleted: false,
+      reason: "in-use",
+      gradebookCount: 2,
+      sessionCount: 0,
+    });
+    db.close();
+  });
+
+  it("refuses, and deletes nothing, while a session still references it", async () => {
+    const db = openWorkspaceDb("cascade-subject-session");
+    await seedIfEmpty(db, "cascade-subject-session");
+
+    const schoolClass = (await db.classes.toArray())[0];
+    const now = Date.now();
+    const id = crypto.randomUUID();
+    await db.subjects.add({ id, name: "Sport", color: "#a855f7", createdAt: now, updatedAt: now });
+    await createSession(db, schoolClass.id, id);
+    const before = await db.subjects.count();
+
+    const result = await deleteSubject(db, id);
+
+    expect(result).toEqual({
+      deleted: false,
+      reason: "in-use",
+      gradebookCount: 0,
+      sessionCount: 1,
+    });
+    expect(await db.subjects.get(id)).toBeDefined();
+    expect(await db.subjects.count()).toBe(before);
     db.close();
   });
 

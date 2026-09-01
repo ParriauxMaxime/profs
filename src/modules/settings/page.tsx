@@ -14,6 +14,7 @@ interface SubjectRefusal {
   subjectId: string;
   name: string;
   gradebookCount: number;
+  sessionCount: number;
 }
 
 interface PendingImport {
@@ -198,6 +199,7 @@ export function SettingsPage() {
                       subjectId: subject.id,
                       name: subject.name,
                       gradebookCount: result.gradebookCount,
+                      sessionCount: result.sessionCount,
                     });
                   }}
                 />
@@ -207,12 +209,24 @@ export function SettingsPage() {
         )}
 
         {subjectRefusal && (
-          <p role="alert" className="text-danger text-sm">
-            {t("settings.subjectInUse", {
-              name: subjectRefusal.name,
-              count: subjectRefusal.gradebookCount,
-            })}
-          </p>
+          <div role="alert" className="flex flex-col gap-1 text-danger text-sm">
+            {subjectRefusal.gradebookCount > 0 && (
+              <p>
+                {t("settings.subjectInUse", {
+                  name: subjectRefusal.name,
+                  count: subjectRefusal.gradebookCount,
+                })}
+              </p>
+            )}
+            {subjectRefusal.sessionCount > 0 && (
+              <p>
+                {t("settings.subjectInUseSessions", {
+                  name: subjectRefusal.name,
+                  count: subjectRefusal.sessionCount,
+                })}
+              </p>
+            )}
+          </div>
         )}
       </section>
 

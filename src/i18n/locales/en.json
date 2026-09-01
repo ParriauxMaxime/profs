@@ -135,7 +135,9 @@
     "confirmDeleteSubject": "Delete this subject?",
     "noSubjects": "No subjects yet. Add one — a gradebook pairs a class with a subject.",
     "subjectInUse_one": "The subject “{{name}}” cannot be deleted: {{count}} gradebook still uses it.",
-    "subjectInUse_other": "The subject “{{name}}” cannot be deleted: {{count}} gradebooks still use it."
+    "subjectInUse_other": "The subject “{{name}}” cannot be deleted: {{count}} gradebooks still use it.",
+    "subjectInUseSessions_one": "The subject “{{name}}” cannot be deleted: {{count}} lesson still uses it.",
+    "subjectInUseSessions_other": "The subject “{{name}}” cannot be deleted: {{count}} lessons still use it."
   },
   "csv": {
     "title": "Import a student list",

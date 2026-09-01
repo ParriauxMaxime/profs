@@ -76,7 +76,7 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
     periods: "id, gradebookId, order",
     columns: "id, gradebookId, periodId, order",
     grades: "[gradebookId+columnId+studentId], gradebookId, columnId, studentId",
-    sessions: "id, classId, date, [classId+date]",
+    sessions: "id, classId, date, [classId+date], subjectId",
     attendance: "[sessionId+studentId], sessionId, studentId",
     behaviourEvents: "id, sessionId, studentId, classId, createdAt",
     seatingLayouts: "id, classId",

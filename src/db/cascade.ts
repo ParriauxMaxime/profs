@@ -132,26 +132,29 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
  */
 export type DeleteSubjectResult =
   | { deleted: true }
-  | { deleted: false; reason: "in-use"; gradebookCount: number };
+  | { deleted: false; reason: "in-use"; gradebookCount: number; sessionCount: number };
 
 /**
  * The one delete that refuses instead of cascading.
  *
- * A subject is shared across gradebooks and holds nothing of its own, so
- * cascading it would destroy whole gradebooks — every column and every grade
- * of a class in that subject — as a side effect of tidying a label. When any
- * gradebook still references it, nothing is deleted and the count of
- * referencing gradebooks comes back for the UI to show. An unknown id is
- * reported as deleted, like every other delete here: there is nothing left to
- * remove.
+ * A subject is shared across gradebooks and sessions and holds nothing of its
+ * own, so cascading it would destroy whole gradebooks — every column and
+ * every grade of a class in that subject — or orphan lessons, as a side
+ * effect of tidying a label. When any gradebook or session still references
+ * it, nothing is deleted and both referencing counts come back for the UI to
+ * show. An unknown id is reported as deleted, like every other delete here:
+ * there is nothing left to remove.
  */
 export async function deleteSubject(
   db: AppDatabase,
   subjectId: string,
 ): Promise<DeleteSubjectResult> {
-  return await db.transaction("rw", [db.subjects, db.gradebooks], async () => {
+  return await db.transaction("rw", [db.subjects, db.gradebooks, db.sessions], async () => {
     const gradebookCount = await db.gradebooks.where("subjectId").equals(subjectId).count();
-    if (gradebookCount > 0) return { deleted: false, reason: "in-use", gradebookCount };
+    const sessionCount = await db.sessions.where("subjectId").equals(subjectId).count();
+    if (gradebookCount > 0 || sessionCount > 0) {
+      return { deleted: false, reason: "in-use", gradebookCount, sessionCount };
+    }
     await db.subjects.delete(subjectId);
     return { deleted: true };
   });
