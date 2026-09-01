@@ -35,6 +35,25 @@
     "confirmDelete": "Confirm?",
     "importCsv": "Import CSV"
   },
+  "gradebook": {
+    "addColumn": "Add column",
+    "columnLabel": "Label",
+    "columnType": "Type",
+    "weight": "Weight",
+    "max": "Out of",
+    "coef": "×{{weight}}",
+    "noColumns": "No columns in this period",
+    "notFound": "Gradebook not found",
+    "untitledColumn": "Untitled",
+    "type": {
+      "numeric": "Numeric grade",
+      "letter": "Letter",
+      "icon": "Icon",
+      "checkbox": "Checkbox",
+      "text": "Text",
+      "attendance": "Attendance"
+    }
+  },
   "csv": {
     "title": "Import a student list",
     "pastePlaceholder": "Paste your list here (Last name;First name)",

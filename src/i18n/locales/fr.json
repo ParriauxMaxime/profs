@@ -35,6 +35,25 @@
     "confirmDelete": "Confirmer ?",
     "importCsv": "Importer un CSV"
   },
+  "gradebook": {
+    "addColumn": "Ajouter une colonne",
+    "columnLabel": "Intitulé",
+    "columnType": "Type",
+    "weight": "Coefficient",
+    "max": "Barème",
+    "coef": "coef {{weight}}",
+    "noColumns": "Aucune colonne pour cette période",
+    "notFound": "Carnet introuvable",
+    "untitledColumn": "Sans titre",
+    "type": {
+      "numeric": "Note chiffrée",
+      "letter": "Lettre",
+      "icon": "Icône",
+      "checkbox": "Case à cocher",
+      "text": "Texte",
+      "attendance": "Présence"
+    }
+  },
   "csv": {
     "title": "Importer une liste d'élèves",
     "pastePlaceholder": "Collez ici votre liste (Nom;Prénom)",
