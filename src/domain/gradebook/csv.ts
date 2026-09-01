@@ -41,6 +41,7 @@ function parseLine(line: string, delimiter: Delimiter): string[] {
   const fields: string[] = [];
   let current = "";
   let quoted = false;
+  let wasQuoted = false;
 
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
@@ -61,15 +62,17 @@ function parseLine(line: string, delimiter: Delimiter): string[] {
 
     if (char === '"') {
       quoted = true;
+      wasQuoted = true;
     } else if (char === delimiter) {
-      fields.push(current.trim());
+      fields.push(wasQuoted ? current : current.trim());
       current = "";
+      wasQuoted = false;
     } else {
       current += char;
     }
   }
 
-  fields.push(current.trim());
+  fields.push(wasQuoted ? current : current.trim());
   return fields;
 }
 

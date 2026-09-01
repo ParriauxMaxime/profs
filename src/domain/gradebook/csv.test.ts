@@ -56,6 +56,14 @@ describe("parseCsv", () => {
   it("trims surrounding whitespace on unquoted fields", () => {
     expect(parseCsv(" a ; b ", ";")).toEqual([["a", "b"]]);
   });
+
+  it("preserves surrounding whitespace inside quoted fields", () => {
+    expect(parseCsv('a;" b "', ";")).toEqual([["a", " b "]]);
+  });
+
+  it("trims unquoted fields while preserving whitespace in quoted fields on the same row", () => {
+    expect(parseCsv(' a ;" b "; c ', ";")).toEqual([["a", " b ", "c"]]);
+  });
 });
 
 describe("extractRoster", () => {
