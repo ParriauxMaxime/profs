@@ -136,9 +136,13 @@ export function PeriodBar({
               {t("gradebook.renamePeriod")}
             </button>
             <ConfirmButton
+              // Keyed by period id: the switcher stays live while the button
+              // is armed, and without a key React would keep the armed state
+              // across a change of period and fire it at the new one.
+              key={activePeriod.id}
               danger
               label={t("gradebook.deletePeriod")}
-              confirmLabel={t("gradebook.confirmDeletePeriod")}
+              confirmLabel={t("gradebook.confirmDeletePeriod", { name: activePeriod.name })}
               onConfirm={async () => {
                 const next = periodAfterDeleting(activePeriod.id);
                 await deletePeriod(db, activePeriod.id);

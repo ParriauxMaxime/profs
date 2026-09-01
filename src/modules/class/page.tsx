@@ -132,6 +132,10 @@ export function ClassPage({ classId }: { classId: string }) {
       <DataTable
         columns={columns as ColumnDef<Student, unknown>[]}
         data={students}
+        // The row keys must be student ids: the actions cell holds an armed
+        // delete, and an index key would let a sort or a search hand that
+        // armed button to a different student.
+        getRowId={(student) => student.id}
         globalSearchFields={["lastName", "firstName"]}
         emptyMessage={t("class.noStudents")}
       />

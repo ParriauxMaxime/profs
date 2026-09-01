@@ -23,6 +23,16 @@ interface DataTableProps<T> {
   emptyMessage?: string;
   globalSearchFields?: (keyof T & string)[];
   searchPlaceholder?: string;
+  /**
+   * The stable identity of a row, used as its React key.
+   *
+   * Without it TanStack falls back to the row INDEX, and the index is not the
+   * record: sorting or filtering reorders the rows, React reuses the subtree
+   * sitting at that index, and any state a cell holds — an armed delete, above
+   * all — stays put while the record under it changes. Give it whenever a row
+   * renders something stateful.
+   */
+  getRowId?: (row: T) => string;
 }
 
 export function DataTable<T>({
@@ -31,6 +41,7 @@ export function DataTable<T>({
   emptyMessage,
   globalSearchFields,
   searchPlaceholder,
+  getRowId,
 }: DataTableProps<T>) {
   const { t } = useTranslation();
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -39,6 +50,7 @@ export function DataTable<T>({
   const table = useReactTable({
     data,
     columns,
+    getRowId: getRowId && ((row) => getRowId(row)),
     state: { sorting, globalFilter },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,

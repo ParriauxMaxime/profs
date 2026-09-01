@@ -98,7 +98,7 @@
     "addPeriod": "Ajouter une période",
     "renamePeriod": "Renommer la période",
     "deletePeriod": "Supprimer la période",
-    "confirmDeletePeriod": "Supprimer la période, ses colonnes et toutes leurs notes ?",
+    "confirmDeletePeriod": "Supprimer « {{name}} », ses colonnes et toutes leurs notes ?",
     "periodName": "Nom de la période",
     "periodNamePlaceholder": "Trimestre 1",
     "periodNameRequired": "Le nom de la période est obligatoire",
@@ -133,8 +133,8 @@
     "subjectColor": "Couleur",
     "confirmDeleteSubject": "Supprimer la matière ?",
     "noSubjects": "Aucune matière pour l'instant. Ajoutez-en une : un carnet de notes associe une classe à une matière.",
-    "subjectInUse_one": "« {{name}} » ne peut pas être supprimée : {{count}} carnet de notes l'utilise encore.",
-    "subjectInUse_other": "« {{name}} » ne peut pas être supprimée : {{count}} carnets de notes l'utilisent encore."
+    "subjectInUse_one": "La matière « {{name}} » ne peut pas être supprimée : {{count}} carnet de notes l'utilise encore.",
+    "subjectInUse_other": "La matière « {{name}} » ne peut pas être supprimée : {{count}} carnets de notes l'utilisent encore."
   },
   "csv": {
     "title": "Importer une liste d'élèves",

@@ -98,7 +98,7 @@
     "addPeriod": "Add a period",
     "renamePeriod": "Rename period",
     "deletePeriod": "Delete period",
-    "confirmDeletePeriod": "Delete this period, its columns and all their grades?",
+    "confirmDeletePeriod": "Delete “{{name}}”, its columns and all their grades?",
     "periodName": "Period name",
     "periodNamePlaceholder": "Term 1",
     "periodNameRequired": "The period name is required",
@@ -133,8 +133,8 @@
     "subjectColor": "Colour",
     "confirmDeleteSubject": "Delete this subject?",
     "noSubjects": "No subjects yet. Add one — a gradebook pairs a class with a subject.",
-    "subjectInUse_one": "“{{name}}” cannot be deleted: {{count}} gradebook still uses it.",
-    "subjectInUse_other": "“{{name}}” cannot be deleted: {{count}} gradebooks still use it."
+    "subjectInUse_one": "The subject “{{name}}” cannot be deleted: {{count}} gradebook still uses it.",
+    "subjectInUse_other": "The subject “{{name}}” cannot be deleted: {{count}} gradebooks still use it."
   },
   "csv": {
     "title": "Import a student list",

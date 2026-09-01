@@ -146,11 +146,13 @@ export function SettingsPage() {
           />
         )}
 
-        {subjects !== undefined && subjects.length === 0 ? (
+        {subjects === undefined ? (
+          <p className="text-text-muted">{t("common.loading")}</p>
+        ) : subjects.length === 0 ? (
           <p className="text-text-muted">{t("settings.noSubjects")}</p>
         ) : (
           <ul className="flex flex-col gap-2">
-            {(subjects ?? []).map((subject) => (
+            {subjects.map((subject) => (
               <li
                 key={subject.id}
                 className="flex flex-wrap items-center gap-3 rounded border border-border px-3 py-2 text-sm"
@@ -172,6 +174,13 @@ export function SettingsPage() {
                   variant="link"
                   label={t("common.delete")}
                   confirmLabel={t("settings.confirmDeleteSubject")}
+                  onArmedChange={(armed) => {
+                    // Cancelling clears the refusal: leaving it up would have
+                    // the teacher reading a reason for a deletion they are no
+                    // longer attempting, and which a since-deleted gradebook
+                    // may already have made untrue.
+                    if (!armed) setSubjectRefusal(null);
+                  }}
                   onConfirm={async () => {
                     // A subject holds nothing of its own, so deleting one that
                     // is still taught would have to take whole gradebooks with

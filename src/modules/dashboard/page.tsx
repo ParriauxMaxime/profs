@@ -108,7 +108,9 @@ export function DashboardPage() {
                 <Link
                   to={Router.Gradebook({ gradebookId: gradebook.id })}
                   className="block rounded border border-border p-3 hover:bg-bg-hover"
-                  style={{ borderLeft: `4px solid ${subjectColor(gradebook.subjectId) ?? ""}` }}
+                  style={{
+                    borderLeft: `4px solid ${subjectColor(gradebook.subjectId) ?? "transparent"}`,
+                  }}
                 >
                   <span className="font-medium">{gradebook.name}</span>
                   <span className="ml-2 text-sm text-text-muted">
