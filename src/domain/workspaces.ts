@@ -13,6 +13,7 @@ export interface Workspace {
 
 const LIST_KEY = "profs-workspaces";
 const ACTIVE_KEY = "profs-active-workspace";
+const SEEDED_KEY = "profs-seeded-workspaces";
 
 const listeners = new Set<() => void>();
 
@@ -69,6 +70,33 @@ export function ensureDefaultWorkspace(): Workspace {
   const workspace = addWorkspace("Mon établissement", `${year}-${year + 1}`);
   setActiveWorkspaceId(workspace.id);
   return workspace;
+}
+
+/**
+ * Demo data is offered ONCE per workspace. The marker lives here, beside the
+ * rest of the workspace metadata, and NOT in the workspace database — wiping
+ * or importing an empty backup must leave an empty workspace empty, not
+ * resurrect the demo school on the next reload.
+ */
+function seededIds(): string[] {
+  const raw = localStorage.getItem(SEEDED_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function hasBeenSeeded(workspaceId: string): boolean {
+  return seededIds().includes(workspaceId);
+}
+
+export function markSeeded(workspaceId: string): void {
+  const ids = seededIds();
+  if (ids.includes(workspaceId)) return;
+  localStorage.setItem(SEEDED_KEY, JSON.stringify([...ids, workspaceId]));
 }
 
 function subscribe(listener: () => void): () => void {

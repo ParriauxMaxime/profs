@@ -34,7 +34,9 @@ import {
   activeWorkspaceId,
   addWorkspace,
   ensureDefaultWorkspace,
+  hasBeenSeeded,
   listWorkspaces,
+  markSeeded,
 } from "./workspaces";
 
 describe("workspaces registry", () => {
@@ -70,6 +72,24 @@ describe("workspaces registry", () => {
 
     expect(() => listWorkspaces()).not.toThrow();
     expect(listWorkspaces()).toEqual([]);
+  });
+
+  it("hasBeenSeeded is false until markSeeded, then true and per-workspace", () => {
+    expect(hasBeenSeeded("a")).toBe(false);
+
+    markSeeded("a");
+
+    expect(hasBeenSeeded("a")).toBe(true);
+    expect(hasBeenSeeded("b")).toBe(false);
+  });
+
+  it("markSeeded is idempotent and keeps earlier markers", () => {
+    markSeeded("a");
+    markSeeded("a");
+    markSeeded("b");
+
+    expect(hasBeenSeeded("a")).toBe(true);
+    expect(hasBeenSeeded("b")).toBe(true);
   });
 
   it("addWorkspace appends without disturbing existing entries", () => {

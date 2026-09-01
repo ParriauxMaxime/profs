@@ -3,9 +3,13 @@ import { openWorkspaceDb } from ".";
 import { seedIfEmpty } from "./seed";
 
 describe("seedIfEmpty", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it("creates the demo school on an empty database", async () => {
     const db = openWorkspaceDb("seed-empty");
-    const seeded = await seedIfEmpty(db);
+    const seeded = await seedIfEmpty(db, "seed-empty");
 
     expect(seeded).toBe(true);
     expect(await db.classes.count()).toBe(2);
@@ -17,7 +21,7 @@ describe("seedIfEmpty", () => {
 
   it("gives every gradebook three periods and at least five columns", async () => {
     const db = openWorkspaceDb("seed-shape");
-    await seedIfEmpty(db);
+    await seedIfEmpty(db, "seed-shape");
 
     for (const gradebook of await db.gradebooks.toArray()) {
       const periods = await db.periods.where("gradebookId").equals(gradebook.id).toArray();
@@ -33,7 +37,7 @@ describe("seedIfEmpty", () => {
 
   it("writes grades that reference real students and columns", async () => {
     const db = openWorkspaceDb("seed-grades");
-    await seedIfEmpty(db);
+    await seedIfEmpty(db, "seed-grades");
 
     const grades = await db.grades.toArray();
     expect(grades.length).toBeGreaterThan(0);
@@ -49,13 +53,49 @@ describe("seedIfEmpty", () => {
 
   it("does nothing on a database that already has classes", async () => {
     const db = openWorkspaceDb("seed-twice");
-    await seedIfEmpty(db);
+    await seedIfEmpty(db, "seed-twice");
     const before = await db.students.count();
 
-    const seededAgain = await seedIfEmpty(db);
+    const seededAgain = await seedIfEmpty(db, "seed-twice");
 
     expect(seededAgain).toBe(false);
     expect(await db.students.count()).toBe(before);
     db.close();
+  });
+
+  it("never re-seeds after a wipe: the marker survives an emptied database", async () => {
+    const db = openWorkspaceDb("seed-wiped");
+    expect(await seedIfEmpty(db, "seed-wiped")).toBe(true);
+
+    // Exactly what Réglages → "Supprimer toutes les données" does.
+    for (const table of [
+      db.classes,
+      db.students,
+      db.subjects,
+      db.gradebooks,
+      db.periods,
+      db.columns,
+      db.grades,
+    ]) {
+      await table.clear();
+    }
+
+    const seededAgain = await seedIfEmpty(db, "seed-wiped");
+
+    expect(seededAgain).toBe(false);
+    expect(await db.classes.count()).toBe(0);
+    expect(await db.students.count()).toBe(0);
+    db.close();
+  });
+
+  it("seeds a different workspace independently", async () => {
+    const first = openWorkspaceDb("seed-ws-a");
+    const second = openWorkspaceDb("seed-ws-b");
+
+    expect(await seedIfEmpty(first, "seed-ws-a")).toBe(true);
+    expect(await seedIfEmpty(second, "seed-ws-b")).toBe(true);
+
+    first.close();
+    second.close();
   });
 });

@@ -6,7 +6,7 @@ import { seedIfEmpty } from "./seed";
 describe("workspace backup", () => {
   it("round-trips a seeded workspace into an empty one, values intact", async () => {
     const source = openWorkspaceDb("backup-source");
-    await seedIfEmpty(source);
+    await seedIfEmpty(source, "backup-source");
     const backup = await exportWorkspace(source);
 
     const target = openWorkspaceDb("backup-target");
@@ -48,11 +48,11 @@ describe("workspace backup", () => {
 
   it("replaces existing content rather than merging into it", async () => {
     const source = openWorkspaceDb("backup-replace-source");
-    await seedIfEmpty(source);
+    await seedIfEmpty(source, "backup-replace-source");
     const backup = await exportWorkspace(source);
 
     const target = openWorkspaceDb("backup-replace-target");
-    await seedIfEmpty(target);
+    await seedIfEmpty(target, "backup-replace-target");
     await importWorkspace(target, JSON.parse(JSON.stringify(backup)));
 
     expect(await target.classes.count()).toBe(2);
@@ -62,7 +62,7 @@ describe("workspace backup", () => {
 
   it("rejects a payload that is not a backup, leaving existing data untouched", async () => {
     const db = openWorkspaceDb("backup-bad");
-    await seedIfEmpty(db);
+    await seedIfEmpty(db, "backup-bad");
     const classCountBefore = await db.classes.count();
     const studentCountBefore = await db.students.count();
     const sampleBefore = (await db.classes.toArray())[0];
@@ -77,7 +77,7 @@ describe("workspace backup", () => {
 
   it("rejects a backup from a future version, leaving existing data untouched", async () => {
     const db = openWorkspaceDb("backup-future");
-    await seedIfEmpty(db);
+    await seedIfEmpty(db, "backup-future");
     const classCountBefore = await db.classes.count();
     const studentCountBefore = await db.students.count();
     const sampleBefore = (await db.classes.toArray())[0];
@@ -104,7 +104,7 @@ describe("workspace backup", () => {
 
   it("rejects a backup whose grade value is malformed, leaving existing data untouched", async () => {
     const db = openWorkspaceDb("backup-bad-grade");
-    await seedIfEmpty(db);
+    await seedIfEmpty(db, "backup-bad-grade");
     const classCountBefore = await db.classes.count();
     const gradeCountBefore = await db.grades.count();
     const sampleBefore = (await db.classes.toArray())[0];

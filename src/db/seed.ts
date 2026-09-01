@@ -1,9 +1,13 @@
+import { hasBeenSeeded, markSeeded } from "@domain/workspaces";
 import type { AppDatabase } from ".";
 import type { Grade, Gradebook, GradeColumn, Period, Student } from "./types";
 
 /**
  * Demo data so a first-time visitor sees a working gradebook instead of an
- * empty shell. Runs only when the database has no classes.
+ * empty shell. Offered exactly once per workspace: the marker is kept in the
+ * workspace registry, so a wipe (or an import of a legitimately empty backup)
+ * leaves the workspace empty instead of bringing the demo school back on the
+ * next reload.
  */
 
 const LAST_NAMES = [
@@ -71,7 +75,11 @@ function makeRandom(seed: number): () => number {
   };
 }
 
-export async function seedIfEmpty(db: AppDatabase): Promise<boolean> {
+export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise<boolean> {
+  if (hasBeenSeeded(workspaceId)) return false;
+  // Marked before the emptiness check too, so a workspace that already held
+  // data when this marker was introduced is never seeded on top of it.
+  markSeeded(workspaceId);
   if ((await db.classes.count()) > 0) return false;
 
   const now = Date.now();

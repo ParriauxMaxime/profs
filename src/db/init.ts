@@ -6,7 +6,7 @@ import { seedIfEmpty } from "./seed";
 export async function initWorkspace(): Promise<string> {
   const workspace = ensureDefaultWorkspace();
   const db = openWorkspaceDb(workspace.id);
-  await seedIfEmpty(db);
+  await seedIfEmpty(db, workspace.id);
   db.close();
   return workspace.id;
 }
