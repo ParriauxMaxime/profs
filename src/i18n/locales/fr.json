@@ -22,10 +22,18 @@
     "classes": "Mes classes",
     "gradebooks": "Mes carnets de notes",
     "noClasses": "Aucune classe pour l'instant. Créez-en une avec « Ajouter une classe » : c'est le point de départ de tout le reste.",
-    "noGradebooks": "Aucun carnet de notes pour l'instant",
+    "noGradebooks": "Aucun carnet de notes pour l'instant. Créez-en un avec « Créer un carnet » pour commencer à noter.",
     "studentCount_one": "{{count}} élève",
     "studentCount_other": "{{count}} élèves",
-    "addClass": "Ajouter une classe"
+    "addClass": "Ajouter une classe",
+    "addGradebook": "Créer un carnet",
+    "gradebookClass": "Classe",
+    "gradebookSubject": "Matière",
+    "gradebookName": "Nom du carnet",
+    "gradebookPeriodsHint": "Le carnet est créé avec trois trimestres ; vous pourrez les renommer ou en ajouter d'autres depuis le carnet.",
+    "gradebooksNeedClass": "Un carnet de notes associe une classe à une matière. Ajoutez d'abord une classe ci-dessus.",
+    "gradebooksNeedSubject": "Un carnet de notes associe une classe à une matière. Il ne vous manque plus qu'une matière, à créer dans les Réglages.",
+    "goToSubjects": "Ouvrir les Réglages"
   },
   "student": {
     "lastName": "Nom",
@@ -84,7 +92,9 @@
       "min": "Minimum",
       "max": "Maximum",
       "count": "Élèves notés"
-    }
+    },
+    "deleteGradebook": "Supprimer le carnet",
+    "confirmDeleteGradebook": "Supprimer le carnet, ses colonnes et toutes leurs notes ?"
   },
   "entry": {
     "next": "Suivant",

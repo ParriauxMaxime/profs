@@ -22,10 +22,18 @@
     "classes": "My classes",
     "gradebooks": "My gradebooks",
     "noClasses": "No classes yet. Create one with “Add a class” — everything else starts there.",
-    "noGradebooks": "No gradebooks yet",
+    "noGradebooks": "No gradebooks yet. Create one with “New gradebook” to start grading.",
     "studentCount_one": "{{count}} student",
     "studentCount_other": "{{count}} students",
-    "addClass": "Add a class"
+    "addClass": "Add a class",
+    "addGradebook": "New gradebook",
+    "gradebookClass": "Class",
+    "gradebookSubject": "Subject",
+    "gradebookName": "Gradebook name",
+    "gradebookPeriodsHint": "The gradebook is created with three terms; you can rename them or add more from the gradebook itself.",
+    "gradebooksNeedClass": "A gradebook pairs a class with a subject. Add a class above first.",
+    "gradebooksNeedSubject": "A gradebook pairs a class with a subject. All you are missing is a subject, created in Settings.",
+    "goToSubjects": "Open Settings"
   },
   "student": {
     "lastName": "Last name",
@@ -84,7 +92,9 @@
       "min": "Lowest",
       "max": "Highest",
       "count": "Students graded"
-    }
+    },
+    "deleteGradebook": "Delete gradebook",
+    "confirmDeleteGradebook": "Delete this gradebook, its columns and all their grades?"
   },
   "entry": {
     "next": "Next",

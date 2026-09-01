@@ -1,6 +1,6 @@
 import type { Grade, GradeColumn, Student } from "@db";
 import { gradeKey } from "@db";
-import { deleteColumn } from "@db/cascade";
+import { deleteColumn, deleteGradebook } from "@db/cascade";
 import { useDb } from "@db/provider";
 import type { AverageColumn, AverageGrade } from "@domain/gradebook/average";
 import { classStats, studentAverage } from "@domain/gradebook/average";
@@ -117,6 +117,17 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
           >
             {t("gradebook.addColumn")}
           </button>
+          <ConfirmButton
+            danger
+            label={t("gradebook.deleteGradebook")}
+            confirmLabel={t("gradebook.confirmDeleteGradebook")}
+            onConfirm={async () => {
+              await deleteGradebook(db, gradebookId);
+              // Nothing is left to render on this route once the gradebook is
+              // gone, so leave it rather than show "Carnet introuvable".
+              Router.push("Home");
+            }}
+          />
         </div>
       </div>
 
