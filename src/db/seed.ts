@@ -175,7 +175,8 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     }));
     periods.push(...gradebookPeriods);
 
-    // Six columns, all in Trimestre 1, exercising five of the six column types.
+    // Five columns, all in Trimestre 1, exercising three of the five column
+    // types (numeric, checkbox, text); letter and icon are not exercised.
     const firstPeriod = gradebookPeriods[0];
     const specs: Array<Pick<GradeColumn, "type" | "label" | "weight" | "max">> = [
       { type: "numeric", label: "DS 1", weight: 2, max: 20 },
