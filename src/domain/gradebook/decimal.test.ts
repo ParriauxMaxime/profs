@@ -1,4 +1,4 @@
-import { formatDecimal, parseDecimal } from "./decimal";
+import { formatDecimal, formatDecimalExact, parseDecimal } from "./decimal";
 
 describe("formatDecimal", () => {
   it("uses a comma in French", () => {
@@ -66,5 +66,46 @@ describe("parseDecimal", () => {
   it("round-trips what formatDecimal produced, in either locale", () => {
     expect(parseDecimal(formatDecimal(13.45, "fr"))).toBe(13.45);
     expect(parseDecimal(formatDecimal(13.45, "en"))).toBe(13.45);
+  });
+});
+
+describe("formatDecimalExact", () => {
+  it("keeps every stored decimal instead of rounding to two", () => {
+    expect(formatDecimalExact(13.456, "fr")).toBe("13,456");
+    expect(formatDecimalExact(13.456, "en")).toBe("13.456");
+    expect(formatDecimalExact(9.123456, "fr")).toBe("9,123456");
+  });
+
+  it("uses the separator of the active language, not the value's own", () => {
+    expect(formatDecimalExact(13.4, "fr")).toBe("13,4");
+    expect(formatDecimalExact(13.4, "en")).toBe("13.4");
+    expect(formatDecimalExact(13.4, "fr-CH")).toBe("13,4");
+    expect(formatDecimalExact(13.4, "en-GB")).toBe("13.4");
+  });
+
+  it("adds no trailing-zero noise", () => {
+    expect(formatDecimalExact(13, "fr")).toBe("13");
+    expect(formatDecimalExact(13, "en")).toBe("13");
+    expect(formatDecimalExact(13.5, "fr")).toBe("13,5");
+    expect(formatDecimalExact(0, "fr")).toBe("0");
+  });
+
+  it("never groups thousands", () => {
+    expect(formatDecimalExact(1234.567, "fr")).toBe("1234,567");
+    expect(formatDecimalExact(1234.567, "en")).toBe("1234.567");
+  });
+
+  it("keeps a negative sign", () => {
+    expect(formatDecimalExact(-2.75, "fr")).toBe("-2,75");
+  });
+
+  it("falls back to French for an unknown locale", () => {
+    expect(formatDecimalExact(13.456, "zz")).toBe("13,456");
+    expect(formatDecimalExact(13.456, "")).toBe("13,456");
+  });
+
+  it("round-trips through parseDecimal", () => {
+    expect(parseDecimal(formatDecimalExact(13.456, "fr"))).toBe(13.456);
+    expect(parseDecimal(formatDecimalExact(13.456, "en"))).toBe(13.456);
   });
 });

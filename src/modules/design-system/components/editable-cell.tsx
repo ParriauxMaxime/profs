@@ -1,5 +1,5 @@
 import { ATTENDANCE_VALUES, type ColumnType } from "@domain/gradebook/column";
-import { formatDecimal } from "@domain/gradebook/decimal";
+import { formatDecimalExact } from "@domain/gradebook/decimal";
 import {
   formatGradeValue,
   type GradeValue,
@@ -135,11 +135,15 @@ export function EditableCell({
   );
 }
 
-/** The editable text behind a stored value — no "/20" suffix, no ✓/✗. */
+/**
+ * The editable text behind a stored value — no "/20" suffix, no ✓/✗, and the
+ * full stored precision: seeding the editor with the rounded display would
+ * make an untouched commit rewrite 13.456 as 13.46.
+ */
 function rawText(value: GradeValue, locale: string): string {
   switch (value.type) {
     case "numeric":
-      return formatDecimal(value.value, locale);
+      return formatDecimalExact(value.value, locale);
     case "checkbox":
       return value.value ? "true" : "false";
     default:

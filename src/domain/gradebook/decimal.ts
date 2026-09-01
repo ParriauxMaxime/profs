@@ -19,6 +19,29 @@ export function formatDecimal(value: number, locale: string): string {
 }
 
 /**
+ * The same number written with the active language's separator but with every
+ * decimal it actually holds — 13.456 stays 13,456 in French.
+ *
+ * This is what seeds an inline editor: `formatDecimal` rounds to two decimals,
+ * so opening a cell holding an imported 13.456 and committing it unchanged
+ * would silently rewrite the stored value as 13.46. Display keeps the rounding;
+ * editing must not. Built from `String(value)` — JavaScript's shortest
+ * round-trip form, so no trailing zeros and no rounding — with only the
+ * separator swapped. Intended for grade-scale numbers; a magnitude that
+ * `String` renders in exponent form is passed through as-is.
+ */
+export function formatDecimalExact(value: number, locale: string): string {
+  return String(value).replace(".", decimalSeparator(locale));
+}
+
+/** The character this locale puts between the integer and fraction parts. */
+function decimalSeparator(locale: string): string {
+  const locales = locale ? [locale, FALLBACK_LOCALE] : [FALLBACK_LOCALE];
+  const parts = new Intl.NumberFormat(locales, { useGrouping: false }).formatToParts(1.1);
+  return parts.find((part) => part.type === "decimal")?.value ?? ".";
+}
+
+/**
  * Read a number written with either separator. Returns null for blank input
  * and for anything that is not a single well-formed number — the caller
  * decides what to do with a refusal.
