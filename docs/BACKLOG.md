@@ -55,3 +55,83 @@ other event types.
 
 Feature requests from a practising teacher (relayed by Maxime, 2026-09-01),
 describing what they actually use iDoceo for.
+
+---
+
+# iDoceo feature gap analysis
+
+Source: `https://idoceo.net/index.php/en/instructions/quick-start` (read 2026-09-01),
+cross-referenced against what `profs` ships after v1 and phase 2.
+
+## Already covered
+
+| iDoceo feature | Where it lives here |
+|---|---|
+| Classes with their own student list | `SchoolClass` + `/classes/:classId` |
+| Gradebook columns, per-type cell editors | `COLUMN_TYPES`, `EditableCell` |
+| Tabs/pages for terms | `Period`, per gradebook |
+| Attendance | Session-based, phase 2A — deliberately NOT a column type |
+| Seating plan | Phase 2A |
+| Student photos | Phase 2A |
+| Rubrics (1–4 grids) | Phase 2B |
+| CSV import, paste from clipboard | v1 `csv.ts` + paste textarea |
+| Backup & restore | v1 JSON export/import |
+| Averages and weighting | v1 `average.ts` |
+
+## Incompatible with this project — will not be built
+
+- **Google Classroom integration.** Requires network calls to a third party and
+  would send minors' names and grades off-device. `README.md` and `PRIVACY.md`
+  promise in writing that nothing leaves the device. This is not a scheduling
+  question; it contradicts the product.
+- **Class sharing between users.** Same reason. The nearest thing that stays
+  honest is the existing JSON export, which the teacher moves themselves.
+
+Any future demand here needs a product decision first, not an implementation.
+
+## Missing, ranked by value against cost
+
+### 1. Cell annotations — nearly free, ships next
+`Grade.note?: string` already exists in the v1 schema and **nothing writes or
+reads it**. iDoceo treats "add extensive annotations to any cell" as core: it is
+where a teacher records why a mark is what it is. Needs a note affordance on the
+grid cell and on fast entry, plus an indicator on an annotated cell. No schema
+change.
+
+### 2. Calculation columns
+A column whose value is derived from other columns — the average of a set, a
+best-of-N, a sum. Today `average.ts` computes one gradebook-wide weighted
+average and nothing else. Open questions: how is a formula expressed without
+becoming a spreadsheet language, and does a calculation column feed other
+calculations (cycles)? Suggest a small fixed set of aggregate kinds over a
+chosen column set, not a formula parser.
+
+### 3. Student groups
+Named subsets of a class, reusable across the seating plan (group-work layout),
+rubrics, and filtering. Cheap schema (`groups`, `groupMembers`), broad payoff.
+
+### 4. Class duplication and templates
+"Same structure, new year" is a teacher's September. Duplicating a class with
+its columns and periods but no grades, and saving a class as a template, are
+both mechanical given the cascade work already done.
+
+### 5. Student reports
+Per-pupil printable summary: grades, average, attendance, behaviour, rubrics.
+High value and the natural consumer of everything phase 2 adds. Must be
+print/HTML — no external service, no upload.
+
+### 6. Resources manager
+Files, audio, images attached to a class, a pupil, or a cell. Stored as Blobs in
+IndexedDB. Needs a storage-budget answer first: photos already push at quota,
+and video would blow it. Ship only with a size cap and a visible usage figure.
+
+### 7. Timetable, diary, planner
+iDoceo's schedule drives its diary and planner. This was an explicit v1
+non-goal. Phase 2's `Session` is the seed of it — a session is already a lesson
+on a date — so a timetable becomes "generate the sessions for the term".
+Largest item here; deserves its own spec.
+
+### 8. Small wins
+Class icon/colour on the dashboard; copy/move a cell, column, or pupil between
+classes; full-screen grid; XLS import beside CSV (a parser dependency — weigh
+it against the no-network, small-bundle posture).
