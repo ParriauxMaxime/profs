@@ -76,6 +76,16 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
+function getSnapshot(): string {
+  const id = activeWorkspaceId();
+  if (id === null) {
+    throw new Error(
+      "No active workspace: initWorkspace() must run and create/select a workspace before DbProvider renders.",
+    );
+  }
+  return id;
+}
+
 export function useActiveWorkspaceId(): string {
-  return useSyncExternalStore(subscribe, () => activeWorkspaceId() ?? ensureDefaultWorkspace().id);
+  return useSyncExternalStore(subscribe, getSnapshot);
 }
