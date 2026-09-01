@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { attendanceKey, openWorkspaceDb, seatKey } from ".";
+import { attendanceKey, openWorkspaceDb, rubricScoreKey, seatKey } from ".";
 
 describe("schema v2", () => {
   it("builds an attendance key", () => {
@@ -23,6 +23,9 @@ describe("schema v2", () => {
         "gradebooks",
         "grades",
         "periods",
+        "rubricAssessments",
+        "rubricScores",
+        "rubricTemplates",
         "seatingLayouts",
         "seats",
         "sessions",
@@ -44,6 +47,31 @@ describe("schema v2", () => {
       col: 0,
       studentId: "p1",
     });
+    db.close();
+  });
+
+  it("builds a rubric score key", () => {
+    expect(rubricScoreKey("a1", "c1", "p1")).toEqual(["a1", "c1", "p1"]);
+  });
+
+  it("round-trips a score on its compound key", async () => {
+    const db = openWorkspaceDb(`rubric-${crypto.randomUUID()}`);
+    await db.rubricScores.put({
+      assessmentId: "a1",
+      criterionId: "c1",
+      studentId: "p1",
+      level: 2,
+      updatedAt: 1,
+    });
+    await db.rubricScores.put({
+      assessmentId: "a1",
+      criterionId: "c1",
+      studentId: "p1",
+      level: 4,
+      updatedAt: 2,
+    });
+    expect(await db.rubricScores.count()).toBe(1);
+    expect((await db.rubricScores.get(rubricScoreKey("a1", "c1", "p1")))?.level).toBe(4);
     db.close();
   });
 });

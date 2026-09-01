@@ -2,6 +2,7 @@ import type { AttendanceValue } from "@domain/attendance";
 import type { BehaviourType } from "@domain/behaviour";
 import type { ColumnType } from "@domain/gradebook/column";
 import type { GradeValue } from "@domain/gradebook/grade";
+import type { RubricCriterion, RubricLevel } from "@domain/rubric";
 
 /** A teaching group: "3°B". `class` is reserved, hence SchoolClass. */
 export interface SchoolClass {
@@ -129,4 +130,40 @@ export interface Seat {
   row: number;
   col: number;
   studentId: string | null;
+}
+
+/** A reusable criteria set, managed in Réglages. */
+export interface RubricTemplate {
+  id: string;
+  name: string;
+  criteria: RubricCriterion[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * One assessment of one gradebook's class against a set of criteria.
+ *
+ * `criteria` is a COPY taken when a template was attached, never a reference:
+ * editing the template afterwards must not rewrite a grid already graded.
+ */
+export interface RubricAssessment {
+  id: string;
+  gradebookId: string;
+  periodId: string;
+  sessionId?: string;
+  name: string;
+  date: number;
+  criteria: RubricCriterion[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** One cell. Keyed [assessmentId+criterionId+studentId]. */
+export interface RubricScore {
+  assessmentId: string;
+  criterionId: string;
+  studentId: string;
+  level: RubricLevel;
+  updatedAt: number;
 }

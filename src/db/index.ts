@@ -6,6 +6,9 @@ import type {
   Gradebook,
   GradeColumn,
   Period,
+  RubricAssessment,
+  RubricScore,
+  RubricTemplate,
   SchoolClass,
   Seat,
   SeatingLayout,
@@ -21,6 +24,9 @@ export type {
   Gradebook,
   GradeColumn,
   Period,
+  RubricAssessment,
+  RubricScore,
+  RubricTemplate,
   SchoolClass,
   Seat,
   SeatingLayout,
@@ -42,6 +48,9 @@ export type AppDatabase = Dexie & {
   behaviourEvents: EntityTable<BehaviourEvent, "id">;
   seatingLayouts: EntityTable<SeatingLayout, "id">;
   seats: Table<Seat, [string, number, number]>;
+  rubricTemplates: EntityTable<RubricTemplate, "id">;
+  rubricAssessments: EntityTable<RubricAssessment, "id">;
+  rubricScores: Table<RubricScore, [string, string, string]>;
 };
 
 /** The compound primary key of a cell. */
@@ -63,6 +72,15 @@ export function seatKey(layoutId: string, row: number, col: number): [string, nu
   return [layoutId, row, col];
 }
 
+/** The compound primary key of one rubric cell. */
+export function rubricScoreKey(
+  assessmentId: string,
+  criterionId: string,
+  studentId: string,
+): [string, string, string] {
+  return [assessmentId, criterionId, studentId];
+}
+
 export function openWorkspaceDb(workspaceId: string): AppDatabase {
   const db = new Dexie(`profs-${workspaceId}`) as AppDatabase;
   // v2 adds the classroom tables. Existing data is disposable — there is no
@@ -81,6 +99,13 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
     behaviourEvents: "id, sessionId, studentId, classId, createdAt",
     seatingLayouts: "id, classId",
     seats: "[layoutId+row+col], layoutId, studentId",
+  });
+  // v3 adds the rubric tables. Dexie carries forward every unchanged store,
+  // so only the three new ones are listed here.
+  db.version(3).stores({
+    rubricTemplates: "id, name",
+    rubricAssessments: "id, gradebookId, periodId, date",
+    rubricScores: "[assessmentId+criterionId+studentId], assessmentId, criterionId, studentId",
   });
   return db;
 }
