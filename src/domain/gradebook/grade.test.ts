@@ -1,4 +1,4 @@
-import { formatGradeValue, gradeValueSchema, parseGradeValue } from "./grade";
+import { formatGradeValue, gradeValueSchema, isBlankInput, parseGradeValue } from "./grade";
 
 describe("parseGradeValue", () => {
   it("parses a numeric grade from a string", () => {
@@ -69,6 +69,28 @@ describe("parseGradeValue", () => {
       type: "numeric",
       value: 25,
     });
+  });
+});
+
+describe("isBlankInput", () => {
+  it("treats an empty string as blank", () => {
+    expect(isBlankInput("")).toBe(true);
+  });
+
+  it("treats whitespace-only input as blank", () => {
+    expect(isBlankInput("   ")).toBe(true);
+  });
+
+  it("treats undefined as blank", () => {
+    expect(isBlankInput(undefined)).toBe(true);
+  });
+
+  it("treats null as blank", () => {
+    expect(isBlankInput(null)).toBe(true);
+  });
+
+  it('does not treat "0" as blank', () => {
+    expect(isBlankInput("0")).toBe(false);
   });
 });
 

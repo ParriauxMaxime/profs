@@ -1,5 +1,10 @@
 import { ATTENDANCE_VALUES, type ColumnType } from "@domain/gradebook/column";
-import { formatGradeValue, type GradeValue, parseGradeValue } from "@domain/gradebook/grade";
+import {
+  formatGradeValue,
+  type GradeValue,
+  isBlankInput,
+  parseGradeValue,
+} from "@domain/gradebook/grade";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -81,9 +86,23 @@ export function EditableCell({
     );
   }
 
-  const commit = () => {
-    onChange(parseGradeValue(type, draft, type === "numeric" ? max : undefined));
+  // `parseGradeValue` returns null both for blank input (clear the cell) and
+  // for invalid non-blank input (refuse it) — those must not be treated the
+  // same way. Blank always deletes. Invalid input is refused: nothing is
+  // written, the stored value is untouched, and the editor stays open with
+  // the offending text still in it (returns false) instead of closing and
+  // appearing to accept it.
+  const commit = (): boolean => {
+    if (isBlankInput(draft)) {
+      onChange(null);
+      setEditing(false);
+      return true;
+    }
+    const parsed = parseGradeValue(type, draft, type === "numeric" ? max : undefined);
+    if (parsed === null) return false;
+    onChange(parsed);
     setEditing(false);
+    return true;
   };
 
   return (
@@ -102,8 +121,8 @@ export function EditableCell({
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
-          skipBlurRef.current = true;
-          commit();
+          const applied = commit();
+          if (applied) skipBlurRef.current = true;
         }
         if (e.key === "Escape") {
           skipBlurRef.current = true;

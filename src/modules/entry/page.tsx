@@ -1,7 +1,7 @@
 import type { Grade } from "@db";
 import { gradeKey } from "@db";
 import { useDb } from "@db/provider";
-import { formatGradeValue, parseGradeValue } from "@domain/gradebook/grade";
+import { formatGradeValue, isBlankInput, parseGradeValue } from "@domain/gradebook/grade";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
@@ -46,11 +46,21 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
   // student A can never be applied against student B — see the awaited
   // call sites below. `isCommitting` is set for the duration so re-entrant
   // taps (Suivant, roster rows, keypad) are inert until this settles.
-  async function commit(): Promise<void> {
-    if (!current || draft === null) return;
+  //
+  // Returns false when the draft was refused: non-blank input that failed
+  // validation (invalid text, or a numeric value above the column's max).
+  // A refusal writes nothing, deletes nothing — the stored value is left
+  // untouched — and the draft stays on screen for the teacher to fix.
+  // Blank input always means "clear this cell" and always succeeds.
+  async function commit(): Promise<boolean> {
+    if (!current || draft === null) return true;
+    const blank = isBlankInput(draft);
+    const parsed = blank
+      ? null
+      : parseGradeValue(column.type, draft, isNumeric ? column.max : undefined);
+    if (!blank && parsed === null) return false;
     setIsCommitting(true);
     try {
-      const parsed = parseGradeValue(column.type, draft, isNumeric ? column.max : undefined);
       if (parsed === null) {
         await db.grades.delete(gradeKey(gradebookId, columnId, current.id));
       } else {
@@ -63,6 +73,7 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
         });
       }
       setDraft(null);
+      return true;
     } finally {
       setIsCommitting(false);
     }
@@ -70,13 +81,15 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
 
   async function next(): Promise<void> {
     if (isCommitting) return;
-    await commit();
+    const applied = await commit();
+    if (!applied) return;
     setIndex((i) => Math.min(i + 1, students.length - 1));
   }
 
   async function jumpTo(i: number): Promise<void> {
     if (isCommitting) return;
-    await commit();
+    const applied = await commit();
+    if (!applied) return;
     setIndex(i);
   }
 

@@ -19,8 +19,23 @@ export const gradeValueSchema = z.discriminatedUnion("type", [
 ]) satisfies z.ZodType<GradeValue>;
 
 /**
+ * True when raw editor input trims to nothing — the signal to clear a cell.
+ * Callers must check this BEFORE calling `parseGradeValue`: that function
+ * returns null both for blank input (clear) and for invalid input (refuse),
+ * and those two cases must not be treated the same way by a caller — a
+ * refused edit must never delete an existing mark. "0" is not blank; it is a
+ * legitimate grade.
+ */
+export function isBlankInput(raw: unknown): boolean {
+  const text = typeof raw === "string" ? raw.trim() : String(raw ?? "").trim();
+  return text === "";
+}
+
+/**
  * Turn raw editor input into a validated GradeValue.
- * Returns null when the input is empty or invalid — the caller deletes the cell.
+ * Returns null when the input is empty or invalid — use `isBlankInput` first
+ * to tell those two cases apart: blank means "clear the cell", non-blank-but-
+ * null means "refused, leave the stored value alone".
  * `max` only matters for numeric columns: a value above it is rejected (not
  * clamped) — silently rewriting a teacher's mistyped mark would be worse than
  * refusing it.
