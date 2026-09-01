@@ -226,6 +226,19 @@ describe("workspace backup", () => {
     expect(await db.classes.get(sampleBefore.id)).toEqual(sampleBefore);
     db.close();
   });
+
+  it("rejects a seat row missing studentId rather than letting it become a fourth state", async () => {
+    const db = openWorkspaceDb("backup-bad-seat");
+    await seedIfEmpty(db, "backup-bad-seat");
+
+    const backup = await exportWorkspace(db);
+    const corrupted = JSON.parse(JSON.stringify(backup));
+    corrupted.seatingLayouts = [{ id: "l1", classId: "c1", rows: 1, cols: 1, updatedAt: 1 }];
+    corrupted.seats = [{ layoutId: "l1", row: 0, col: 0 }];
+
+    expect(() => parseBackup(corrupted)).toThrow();
+    db.close();
+  });
 });
 
 describe("exportWorkspace — unreachable rows", () => {

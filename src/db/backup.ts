@@ -78,6 +78,7 @@ const backupSchema = z.object({
         layoutId: z.string(),
         row: z.number(),
         col: z.number(),
+        studentId: z.string().nullable(),
       })
       .loose(),
   ),
