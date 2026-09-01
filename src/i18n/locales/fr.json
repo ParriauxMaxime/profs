@@ -32,6 +32,24 @@
   "class": {
     "addStudent": "Ajouter un élève",
     "noStudents": "Aucun élève dans cette classe",
-    "confirmDelete": "Confirmer ?"
+    "confirmDelete": "Confirmer ?",
+    "importCsv": "Importer un CSV"
+  },
+  "csv": {
+    "title": "Importer une liste d'élèves",
+    "pastePlaceholder": "Collez ici votre liste (Nom;Prénom)",
+    "delimiter": "Séparateur",
+    "delimiterSemicolon": "Point-virgule ( ; )",
+    "delimiterComma": "Virgule ( , )",
+    "delimiterTab": "Tabulation",
+    "lastNameColumn": "Colonne du nom",
+    "firstNameColumn": "Colonne du prénom",
+    "columnN": "Colonne {{n}}",
+    "skipHeader": "La première ligne est un en-tête",
+    "status": "État",
+    "duplicate": "Doublon",
+    "new": "Nouveau",
+    "summary": "{{total}} élève(s) à importer, {{duplicates}} doublon(s) détecté(s)",
+    "import": "Importer"
   }
 }

@@ -32,6 +32,24 @@
   "class": {
     "addStudent": "Add student",
     "noStudents": "No students in this class",
-    "confirmDelete": "Confirm?"
+    "confirmDelete": "Confirm?",
+    "importCsv": "Import CSV"
+  },
+  "csv": {
+    "title": "Import a student list",
+    "pastePlaceholder": "Paste your list here (Last name;First name)",
+    "delimiter": "Delimiter",
+    "delimiterSemicolon": "Semicolon ( ; )",
+    "delimiterComma": "Comma ( , )",
+    "delimiterTab": "Tab",
+    "lastNameColumn": "Last name column",
+    "firstNameColumn": "First name column",
+    "columnN": "Column {{n}}",
+    "skipHeader": "First row is a header",
+    "status": "Status",
+    "duplicate": "Duplicate",
+    "new": "New",
+    "summary": "{{total}} student(s) to import, {{duplicates}} duplicate(s) found",
+    "import": "Import"
   }
 }

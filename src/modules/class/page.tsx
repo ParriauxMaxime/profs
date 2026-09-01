@@ -5,6 +5,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "../design-system/components/data-table";
+import { CsvImport } from "./components/csv-import";
 import { StudentForm } from "./components/student-form";
 
 const helper = createColumnHelper<Student>();
@@ -14,6 +15,7 @@ export function ClassPage({ classId }: { classId: string }) {
   const db = useDb();
   const [editing, setEditing] = useState<Student | "new" | null>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const schoolClass = useLiveQuery(() => db.classes.get(classId), [db, classId]);
   const students = useLiveQuery(
@@ -78,9 +80,14 @@ export function ClassPage({ classId }: { classId: string }) {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-lg">{schoolClass.name}</h2>
-        <button type="button" className="btn btn-primary" onClick={() => setEditing("new")}>
-          {t("class.addStudent")}
-        </button>
+        <div className="flex gap-2">
+          <button type="button" className="btn" onClick={() => setImporting(true)}>
+            {t("class.importCsv")}
+          </button>
+          <button type="button" className="btn btn-primary" onClick={() => setEditing("new")}>
+            {t("class.addStudent")}
+          </button>
+        </div>
       </div>
 
       {editing === "new" && (
@@ -92,6 +99,14 @@ export function ClassPage({ classId }: { classId: string }) {
           classId={classId}
           student={editing}
           onDone={() => setEditing(null)}
+        />
+      )}
+
+      {importing && (
+        <CsvImport
+          classId={classId}
+          existing={students.map((s) => ({ lastName: s.lastName, firstName: s.firstName }))}
+          onDone={() => setImporting(false)}
         />
       )}
 
