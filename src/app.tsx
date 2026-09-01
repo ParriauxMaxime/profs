@@ -1,3 +1,4 @@
+import { ClassPage } from "./modules/class/page";
 import { DashboardPage } from "./modules/dashboard/page";
 import { AdminLayout } from "./modules/shared/components/admin-layout";
 import { Router } from "./router";
@@ -26,6 +27,7 @@ function Routes({ route }: { route: AppRoute }) {
     case "Home":
       return <DashboardPage />;
     case "Class":
+      return <ClassPage classId={route.params.classId} />;
     case "Gradebook":
     case "Entry":
     case "Settings":

@@ -5,6 +5,7 @@
     "save": "Enregistrer",
     "cancel": "Annuler",
     "delete": "Supprimer",
+    "edit": "Modifier",
     "add": "Ajouter",
     "search": "Rechercher",
     "filter": "Filtrer",
@@ -21,5 +22,15 @@
     "noGradebooks": "Aucun carnet de notes pour l'instant",
     "studentCount_one": "{{count}} élève",
     "studentCount_other": "{{count}} élèves"
+  },
+  "student": {
+    "lastName": "Nom",
+    "firstName": "Prénom",
+    "notes": "Remarques",
+    "lastNameRequired": "Le nom est obligatoire"
+  },
+  "class": {
+    "addStudent": "Ajouter un élève",
+    "noStudents": "Aucun élève dans cette classe"
   }
 }
