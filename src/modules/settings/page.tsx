@@ -1,10 +1,20 @@
+import type { Subject } from "@db";
 import { exportWorkspace, importWorkspace, parseBackup, type WorkspaceBackup } from "@db/backup";
+import { deleteSubject } from "@db/cascade";
 import { useDb } from "@db/provider";
 import { LOCALES, type Locale, loadLocale, saveLocale } from "@i18n";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ConfirmButton } from "../design-system/components/confirm-button";
+import { SubjectForm } from "./components/subject-form";
+
+/** A subject a gradebook still points at: deleting it was refused. */
+interface SubjectRefusal {
+  subjectId: string;
+  name: string;
+  gradebookCount: number;
+}
 
 interface PendingImport {
   fileName: string;
@@ -17,6 +27,8 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
+  const [editingSubject, setEditingSubject] = useState<Subject | "new" | null>(null);
+  const [subjectRefusal, setSubjectRefusal] = useState<SubjectRefusal | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const subjects = useLiveQuery(() => db.subjects.toArray(), [db]);
@@ -107,18 +119,92 @@ export function SettingsPage() {
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold text-lg">{t("settings.subjects")}</h2>
-        <ul className="flex flex-wrap gap-2">
-          {(subjects ?? []).map((subject) => (
-            <li
-              key={subject.id}
-              className="rounded border border-border px-2 py-1 text-sm"
-              style={{ borderLeft: `4px solid ${subject.color}` }}
-            >
-              {subject.name}
-            </li>
-          ))}
-        </ul>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold text-lg">{t("settings.subjects")}</h2>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              setSubjectRefusal(null);
+              setEditingSubject("new");
+            }}
+          >
+            {t("settings.addSubject")}
+          </button>
+        </div>
+
+        {editingSubject === "new" && (
+          <SubjectForm key="new" onDone={() => setEditingSubject(null)} />
+        )}
+        {editingSubject !== null && editingSubject !== "new" && (
+          // Keyed by subject id: the form seeds its state at mount, so
+          // switching target has to remount it.
+          <SubjectForm
+            key={editingSubject.id}
+            subject={editingSubject}
+            onDone={() => setEditingSubject(null)}
+          />
+        )}
+
+        {subjects !== undefined && subjects.length === 0 ? (
+          <p className="text-text-muted">{t("settings.noSubjects")}</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {(subjects ?? []).map((subject) => (
+              <li
+                key={subject.id}
+                className="flex flex-wrap items-center gap-3 rounded border border-border px-3 py-2 text-sm"
+                style={{ borderLeft: `4px solid ${subject.color}` }}
+              >
+                <span className="grow font-medium">{subject.name}</span>
+                <button
+                  type="button"
+                  className="text-text-muted hover:text-accent"
+                  onClick={() => {
+                    setSubjectRefusal(null);
+                    setEditingSubject(subject);
+                  }}
+                >
+                  {t("common.edit")}
+                </button>
+                <ConfirmButton
+                  danger
+                  variant="link"
+                  label={t("common.delete")}
+                  confirmLabel={t("settings.confirmDeleteSubject")}
+                  onConfirm={async () => {
+                    // A subject holds nothing of its own, so deleting one that
+                    // is still taught would have to take whole gradebooks with
+                    // it. The cascade refuses instead, and the refusal has to
+                    // be visible or the button looks broken.
+                    const result = await deleteSubject(db, subject.id);
+                    if (result.deleted) {
+                      setSubjectRefusal(null);
+                      setEditingSubject((current) =>
+                        current !== "new" && current?.id === subject.id ? null : current,
+                      );
+                      return;
+                    }
+                    setSubjectRefusal({
+                      subjectId: subject.id,
+                      name: subject.name,
+                      gradebookCount: result.gradebookCount,
+                    });
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {subjectRefusal && (
+          <p role="alert" className="text-danger text-sm">
+            {t("settings.subjectInUse", {
+              name: subjectRefusal.name,
+              count: subjectRefusal.gradebookCount,
+            })}
+          </p>
+        )}
       </section>
 
       <section className="flex flex-col gap-2">

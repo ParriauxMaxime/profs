@@ -107,7 +107,16 @@
     "dangerZone": "Zone dangereuse",
     "wipeHelp": "Supprime définitivement toutes les données de cet espace de travail sur cet appareil. Cette action est irréversible.",
     "wipe": "Supprimer toutes les données",
-    "wipeConfirm": "Oui, tout supprimer"
+    "wipeConfirm": "Oui, tout supprimer",
+    "addSubject": "Ajouter une matière",
+    "subjectName": "Nom de la matière",
+    "subjectNamePlaceholder": "Mathématiques",
+    "subjectNameRequired": "Le nom de la matière est obligatoire",
+    "subjectColor": "Couleur",
+    "confirmDeleteSubject": "Supprimer la matière ?",
+    "noSubjects": "Aucune matière pour l'instant. Ajoutez-en une : un carnet de notes associe une classe à une matière.",
+    "subjectInUse_one": "« {{name}} » ne peut pas être supprimée : {{count}} carnet de notes l'utilise encore.",
+    "subjectInUse_other": "« {{name}} » ne peut pas être supprimée : {{count}} carnets de notes l'utilisent encore."
   },
   "csv": {
     "title": "Importer une liste d'élèves",

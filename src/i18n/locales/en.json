@@ -107,7 +107,16 @@
     "dangerZone": "Danger zone",
     "wipeHelp": "Permanently deletes every piece of data in this workspace on this device. This action cannot be undone.",
     "wipe": "Delete all data",
-    "wipeConfirm": "Yes, delete everything"
+    "wipeConfirm": "Yes, delete everything",
+    "addSubject": "Add a subject",
+    "subjectName": "Subject name",
+    "subjectNamePlaceholder": "Mathematics",
+    "subjectNameRequired": "The subject name is required",
+    "subjectColor": "Colour",
+    "confirmDeleteSubject": "Delete this subject?",
+    "noSubjects": "No subjects yet. Add one — a gradebook pairs a class with a subject.",
+    "subjectInUse_one": "“{{name}}” cannot be deleted: {{count}} gradebook still uses it.",
+    "subjectInUse_other": "“{{name}}” cannot be deleted: {{count}} gradebooks still use it."
   },
   "csv": {
     "title": "Import a student list",
