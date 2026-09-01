@@ -39,7 +39,14 @@
     "lastName": "Nom",
     "firstName": "Prénom",
     "notes": "Remarques",
-    "lastNameRequired": "Le nom est obligatoire"
+    "lastNameRequired": "Le nom est obligatoire",
+    "photo": "Photo",
+    "addPhoto": "Ajouter une photo",
+    "removePhoto": "Retirer la photo",
+    "notesHint": "PAP, PPRE, tiers-temps, contraintes de placement…",
+    "timeline": "Historique",
+    "notFound": "Élève introuvable",
+    "attendanceSummary": "Présence"
   },
   "class": {
     "addStudent": "Ajouter un élève",
@@ -150,6 +157,37 @@
     "present": "Présent",
     "absent": "Absent",
     "late": "En retard",
-    "excused": "Excusé"
+    "excused": "Excusé",
+    "title": "Présence"
+  },
+  "plan": {
+    "title": "Plan de classe",
+    "newSession": "Nouvelle séance",
+    "sessionOf": "Séance du {{date}}",
+    "unseated": "Élèves sans place",
+    "allSeated": "Tous les élèves sont placés",
+    "tapSeatThenStudent": "Touchez une place, puis un élève",
+    "emptySeat": "Place libre",
+    "makeGap": "Retirer la place",
+    "makeSeat": "Ajouter une place",
+    "clearSeat": "Libérer la place",
+    "resize": "Dimensions",
+    "rows": "Rangées",
+    "cols": "Colonnes",
+    "resizeWarning_one": "{{count}} élève perdra sa place.",
+    "resizeWarning_other": "{{count}} élèves perdront leur place.",
+    "noLayout": "Aucun plan de classe"
+  },
+  "behaviour": {
+    "title": "Comportement",
+    "green": "Encouragement",
+    "yellow": "Avertissement",
+    "red": "Mot dans le carnet",
+    "note": "Observation",
+    "comment": "Commentaire",
+    "add": "Ajouter",
+    "none": "Aucun événement",
+    "confirmDelete": "Supprimer cet événement ?",
+    "thisTerm": "Ce trimestre"
   }
 }

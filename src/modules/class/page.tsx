@@ -1,6 +1,7 @@
 import type { Student } from "@db";
 import { deleteClass, deleteStudent } from "@db/cascade";
 import { useDb } from "@db/provider";
+import { Link } from "@swan-io/chicane";
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo, useState } from "react";
@@ -91,6 +92,9 @@ export function ClassPage({ classId }: { classId: string }) {
               Router.push("Home");
             }}
           />
+          <Link className="btn" to={Router.Plan({ classId })}>
+            {t("plan.title")}
+          </Link>
           <button type="button" className="btn" onClick={() => setImporting(true)}>
             {t("class.importCsv")}
           </button>

@@ -6,6 +6,8 @@ export const Router = createRouter(
   {
     Home: "/",
     Class: "/classes/:classId",
+    Plan: "/classes/:classId/plan",
+    Student: "/students/:studentId",
     Gradebook: "/gradebooks/:gradebookId",
     Entry: "/gradebooks/:gradebookId/entry/:columnId",
     Settings: "/settings",

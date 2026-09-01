@@ -39,7 +39,14 @@
     "lastName": "Last name",
     "firstName": "First name",
     "notes": "Notes",
-    "lastNameRequired": "Last name is required"
+    "lastNameRequired": "Last name is required",
+    "photo": "Photo",
+    "addPhoto": "Add a photo",
+    "removePhoto": "Remove photo",
+    "notesHint": "IEP, accommodations, seating constraints…",
+    "timeline": "History",
+    "notFound": "Student not found",
+    "attendanceSummary": "Attendance"
   },
   "class": {
     "addStudent": "Add student",
@@ -150,6 +157,37 @@
     "present": "Present",
     "absent": "Absent",
     "late": "Late",
-    "excused": "Excused"
+    "excused": "Excused",
+    "title": "Attendance"
+  },
+  "plan": {
+    "title": "Classroom plan",
+    "newSession": "New session",
+    "sessionOf": "Session of {{date}}",
+    "unseated": "Students without a seat",
+    "allSeated": "All students are seated",
+    "tapSeatThenStudent": "Tap a seat, then a student",
+    "emptySeat": "Empty seat",
+    "makeGap": "Remove seat",
+    "makeSeat": "Add seat",
+    "clearSeat": "Clear seat",
+    "resize": "Dimensions",
+    "rows": "Rows",
+    "cols": "Columns",
+    "resizeWarning_one": "{{count}} student will lose their seat.",
+    "resizeWarning_other": "{{count}} students will lose their seat.",
+    "noLayout": "No classroom plan"
+  },
+  "behaviour": {
+    "title": "Behaviour",
+    "green": "Encouragement",
+    "yellow": "Warning",
+    "red": "Note home",
+    "note": "Observation",
+    "comment": "Comment",
+    "add": "Add",
+    "none": "No events",
+    "confirmDelete": "Delete this event?",
+    "thisTerm": "This term"
   }
 }

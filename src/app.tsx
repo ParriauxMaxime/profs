@@ -2,12 +2,22 @@ import { ClassPage } from "./modules/class/page";
 import { DashboardPage } from "./modules/dashboard/page";
 import { EntryPage } from "./modules/entry/page";
 import { GradebookPage } from "./modules/gradebook/page";
+import { PlanPage } from "./modules/plan/page";
 import { SettingsPage } from "./modules/settings/page";
 import { AdminLayout } from "./modules/shared/components/admin-layout";
+import { StudentPage } from "./modules/student/page";
 import { Router } from "./router";
 
 export function App() {
-  const route = Router.useRoute(["Home", "Class", "Gradebook", "Entry", "Settings"]);
+  const route = Router.useRoute([
+    "Home",
+    "Class",
+    "Plan",
+    "Student",
+    "Gradebook",
+    "Entry",
+    "Settings",
+  ]);
 
   if (!route) {
     Router.replace("Home");
@@ -22,7 +32,11 @@ export function App() {
 }
 
 type AppRoute = NonNullable<
-  ReturnType<typeof Router.useRoute<"Home" | "Class" | "Gradebook" | "Entry" | "Settings">>
+  ReturnType<
+    typeof Router.useRoute<
+      "Home" | "Class" | "Plan" | "Student" | "Gradebook" | "Entry" | "Settings"
+    >
+  >
 >;
 
 function Routes({ route }: { route: AppRoute }) {
@@ -31,6 +45,10 @@ function Routes({ route }: { route: AppRoute }) {
       return <DashboardPage />;
     case "Class":
       return <ClassPage classId={route.params.classId} />;
+    case "Plan":
+      return <PlanPage classId={route.params.classId} />;
+    case "Student":
+      return <StudentPage studentId={route.params.studentId} />;
     case "Gradebook":
       return <GradebookPage gradebookId={route.params.gradebookId} />;
     case "Entry":
