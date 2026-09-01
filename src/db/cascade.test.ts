@@ -1,6 +1,13 @@
 import "fake-indexeddb/auto";
-import { openWorkspaceDb } from ".";
-import { deleteColumn, deleteStudent } from "./cascade";
+import { gradeKey, openWorkspaceDb } from ".";
+import {
+  deleteClass,
+  deleteColumn,
+  deleteGradebook,
+  deletePeriod,
+  deleteStudent,
+  deleteSubject,
+} from "./cascade";
 import { seedIfEmpty } from "./seed";
 
 describe("cascading deletes", () => {
@@ -63,6 +70,357 @@ describe("cascading deletes", () => {
 
     expect(await db.students.count()).toBe(students);
     expect(await db.grades.count()).toBe(grades);
+    db.close();
+  });
+});
+
+describe("deleteGradebook", () => {
+  it("removes the gradebook, its periods, its columns and all its grades", async () => {
+    const db = openWorkspaceDb("cascade-gradebook");
+    await seedIfEmpty(db, "cascade-gradebook");
+
+    const [gradebook, survivor] = await db.gradebooks.toArray();
+    const periods = await db.periods.where("gradebookId").equals(gradebook.id).count();
+    const columns = await db.columns.where("gradebookId").equals(gradebook.id).count();
+    const grades = await db.grades.where("gradebookId").equals(gradebook.id).count();
+    expect(periods).toBeGreaterThan(0);
+    expect(columns).toBeGreaterThan(0);
+    expect(grades).toBeGreaterThan(0);
+    const periodsBefore = await db.periods.count();
+    const columnsBefore = await db.columns.count();
+    const gradesBefore = await db.grades.count();
+
+    await deleteGradebook(db, gradebook.id);
+
+    expect(await db.gradebooks.get(gradebook.id)).toBeUndefined();
+    expect(await db.periods.count()).toBe(periodsBefore - periods);
+    expect(await db.columns.count()).toBe(columnsBefore - columns);
+    expect(await db.grades.count()).toBe(gradesBefore - grades);
+    // The sibling gradebook is untouched.
+    expect(await db.gradebooks.get(survivor.id)).toBeDefined();
+    expect(await db.periods.where("gradebookId").equals(survivor.id).count()).toBeGreaterThan(0);
+    expect(await db.columns.where("gradebookId").equals(survivor.id).count()).toBeGreaterThan(0);
+    expect(await db.grades.where("gradebookId").equals(survivor.id).count()).toBeGreaterThan(0);
+    // Students and classes are not owned by a gradebook.
+    expect(await db.students.count()).toBeGreaterThan(0);
+    expect(await db.classes.count()).toBe(2);
+    db.close();
+  });
+
+  it("leaves no orphan column or grade behind", async () => {
+    const db = openWorkspaceDb("cascade-gradebook-orphans");
+    await seedIfEmpty(db, "cascade-gradebook-orphans");
+    const gradebook = (await db.gradebooks.toArray())[0];
+
+    await deleteGradebook(db, gradebook.id);
+
+    const gradebookIds = new Set((await db.gradebooks.toArray()).map((g) => g.id));
+    const columnIds = new Set((await db.columns.toArray()).map((c) => c.id));
+    for (const column of await db.columns.toArray()) {
+      expect(gradebookIds.has(column.gradebookId)).toBe(true);
+    }
+    for (const period of await db.periods.toArray()) {
+      expect(gradebookIds.has(period.gradebookId)).toBe(true);
+    }
+    for (const grade of await db.grades.toArray()) {
+      expect(gradebookIds.has(grade.gradebookId)).toBe(true);
+      expect(columnIds.has(grade.columnId)).toBe(true);
+    }
+    db.close();
+  });
+
+  it("on an unknown id is a no-op", async () => {
+    const db = openWorkspaceDb("cascade-gradebook-missing");
+    await seedIfEmpty(db, "cascade-gradebook-missing");
+    const counts = [await db.gradebooks.count(), await db.periods.count(), await db.grades.count()];
+
+    await deleteGradebook(db, "no-such-gradebook");
+
+    expect([
+      await db.gradebooks.count(),
+      await db.periods.count(),
+      await db.grades.count(),
+    ]).toEqual(counts);
+    db.close();
+  });
+});
+
+describe("deletePeriod", () => {
+  it("removes the period, the columns in it and those columns' grades", async () => {
+    const db = openWorkspaceDb("cascade-period");
+    await seedIfEmpty(db, "cascade-period");
+
+    // The seed puts every column in the first period of each gradebook.
+    const gradebook = (await db.gradebooks.toArray())[0];
+    const periods = await db.periods.where("gradebookId").equals(gradebook.id).sortBy("order");
+    const period = periods[0];
+    const doomed = await db.columns.where("periodId").equals(period.id).toArray();
+    expect(doomed.length).toBeGreaterThan(0);
+    const doomedGrades = await db.grades
+      .where("columnId")
+      .anyOf(doomed.map((c) => c.id))
+      .count();
+    expect(doomedGrades).toBeGreaterThan(0);
+    const periodsBefore = await db.periods.count();
+    const columnsBefore = await db.columns.count();
+    const gradesBefore = await db.grades.count();
+
+    await deletePeriod(db, period.id);
+
+    expect(await db.periods.get(period.id)).toBeUndefined();
+    expect(await db.periods.count()).toBe(periodsBefore - 1);
+    expect(await db.columns.count()).toBe(columnsBefore - doomed.length);
+    expect(await db.grades.count()).toBe(gradesBefore - doomedGrades);
+    expect(await db.columns.where("periodId").equals(period.id).count()).toBe(0);
+    // The gradebook itself and its other periods survive.
+    expect(await db.gradebooks.get(gradebook.id)).toBeDefined();
+    expect(await db.periods.get(periods[1].id)).toBeDefined();
+    // So does the sibling gradebook, columns and grades included.
+    const survivor = (await db.gradebooks.toArray()).find((g) => g.id !== gradebook.id);
+    if (!survivor) throw new Error("expected a sibling gradebook");
+    expect(await db.columns.where("gradebookId").equals(survivor.id).count()).toBeGreaterThan(0);
+    expect(await db.grades.where("gradebookId").equals(survivor.id).count()).toBeGreaterThan(0);
+    db.close();
+  });
+
+  it("removes an empty period without touching anything else", async () => {
+    const db = openWorkspaceDb("cascade-period-empty");
+    await seedIfEmpty(db, "cascade-period-empty");
+    const gradebook = (await db.gradebooks.toArray())[0];
+    const empty = (await db.periods.where("gradebookId").equals(gradebook.id).sortBy("order"))[1];
+    expect(await db.columns.where("periodId").equals(empty.id).count()).toBe(0);
+    const columns = await db.columns.count();
+    const grades = await db.grades.count();
+
+    await deletePeriod(db, empty.id);
+
+    expect(await db.periods.get(empty.id)).toBeUndefined();
+    expect(await db.columns.count()).toBe(columns);
+    expect(await db.grades.count()).toBe(grades);
+    db.close();
+  });
+
+  it("on an unknown id is a no-op", async () => {
+    const db = openWorkspaceDb("cascade-period-missing");
+    await seedIfEmpty(db, "cascade-period-missing");
+    const counts = [await db.periods.count(), await db.columns.count(), await db.grades.count()];
+
+    await deletePeriod(db, "no-such-period");
+
+    expect([await db.periods.count(), await db.columns.count(), await db.grades.count()]).toEqual(
+      counts,
+    );
+    db.close();
+  });
+});
+
+describe("deleteClass", () => {
+  it("removes the class, its students, its gradebooks and everything under them", async () => {
+    const db = openWorkspaceDb("cascade-class");
+    await seedIfEmpty(db, "cascade-class");
+
+    const [schoolClass, survivorClass] = await db.classes.toArray();
+    const students = await db.students.where("classId").equals(schoolClass.id).count();
+    const gradebooks = await db.gradebooks.where("classId").equals(schoolClass.id).toArray();
+    expect(students).toBeGreaterThan(0);
+    expect(gradebooks.length).toBeGreaterThan(0);
+    const ids = gradebooks.map((g) => g.id);
+    const periods = await db.periods.where("gradebookId").anyOf(ids).count();
+    const columns = await db.columns.where("gradebookId").anyOf(ids).count();
+    const grades = await db.grades.where("gradebookId").anyOf(ids).count();
+    const before = {
+      classes: await db.classes.count(),
+      students: await db.students.count(),
+      gradebooks: await db.gradebooks.count(),
+      periods: await db.periods.count(),
+      columns: await db.columns.count(),
+      grades: await db.grades.count(),
+    };
+
+    await deleteClass(db, schoolClass.id);
+
+    expect(await db.classes.get(schoolClass.id)).toBeUndefined();
+    expect(await db.classes.count()).toBe(before.classes - 1);
+    expect(await db.students.count()).toBe(before.students - students);
+    expect(await db.gradebooks.count()).toBe(before.gradebooks - gradebooks.length);
+    expect(await db.periods.count()).toBe(before.periods - periods);
+    expect(await db.columns.count()).toBe(before.columns - columns);
+    expect(await db.grades.count()).toBe(before.grades - grades);
+
+    // The other class keeps its students, gradebook, periods, columns, grades.
+    expect(await db.classes.get(survivorClass.id)).toBeDefined();
+    expect(await db.students.where("classId").equals(survivorClass.id).count()).toBeGreaterThan(0);
+    const survivorGradebook = (await db.gradebooks.toArray())[0];
+    expect(survivorGradebook.classId).toBe(survivorClass.id);
+    expect(
+      await db.periods.where("gradebookId").equals(survivorGradebook.id).count(),
+    ).toBeGreaterThan(0);
+    expect(
+      await db.grades.where("gradebookId").equals(survivorGradebook.id).count(),
+    ).toBeGreaterThan(0);
+    // Subjects belong to the workspace, not to a class.
+    expect(await db.subjects.count()).toBe(2);
+    db.close();
+  });
+
+  it("leaves no orphan row of any kind", async () => {
+    const db = openWorkspaceDb("cascade-class-orphans");
+    await seedIfEmpty(db, "cascade-class-orphans");
+    const schoolClass = (await db.classes.toArray())[0];
+
+    await deleteClass(db, schoolClass.id);
+
+    const classIds = new Set((await db.classes.toArray()).map((c) => c.id));
+    const studentIds = new Set((await db.students.toArray()).map((s) => s.id));
+    const gradebookIds = new Set((await db.gradebooks.toArray()).map((g) => g.id));
+    const columnIds = new Set((await db.columns.toArray()).map((c) => c.id));
+    for (const student of await db.students.toArray()) {
+      expect(classIds.has(student.classId)).toBe(true);
+    }
+    for (const gradebook of await db.gradebooks.toArray()) {
+      expect(classIds.has(gradebook.classId)).toBe(true);
+    }
+    for (const period of await db.periods.toArray()) {
+      expect(gradebookIds.has(period.gradebookId)).toBe(true);
+    }
+    for (const column of await db.columns.toArray()) {
+      expect(gradebookIds.has(column.gradebookId)).toBe(true);
+    }
+    for (const grade of await db.grades.toArray()) {
+      expect(gradebookIds.has(grade.gradebookId)).toBe(true);
+      expect(columnIds.has(grade.columnId)).toBe(true);
+      expect(studentIds.has(grade.studentId)).toBe(true);
+    }
+    db.close();
+  });
+
+  it("also removes a stray grade of a deleted student sitting in another class's gradebook", async () => {
+    const db = openWorkspaceDb("cascade-class-stray");
+    await seedIfEmpty(db, "cascade-class-stray");
+
+    const [doomedClass, otherClass] = await db.classes.toArray();
+    const student = (await db.students.where("classId").equals(doomedClass.id).toArray())[0];
+    const otherGradebook = (
+      await db.gradebooks.where("classId").equals(otherClass.id).toArray()
+    )[0];
+    const otherColumn = (
+      await db.columns.where("gradebookId").equals(otherGradebook.id).toArray()
+    )[0];
+    await db.grades.put({
+      gradebookId: otherGradebook.id,
+      columnId: otherColumn.id,
+      studentId: student.id,
+      value: { type: "numeric", value: 12 },
+      updatedAt: Date.now(),
+    });
+    expect(
+      await db.grades.get(gradeKey(otherGradebook.id, otherColumn.id, student.id)),
+    ).toBeDefined();
+
+    await deleteClass(db, doomedClass.id);
+
+    expect(
+      await db.grades.get(gradeKey(otherGradebook.id, otherColumn.id, student.id)),
+    ).toBeUndefined();
+    expect(await db.gradebooks.get(otherGradebook.id)).toBeDefined();
+    expect(await db.columns.get(otherColumn.id)).toBeDefined();
+    expect(await db.grades.where("columnId").equals(otherColumn.id).count()).toBeGreaterThan(0);
+    db.close();
+  });
+
+  it("on an unknown id is a no-op", async () => {
+    const db = openWorkspaceDb("cascade-class-missing");
+    await seedIfEmpty(db, "cascade-class-missing");
+    const counts = [
+      await db.classes.count(),
+      await db.students.count(),
+      await db.gradebooks.count(),
+      await db.grades.count(),
+    ];
+
+    await deleteClass(db, "no-such-class");
+
+    expect([
+      await db.classes.count(),
+      await db.students.count(),
+      await db.gradebooks.count(),
+      await db.grades.count(),
+    ]).toEqual(counts);
+    db.close();
+  });
+});
+
+describe("deleteSubject", () => {
+  it("refuses, and deletes nothing, while a gradebook still references it", async () => {
+    const db = openWorkspaceDb("cascade-subject-used");
+    await seedIfEmpty(db, "cascade-subject-used");
+
+    const gradebook = (await db.gradebooks.toArray())[0];
+    const subjectId = gradebook.subjectId;
+    const before = {
+      subjects: await db.subjects.count(),
+      gradebooks: await db.gradebooks.count(),
+      grades: await db.grades.count(),
+    };
+
+    const result = await deleteSubject(db, subjectId);
+
+    expect(result).toEqual({ deleted: false, reason: "in-use", gradebookCount: 1 });
+    expect(await db.subjects.get(subjectId)).toBeDefined();
+    expect(await db.subjects.count()).toBe(before.subjects);
+    expect(await db.gradebooks.count()).toBe(before.gradebooks);
+    expect(await db.grades.count()).toBe(before.grades);
+    db.close();
+  });
+
+  it("reports how many gradebooks are in the way", async () => {
+    const db = openWorkspaceDb("cascade-subject-used-twice");
+    await seedIfEmpty(db, "cascade-subject-used-twice");
+
+    // Point both gradebooks at the same subject.
+    const [first, second] = await db.gradebooks.toArray();
+    await db.gradebooks.update(second.id, { subjectId: first.subjectId });
+
+    const result = await deleteSubject(db, first.subjectId);
+
+    expect(result).toEqual({ deleted: false, reason: "in-use", gradebookCount: 2 });
+    db.close();
+  });
+
+  it("deletes a subject no gradebook references", async () => {
+    const db = openWorkspaceDb("cascade-subject-free");
+    await seedIfEmpty(db, "cascade-subject-free");
+
+    const now = Date.now();
+    const id = crypto.randomUUID();
+    await db.subjects.add({
+      id,
+      name: "Histoire",
+      color: "#a855f7",
+      createdAt: now,
+      updatedAt: now,
+    });
+    const before = await db.subjects.count();
+    const gradebooks = await db.gradebooks.count();
+
+    const result = await deleteSubject(db, id);
+
+    expect(result).toEqual({ deleted: true });
+    expect(await db.subjects.get(id)).toBeUndefined();
+    expect(await db.subjects.count()).toBe(before - 1);
+    expect(await db.gradebooks.count()).toBe(gradebooks);
+    db.close();
+  });
+
+  it("reports a deletion for an unknown id, having removed nothing", async () => {
+    const db = openWorkspaceDb("cascade-subject-missing");
+    await seedIfEmpty(db, "cascade-subject-missing");
+    const subjects = await db.subjects.count();
+
+    const result = await deleteSubject(db, "no-such-subject");
+
+    expect(result).toEqual({ deleted: true });
+    expect(await db.subjects.count()).toBe(subjects);
     db.close();
   });
 });
