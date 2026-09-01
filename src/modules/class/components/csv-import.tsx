@@ -7,7 +7,7 @@ import {
   type RosterRow,
   sniffDelimiter,
 } from "@domain/gradebook/csv";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 export function CsvImport({
@@ -49,13 +49,21 @@ export function CsvImport({
 
   const duplicates = useMemo(() => new Set(findDuplicates(roster, existing)), [roster, existing]);
 
+  // Row indices only make sense relative to the current roster: clear the
+  // exclusion set whenever roster recomputes (delimiter, mapping, header
+  // toggle, new paste/file), so an unticked row never silently points at a
+  // different student after the list shifts.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: roster is a reset trigger, not a value read in the body — any recompute must invalidate stale exclusion indices.
+  useEffect(() => {
+    setExcluded(new Set());
+  }, [roster]);
+
   const columnCount = rows[0]?.length ?? 0;
   const columnOptions = Array.from({ length: columnCount }, (_, i) => i);
 
   async function onFile(file: File): Promise<void> {
     setText(await file.text());
     setDelimiter(null);
-    setExcluded(new Set());
   }
 
   async function onImport(): Promise<void> {
@@ -83,11 +91,7 @@ export function CsvImport({
         rows={5}
         placeholder={t("csv.pastePlaceholder")}
         value={text}
-        onChange={(e) => {
-          setText(e.target.value);
-          setDelimiter(null);
-          setExcluded(new Set());
-        }}
+        onChange={(e) => setText(e.target.value)}
       />
 
       <input
