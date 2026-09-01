@@ -2,7 +2,7 @@ import { ATTENDANCE_VALUES } from "@domain/attendance";
 import { BEHAVIOUR_COLORS, BEHAVIOUR_TYPES } from "@domain/behaviour";
 import { RUBRIC_LEVEL_COLORS, RUBRIC_LEVELS } from "@domain/rubric";
 import { SUBJECT_COLORS } from "@domain/subject";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ConfirmButton } from "./components/confirm-button";
 import { ActionButton, Chip, SeatTile, ToggleGroup, ToggleOption } from "./components/primitives";
@@ -23,6 +23,17 @@ export function DesignPage() {
   const [attendance, setAttendance] = useState<string | null>("present");
   const [level, setLevel] = useState<number | null>(3);
   const [armedSeat, setArmedSeat] = useState(false);
+  const [design, setDesign] = useState<string>("neutral");
+
+  // Applied on the document element so every route previews the direction,
+  // not just this page. Nothing persists it: a direction is chosen by editing
+  // global.css, and this switcher only exists to compare them.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (design === "neutral") root.removeAttribute("data-design");
+    else root.setAttribute("data-design", design);
+    return () => root.removeAttribute("data-design");
+  }, [design]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -33,6 +44,35 @@ export function DesignPage() {
           the height comes from <code>--control-min</code>, not from each caller.
         </p>
       </div>
+
+      <Section title="Direction">
+        <div className="flex flex-wrap gap-2">
+          {[
+            { id: "neutral", label: "Neutre", note: "what ships today" },
+            { id: "copie", label: "Copie", note: "paper, ink blue, red marge" },
+            { id: "encre", label: "Encre", note: "quiet, serif headings" },
+            { id: "ardoise", label: "Ardoise", note: "dark, for a dim room" },
+          ].map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              aria-pressed={design === d.id}
+              className={`btn flex-col items-start ${design === d.id ? "btn-primary" : ""}`}
+              onClick={() => setDesign(d.id)}
+            >
+              <span>{d.label}</span>
+              <span className="font-normal text-xs opacity-70">{d.note}</span>
+            </button>
+          ))}
+        </div>
+        <div className="paper rounded-(--control-radius) border border-border p-4">
+          <p className="font-medium">Sheet surface</p>
+          <p className="text-sm text-text-muted">
+            The signature: faint Seyès ruling and the red marge a pupil leaves for the teacher's
+            remarks. Visible only in Copie; other directions null the tokens out.
+          </p>
+        </div>
+      </Section>
 
       <Section title="Colour tokens">
         <div className="flex flex-wrap gap-2">
