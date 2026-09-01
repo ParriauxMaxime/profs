@@ -174,11 +174,6 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
                     {(() => {
                       const value = byStudent.get(student.id)?.value;
                       if (value === undefined) return "—";
-                      // The stored value stays the raw domain string; only the
-                      // displayed label is translated.
-                      if (value.type === "attendance") {
-                        return t(`gradebook.attendance.${value.value}`);
-                      }
                       return formatGradeValue(value, undefined, i18n.language);
                     })()}
                   </span>

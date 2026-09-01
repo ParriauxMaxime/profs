@@ -141,7 +141,6 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       { type: "numeric", label: "DS 2", weight: 2, max: 20 },
       { type: "numeric", label: "Interro", weight: 1, max: 10 },
       { type: "checkbox", label: "Devoir rendu", weight: 1, max: 20 },
-      { type: "attendance", label: "Présence", weight: 1, max: 20 },
       { type: "text", label: "Appréciation", weight: 1, max: 20 },
     ];
 
@@ -176,16 +175,6 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
             columnId: column.id,
             studentId: student.id,
             value: { type: "checkbox", value: random() > 0.2 },
-            updatedAt: now,
-          });
-        } else if (column.type === "attendance") {
-          const roll = random();
-          const value = roll > 0.9 ? "absent" : roll > 0.82 ? "late" : "present";
-          grades.push({
-            gradebookId: gradebook.id,
-            columnId: column.id,
-            studentId: student.id,
-            value: { type: "attendance", value },
             updatedAt: now,
           });
         } else if (column.type === "text" && random() > 0.6) {

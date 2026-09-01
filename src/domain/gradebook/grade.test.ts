@@ -35,17 +35,6 @@ describe("parseGradeValue", () => {
     });
   });
 
-  it("parses a known attendance value", () => {
-    expect(parseGradeValue("attendance", "absent")).toEqual({
-      type: "attendance",
-      value: "absent",
-    });
-  });
-
-  it("rejects an unknown attendance value", () => {
-    expect(parseGradeValue("attendance", "sick")).toBeNull();
-  });
-
   it("uppercases a letter grade and trims it", () => {
     expect(parseGradeValue("letter", " a+ ")).toEqual({
       type: "letter",
@@ -100,7 +89,6 @@ describe("parseGradeValue and isBlankInput agree on what is blank", () => {
     expect(parseGradeValue("numeric", raw)).toBeNull();
     expect(parseGradeValue("text", raw)).toBeNull();
     expect(parseGradeValue("letter", raw)).toBeNull();
-    expect(parseGradeValue("attendance", raw)).toBeNull();
   });
 
   it.each(["0", " 12 ", "A"])("treats %j as non-blank", (raw) => {

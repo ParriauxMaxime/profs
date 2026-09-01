@@ -76,14 +76,7 @@
       "letter": "Letter",
       "icon": "Icon",
       "checkbox": "Checkbox",
-      "text": "Text",
-      "attendance": "Attendance"
-    },
-    "attendance": {
-      "present": "Present",
-      "absent": "Absent",
-      "late": "Late",
-      "excused": "Excused"
+      "text": "Text"
     },
     "average": "Average",
     "stats": {
@@ -152,5 +145,11 @@
     "new": "New",
     "summary": "{{total}} student(s) to import, {{duplicates}} duplicate(s) found",
     "import": "Import"
+  },
+  "attendance": {
+    "present": "Present",
+    "absent": "Absent",
+    "late": "Late",
+    "excused": "Excused"
   }
 }

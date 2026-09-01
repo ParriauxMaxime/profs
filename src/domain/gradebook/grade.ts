@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ATTENDANCE_VALUES, type ColumnType } from "./column";
+import type { ColumnType } from "./column";
 import { formatDecimal, parseDecimal } from "./decimal";
 
 export type GradeValue =
@@ -7,8 +7,7 @@ export type GradeValue =
   | { type: "letter"; value: string }
   | { type: "icon"; value: string }
   | { type: "checkbox"; value: boolean }
-  | { type: "text"; value: string }
-  | { type: "attendance"; value: (typeof ATTENDANCE_VALUES)[number] };
+  | { type: "text"; value: string };
 
 export const gradeValueSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("numeric"), value: z.number().min(0) }),
@@ -16,7 +15,6 @@ export const gradeValueSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("icon"), value: z.string().min(1) }),
   z.object({ type: z.literal("checkbox"), value: z.boolean() }),
   z.object({ type: z.literal("text"), value: z.string().min(1) }),
-  z.object({ type: z.literal("attendance"), value: z.enum(ATTENDANCE_VALUES) }),
 ]) satisfies z.ZodType<GradeValue>;
 
 /**
@@ -62,10 +60,6 @@ export function parseGradeValue(type: ColumnType, raw: unknown, max?: number): G
     case "icon":
     case "text":
       return { type, value: text };
-    case "attendance": {
-      const candidate = ATTENDANCE_VALUES.find((v) => v === text);
-      return candidate ? { type, value: candidate } : null;
-    }
   }
 }
 
@@ -81,7 +75,6 @@ export function formatGradeValue(value: GradeValue, max?: number, locale = "fr")
     }
     case "checkbox":
       return value.value ? "✓" : "✗";
-    case "attendance":
     case "letter":
     case "icon":
     case "text":

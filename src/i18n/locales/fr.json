@@ -76,14 +76,7 @@
       "letter": "Lettre",
       "icon": "Icône",
       "checkbox": "Case à cocher",
-      "text": "Texte",
-      "attendance": "Présence"
-    },
-    "attendance": {
-      "present": "Présent",
-      "absent": "Absent",
-      "late": "En retard",
-      "excused": "Excusé"
+      "text": "Texte"
     },
     "average": "Moyenne",
     "stats": {
@@ -152,5 +145,11 @@
     "new": "Nouveau",
     "summary": "{{total}} élève(s) à importer, {{duplicates}} doublon(s) détecté(s)",
     "import": "Importer"
+  },
+  "attendance": {
+    "present": "Présent",
+    "absent": "Absent",
+    "late": "En retard",
+    "excused": "Excusé"
   }
 }

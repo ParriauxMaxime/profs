@@ -1,4 +1,4 @@
-import { ATTENDANCE_VALUES, type ColumnType } from "@domain/gradebook/column";
+import type { ColumnType } from "@domain/gradebook/column";
 import { formatDecimalExact } from "@domain/gradebook/decimal";
 import {
   formatGradeValue,
@@ -25,7 +25,7 @@ export function EditableCell({
   value: GradeValue | undefined;
   onChange: (next: GradeValue | null) => void;
 }) {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const locale = i18n.language;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -48,24 +48,6 @@ export function EditableCell({
         checked={checked}
         onChange={(e) => onChange({ type: "checkbox", value: e.target.checked })}
       />
-    );
-  }
-
-  if (type === "attendance") {
-    const current = value?.type === "attendance" ? value.value : "";
-    return (
-      <select
-        className="w-full bg-transparent"
-        value={current}
-        onChange={(e) => onChange(parseGradeValue("attendance", e.target.value))}
-      >
-        <option value="">—</option>
-        {ATTENDANCE_VALUES.map((v) => (
-          <option key={v} value={v}>
-            {t(`gradebook.attendance.${v}`)}
-          </option>
-        ))}
-      </select>
     );
   }
 

@@ -6,20 +6,9 @@
  * average computation (only `numeric` does).
  */
 
-export const COLUMN_TYPES = [
-  "numeric",
-  "letter",
-  "icon",
-  "checkbox",
-  "text",
-  "attendance",
-] as const;
+export const COLUMN_TYPES = ["numeric", "letter", "icon", "checkbox", "text"] as const;
 
 export type ColumnType = (typeof COLUMN_TYPES)[number];
-
-export const ATTENDANCE_VALUES = ["present", "absent", "late", "excused"] as const;
-
-export type AttendanceValue = (typeof ATTENDANCE_VALUES)[number];
 
 /** Defaults offered by the column creation form. */
 export const DEFAULT_COLUMN_WEIGHT = 1;
