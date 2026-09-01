@@ -22,12 +22,19 @@ export async function createSession(
   classId: string,
   subjectId?: string,
 ): Promise<Session> {
+  const date = startOfDay(Date.now());
+  // A forced second session can land in the same millisecond as the first in
+  // a fast test run (or on a fast machine). `createdAt` is what determines
+  // "most recent" in getOrCreateTodaySession, so it must strictly increase
+  // relative to any sibling already recorded today for this class.
+  const todays = await db.sessions.where({ classId, date }).toArray();
+  const latestExisting = todays.reduce((max, s) => Math.max(max, s.createdAt), 0);
   const session: Session = {
     id: crypto.randomUUID(),
     classId,
     ...(subjectId === undefined ? {} : { subjectId }),
-    date: startOfDay(Date.now()),
-    createdAt: Date.now(),
+    date,
+    createdAt: Math.max(Date.now(), latestExisting + 1),
   };
   await db.sessions.add(session);
   return session;
