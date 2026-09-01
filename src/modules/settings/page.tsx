@@ -4,6 +4,7 @@ import { LOCALES, type Locale, loadLocale, saveLocale } from "@i18n";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ConfirmButton } from "../design-system/components/confirm-button";
 
 interface PendingImport {
   fileName: string;
@@ -13,7 +14,6 @@ interface PendingImport {
 export function SettingsPage() {
   const { t } = useTranslation();
   const db = useDb();
-  const [confirmingWipe, setConfirmingWipe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
@@ -87,7 +87,6 @@ export function SettingsPage() {
         }
       },
     );
-    setConfirmingWipe(false);
   }
 
   return (
@@ -152,16 +151,17 @@ export function SettingsPage() {
               })}
             </p>
             <div className="flex gap-2">
-              <button
-                type="button"
-                className="btn btn-danger"
-                onClick={() => void onConfirmImport()}
-              >
-                {t("settings.importConfirm")}
-              </button>
-              <button type="button" className="btn" onClick={onCancelImport}>
-                {t("common.cancel")}
-              </button>
+              {/* Armed from the outside: choosing a file is the first step of
+                  this confirm, so the button is never idle. */}
+              <ConfirmButton
+                danger
+                armed
+                onArmedChange={(armed) => {
+                  if (!armed) onCancelImport();
+                }}
+                confirmLabel={t("settings.importConfirm")}
+                onConfirm={onConfirmImport}
+              />
             </div>
           </div>
         )}
@@ -172,24 +172,15 @@ export function SettingsPage() {
       <section className="flex flex-col gap-2">
         <h2 className="font-semibold text-danger text-lg">{t("settings.dangerZone")}</h2>
         <p className="text-sm text-text-muted">{t("settings.wipeHelp")}</p>
-        {confirmingWipe ? (
-          <div className="flex gap-2">
-            <button type="button" className="btn btn-danger" onClick={() => void onWipe()}>
-              {t("settings.wipeConfirm")}
-            </button>
-            <button type="button" className="btn" onClick={() => setConfirmingWipe(false)}>
-              {t("common.cancel")}
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="btn btn-danger self-start"
-            onClick={() => setConfirmingWipe(true)}
-          >
-            {t("settings.wipe")}
-          </button>
-        )}
+        <div className="flex gap-2">
+          <ConfirmButton
+            danger
+            className="self-start"
+            label={t("settings.wipe")}
+            confirmLabel={t("settings.wipeConfirm")}
+            onConfirm={onWipe}
+          />
+        </div>
       </section>
     </div>
   );

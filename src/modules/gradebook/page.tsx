@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { ColumnTypeIcon } from "../design-system/components/column-type-icon";
+import { ConfirmButton } from "../design-system/components/confirm-button";
 import { EditableCell } from "../design-system/components/editable-cell";
 import { ColumnForm } from "./components/column-form";
 
@@ -22,7 +23,6 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
   const [periodId, setPeriodId] = useState<string | null>(null);
   const [addingColumn, setAddingColumn] = useState(false);
   const [editingColumn, setEditingColumn] = useState<GradeColumn | null>(null);
-  const [confirmingDeleteColumnId, setConfirmingDeleteColumnId] = useState<string | null>(null);
   const locale = i18n.language;
 
   const data = useLiveQuery(async () => {
@@ -179,44 +179,23 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
                         className="text-text-muted hover:text-accent"
                         onClick={() => {
                           setAddingColumn(false);
-                          setConfirmingDeleteColumnId(null);
                           setEditingColumn(column);
                         }}
                       >
                         {t("common.edit")}
                       </button>
-                      {confirmingDeleteColumnId === column.id ? (
-                        <>
-                          <button
-                            type="button"
-                            className="text-danger"
-                            onClick={async () => {
-                              await deleteColumn(db, column.id);
-                              setConfirmingDeleteColumnId(null);
-                              setEditingColumn((current) =>
-                                current?.id === column.id ? null : current,
-                              );
-                            }}
-                          >
-                            {t("gradebook.confirmDeleteColumn")}
-                          </button>
-                          <button
-                            type="button"
-                            className="text-text-muted"
-                            onClick={() => setConfirmingDeleteColumnId(null)}
-                          >
-                            {t("common.cancel")}
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          className="text-danger hover:underline"
-                          onClick={() => setConfirmingDeleteColumnId(column.id)}
-                        >
-                          {t("common.delete")}
-                        </button>
-                      )}
+                      <ConfirmButton
+                        danger
+                        variant="link"
+                        label={t("common.delete")}
+                        confirmLabel={t("gradebook.confirmDeleteColumn")}
+                        onConfirm={async () => {
+                          await deleteColumn(db, column.id);
+                          setEditingColumn((current) =>
+                            current?.id === column.id ? null : current,
+                          );
+                        }}
+                      />
                     </div>
                   </div>
                 </th>

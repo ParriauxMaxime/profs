@@ -5,6 +5,7 @@ import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ConfirmButton } from "../design-system/components/confirm-button";
 import { DataTable } from "../design-system/components/data-table";
 import { CsvImport } from "./components/csv-import";
 import { StudentForm } from "./components/student-form";
@@ -15,7 +16,6 @@ export function ClassPage({ classId }: { classId: string }) {
   const { t } = useTranslation();
   const db = useDb();
   const [editing, setEditing] = useState<Student | "new" | null>(null);
-  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
 
   // An explicit null distinguishes "no such class" from "still loading":
@@ -39,43 +39,23 @@ export function ClassPage({ classId }: { classId: string }) {
         header: () => "",
         cell: (info) => {
           const student = info.row.original;
-          const isConfirming = confirmingDeleteId === student.id;
           return (
             <div className="flex gap-2">
               <button type="button" className="btn" onClick={() => setEditing(student)}>
                 {t("common.edit")}
               </button>
-              {isConfirming ? (
-                <>
-                  <button
-                    type="button"
-                    className="btn btn-danger"
-                    onClick={async () => {
-                      await deleteStudent(db, student.id);
-                      setConfirmingDeleteId(null);
-                    }}
-                  >
-                    {t("class.confirmDelete")}
-                  </button>
-                  <button type="button" className="btn" onClick={() => setConfirmingDeleteId(null)}>
-                    {t("common.cancel")}
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn-danger"
-                  onClick={() => setConfirmingDeleteId(student.id)}
-                >
-                  {t("common.delete")}
-                </button>
-              )}
+              <ConfirmButton
+                danger
+                label={t("common.delete")}
+                confirmLabel={t("class.confirmDelete")}
+                onConfirm={() => deleteStudent(db, student.id)}
+              />
             </div>
           );
         },
       }),
     ],
-    [t, db, confirmingDeleteId],
+    [t, db],
   );
 
   if (schoolClass === undefined || students === undefined) {
