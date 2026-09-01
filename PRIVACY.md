@@ -19,7 +19,10 @@ Réglages → Sauvegarde exports a JSON file. You move that file yourself, by
 whatever means you trust, and import it on the other device. Nobody else handles
 it. Student photos are not included in the export — a JSON file cannot carry a
 photo — and importing on another device is the only way to move data; there is
-no sync of any kind.
+no sync of any kind. A backup exported before the classroom features (sessions,
+attendance, seating) were added is rejected on import by design — that older
+data is treated as disposable rather than migrated, so export a fresh backup
+with the current version before moving data between devices.
 
 ## Photos, remarques et comportement
 
