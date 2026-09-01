@@ -58,6 +58,14 @@
       "absent": "Absent",
       "late": "Late",
       "excused": "Excused"
+    },
+    "average": "Average",
+    "stats": {
+      "mean": "Class average",
+      "median": "Median",
+      "min": "Lowest",
+      "max": "Highest",
+      "count": "Students graded"
     }
   },
   "csv": {

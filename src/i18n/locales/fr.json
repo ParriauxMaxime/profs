@@ -58,6 +58,14 @@
       "absent": "Absent",
       "late": "En retard",
       "excused": "Excusé"
+    },
+    "average": "Moyenne",
+    "stats": {
+      "mean": "Moyenne de classe",
+      "median": "Médiane",
+      "min": "Minimum",
+      "max": "Maximum",
+      "count": "Élèves notés"
     }
   },
   "csv": {

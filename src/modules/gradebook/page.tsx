@@ -1,6 +1,8 @@
 import type { Grade, GradeColumn, Student } from "@db";
 import { gradeKey } from "@db";
 import { useDb } from "@db/provider";
+import type { AverageColumn, AverageGrade } from "@domain/gradebook/average";
+import { classStats, studentAverage } from "@domain/gradebook/average";
 import type { GradeValue } from "@domain/gradebook/grade";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -36,6 +38,32 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
   const columns = data.columns.filter((c) => c.periodId === activePeriodId);
   const gradeMap = new Map<string, Grade>(
     data.grades.map((g) => [`${g.columnId}|${g.studentId}`, g]),
+  );
+
+  const averageColumns: AverageColumn[] = data.columns.map((c) => ({
+    id: c.id,
+    type: c.type,
+    weight: c.weight,
+    max: c.max,
+    periodId: c.periodId,
+  }));
+
+  const gradesByStudent = new Map<string, AverageGrade[]>();
+  for (const grade of data.grades) {
+    const list = gradesByStudent.get(grade.studentId) ?? [];
+    list.push({ columnId: grade.columnId, value: grade.value });
+    gradesByStudent.set(grade.studentId, list);
+  }
+
+  const averages = new Map<string, number | null>(
+    data.students.map((student) => [
+      student.id,
+      studentAverage(gradesByStudent.get(student.id) ?? [], averageColumns, activePeriodId),
+    ]),
+  );
+
+  const stats = classStats(
+    [...averages.values()].filter((value): value is number => value !== null),
   );
 
   async function writeGrade(
@@ -107,6 +135,9 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
                   </Link>
                 </th>
               ))}
+              <th className="min-w-20 px-3 py-2 text-center font-medium">
+                {t("gradebook.average")}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -125,11 +156,43 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
                     />
                   </td>
                 ))}
+                <td className="px-3 py-2 text-center font-medium tabular-nums">
+                  {averages.get(student.id) === null || averages.get(student.id) === undefined ? (
+                    <span className="text-text-faint">—</span>
+                  ) : (
+                    `${String(averages.get(student.id)).replace(".", ",")}/20`
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {stats && (
+        <dl className="flex flex-wrap gap-6 rounded border border-border p-3 text-sm">
+          <div>
+            <dt className="text-text-muted">{t("gradebook.stats.mean")}</dt>
+            <dd className="font-medium tabular-nums">{String(stats.mean).replace(".", ",")}</dd>
+          </div>
+          <div>
+            <dt className="text-text-muted">{t("gradebook.stats.median")}</dt>
+            <dd className="font-medium tabular-nums">{String(stats.median).replace(".", ",")}</dd>
+          </div>
+          <div>
+            <dt className="text-text-muted">{t("gradebook.stats.min")}</dt>
+            <dd className="font-medium tabular-nums">{String(stats.min).replace(".", ",")}</dd>
+          </div>
+          <div>
+            <dt className="text-text-muted">{t("gradebook.stats.max")}</dt>
+            <dd className="font-medium tabular-nums">{String(stats.max).replace(".", ",")}</dd>
+          </div>
+          <div>
+            <dt className="text-text-muted">{t("gradebook.stats.count")}</dt>
+            <dd className="font-medium tabular-nums">{stats.count}</dd>
+          </div>
+        </dl>
+      )}
 
       {columns.length === 0 && <p className="text-text-muted">{t("gradebook.noColumns")}</p>}
     </div>
