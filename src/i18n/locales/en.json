@@ -8,6 +8,7 @@
     "add": "Add",
     "search": "Search",
     "filter": "Filter",
+    "filterColumn": "Filter {{column}}",
     "all": "All",
     "noData": "No data",
     "noResults": "No results",

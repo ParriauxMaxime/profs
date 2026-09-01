@@ -218,7 +218,9 @@ function ColumnFilter<T>({ column, data }: { column: Column<T, unknown>; data: T
       value={value}
       onChange={(e) => column.setFilterValue(e.target.value || undefined)}
       placeholder={t("common.filter")}
-      aria-label={columnName ? `Filter ${columnName}` : t("common.filter")}
+      aria-label={
+        columnName ? t("common.filterColumn", { column: columnName }) : t("common.filter")
+      }
       className="field-sm"
     />
   );
@@ -242,7 +244,9 @@ function SelectFilter<T>({ column, data }: { column: Column<T, unknown>; data: T
     <select
       value={value}
       onChange={(e) => column.setFilterValue(e.target.value || undefined)}
-      aria-label={columnName ? `Filter ${columnName}` : t("common.filter")}
+      aria-label={
+        columnName ? t("common.filterColumn", { column: columnName }) : t("common.filter")
+      }
       className="field-sm"
     >
       <option value="">{t("common.all")}</option>
