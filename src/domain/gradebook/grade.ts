@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ATTENDANCE_VALUES, type ColumnType } from "./column";
+import { formatDecimal, parseDecimal } from "./decimal";
 
 export type GradeValue =
   | { type: "numeric"; value: number }
@@ -45,14 +46,14 @@ export function parseGradeValue(type: ColumnType, raw: unknown, max?: number): G
     return typeof raw === "boolean" ? { type, value: raw } : null;
   }
 
+  if (isBlankInput(raw)) return null;
   const text = typeof raw === "string" ? raw.trim() : String(raw ?? "").trim();
-  if (text === "") return null;
 
   switch (type) {
     case "numeric": {
       // French keyboards and Excel exports both produce "11,5".
-      const parsed = Number(text.replace(",", "."));
-      if (!Number.isFinite(parsed) || parsed < 0) return null;
+      const parsed = parseDecimal(text);
+      if (parsed === null || parsed < 0) return null;
       if (max !== undefined && parsed > max) return null;
       return { type, value: parsed };
     }
@@ -68,11 +69,14 @@ export function parseGradeValue(type: ColumnType, raw: unknown, max?: number): G
   }
 }
 
-/** Display form for a cell. `max` only matters for numeric columns. */
-export function formatGradeValue(value: GradeValue, max?: number): string {
+/**
+ * Display form for a cell. `max` only matters for numeric columns; `locale`
+ * is the app's active language, which decides the decimal separator.
+ */
+export function formatGradeValue(value: GradeValue, max?: number, locale = "fr"): string {
   switch (value.type) {
     case "numeric": {
-      const shown = String(Number(value.value.toFixed(2))).replace(".", ",");
+      const shown = formatDecimal(value.value, locale);
       return max === undefined ? shown : `${shown}/${max}`;
     }
     case "checkbox":

@@ -94,6 +94,20 @@ describe("isBlankInput", () => {
   });
 });
 
+describe("parseGradeValue and isBlankInput agree on what is blank", () => {
+  it.each(["", "   ", "\t\n"])("treats %j as blank for every non-checkbox type", (raw) => {
+    expect(isBlankInput(raw)).toBe(true);
+    expect(parseGradeValue("numeric", raw)).toBeNull();
+    expect(parseGradeValue("text", raw)).toBeNull();
+    expect(parseGradeValue("letter", raw)).toBeNull();
+    expect(parseGradeValue("attendance", raw)).toBeNull();
+  });
+
+  it.each(["0", " 12 ", "A"])("treats %j as non-blank", (raw) => {
+    expect(isBlankInput(raw)).toBe(false);
+  });
+});
+
 describe("gradeValueSchema", () => {
   it("accepts a well-formed value", () => {
     expect(gradeValueSchema.safeParse({ type: "numeric", value: 12 }).success).toBe(true);
@@ -111,6 +125,15 @@ describe("formatGradeValue", () => {
 
   it("drops a trailing zero decimal", () => {
     expect(formatGradeValue({ type: "numeric", value: 14 }, 20)).toBe("14/20");
+  });
+
+  it("uses the given locale's decimal separator", () => {
+    expect(formatGradeValue({ type: "numeric", value: 13.4 }, 20, "fr")).toBe("13,4/20");
+    expect(formatGradeValue({ type: "numeric", value: 13.4 }, 20, "en")).toBe("13.4/20");
+  });
+
+  it("defaults to French when no locale is given", () => {
+    expect(formatGradeValue({ type: "numeric", value: 13.4 })).toBe("13,4");
   });
 
   it("renders a checkbox as a mark", () => {

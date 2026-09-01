@@ -1,4 +1,5 @@
 import { ATTENDANCE_VALUES, type ColumnType } from "@domain/gradebook/column";
+import { formatDecimal } from "@domain/gradebook/decimal";
 import {
   formatGradeValue,
   type GradeValue,
@@ -24,7 +25,8 @@ export function EditableCell({
   value: GradeValue | undefined;
   onChange: (next: GradeValue | null) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -73,14 +75,14 @@ export function EditableCell({
         type="button"
         className="w-full text-left tabular-nums"
         onClick={() => {
-          setDraft(value === undefined ? "" : rawText(value));
+          setDraft(value === undefined ? "" : rawText(value, locale));
           setEditing(true);
         }}
       >
         {value === undefined ? (
           <span className="text-text-faint">—</span>
         ) : (
-          formatGradeValue(value, type === "numeric" ? max : undefined)
+          formatGradeValue(value, type === "numeric" ? max : undefined, locale)
         )}
       </button>
     );
@@ -134,10 +136,10 @@ export function EditableCell({
 }
 
 /** The editable text behind a stored value — no "/20" suffix, no ✓/✗. */
-function rawText(value: GradeValue): string {
+function rawText(value: GradeValue, locale: string): string {
   switch (value.type) {
     case "numeric":
-      return String(value.value).replace(".", ",");
+      return formatDecimal(value.value, locale);
     case "checkbox":
       return value.value ? "true" : "false";
     default:
