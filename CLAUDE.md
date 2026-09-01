@@ -34,9 +34,11 @@ yarn test -t "normalises a /100 column"
 
 Three layers, and the boundaries are enforced by review:
 
-**`src/domain/`** — pure logic. No React, no Dexie, no I/O. This is the only place with real unit tests, and it is where the rules that must not drift live: column types and grade-value parsing/formatting (`gradebook/grade.ts`, `gradebook/column.ts`), weighted averages and class statistics (`gradebook/average.ts`), CSV roster parsing (`gradebook/csv.ts`), accent-insensitive search (`search.ts`), and the workspace registry (`workspaces.ts`). Domain constants use the `as const` array + derived type pattern; they never get inlined into a component.
+**`src/domain/`** — pure logic. No React, no Dexie, no I/O. This is the only place with real unit tests, and it is where the rules that must not drift live: column types and grade-value parsing/formatting (`gradebook/grade.ts`, `gradebook/column.ts`), weighted averages and class statistics (`gradebook/average.ts`), CSV roster parsing (`gradebook/csv.ts`), decimal formatting and parsing (`gradebook/decimal.ts`), default period names (`gradebook/period.ts`), the default gradebook name (`gradebook/naming.ts`), the subject colour palette (`subject.ts`), accent-insensitive search (`search.ts`), and the workspace registry (`workspaces.ts`). Domain constants use the `as const` array + derived type pattern; they never get inlined into a component — the palette and the period names live here precisely because a component once held them.
 
-**`src/db/`** — Dexie. `openWorkspaceDb(workspaceId)` opens `profs-<id>`; each workspace is its own database. Seven tables: `classes`, `students`, `subjects`, `gradebooks`, `periods`, `columns`, `grades`. `provider.tsx` exposes `useDb()`; `init.ts` runs once before first render; `seed.ts` creates the demo school; `backup.ts` does JSON export/import.
+Two decimal formatters, and picking the wrong one is a data bug: `formatDecimal` rounds to two decimals and is for **display**; `formatDecimalExact` preserves full stored precision and is for **seeding an editor**, so that opening a cell and committing it unchanged cannot silently rewrite the value. Both take the app's locale, never the browser's.
+
+**`src/db/`** — Dexie. `openWorkspaceDb(workspaceId)` opens `profs-<id>`; each workspace is its own database. Seven tables: `classes`, `students`, `subjects`, `gradebooks`, `periods`, `columns`, `grades`. `provider.tsx` exposes `useDb()`; `init.ts` runs once before first render; `seed.ts` creates the demo school; `backup.ts` does JSON export/import; `cascade.ts` owns every multi-table delete (see below).
 
 **`src/modules/<name>/page.tsx`** — one page per route, with module-local `components/`. `design-system/` holds shared UI, `shared/` the layout. There is no `src/routes/` folder — each module owns its page. Components read the database through `useLiveQuery` and hold UI state only.
 
@@ -63,9 +65,17 @@ Routes (`src/router.ts`, Chicane): `/`, `/classes/:classId`, `/gradebooks/:grade
   When you add any armed, staged, or draft state, ask what happens if the underlying list reorders or the selection changes underneath it.
 - IDs come from `crypto.randomUUID()`; timestamps are epoch-ms from `Date.now()`.
 
+### The demo school seeds exactly once
+
+`seedIfEmpty(db, workspaceId)` gates on a marker in `localStorage` (`profs-seeded-workspaces`), not on the tables being empty. That is deliberate: wiping all data in Réglages must stay wiped, because `PRIVACY.md` promises the erase is permanent, and gating on emptiness resurrected the demo school on the next reload.
+
+Consequence when developing: once a workspace has been seeded, emptying the tables will **not** bring the demo data back. To get it back, remove that key from `localStorage` and reload.
+
 ### Testing posture
 
-Domain and `src/db` modules are TDD, tested against `fake-indexeddb`. **There are deliberately no component tests** (matching the sibling `open-setlist` project) — UI is verified by reading and by driving a real browser. Do not add a component-test framework without being asked.
+Domain and `src/db` modules are TDD, tested against `fake-indexeddb` (`import "fake-indexeddb/auto"` at the top of the suite). Jest runs in the `node` environment, so `jest.setup.js` supplies a `localStorage` shim that the workspace registry and the seed marker need. **There are deliberately no component tests** (matching the sibling `open-setlist` project) — UI is verified by reading and by driving a real browser against `yarn dev` on port 3000. That is also why blocking dialogs are banned: they freeze that automation.
+
+When you change UI, prove the flow rather than asserting it. If you cannot drive a browser, a throwaway Node script exercising the real `src/db` code against `fake-indexeddb` through the whole lifecycle catches wiring errors before review does.
 
 ### Deleting things
 
