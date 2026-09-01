@@ -1,4 +1,5 @@
 import type { Student } from "@db";
+import { deleteStudent } from "@db/cascade";
 import { useDb } from "@db/provider";
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -17,7 +18,13 @@ export function ClassPage({ classId }: { classId: string }) {
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
 
-  const schoolClass = useLiveQuery(() => db.classes.get(classId), [db, classId]);
+  // An explicit null distinguishes "no such class" from "still loading":
+  // useLiveQuery gives undefined for both, and the page would otherwise sit on
+  // "Chargement…" forever for a class that has been deleted.
+  const schoolClass = useLiveQuery(
+    async () => (await db.classes.get(classId)) ?? null,
+    [db, classId],
+  );
   const students = useLiveQuery(
     () => db.students.where("classId").equals(classId).sortBy("lastName"),
     [db, classId],
@@ -44,10 +51,7 @@ export function ClassPage({ classId }: { classId: string }) {
                     type="button"
                     className="btn btn-danger"
                     onClick={async () => {
-                      await db.transaction("rw", [db.students, db.grades], async () => {
-                        await db.grades.where("studentId").equals(student.id).delete();
-                        await db.students.delete(student.id);
-                      });
+                      await deleteStudent(db, student.id);
                       setConfirmingDeleteId(null);
                     }}
                   >
@@ -74,7 +78,10 @@ export function ClassPage({ classId }: { classId: string }) {
     [t, db, confirmingDeleteId],
   );
 
-  if (!schoolClass || !students) return <p className="text-text-muted">{t("common.loading")}</p>;
+  if (schoolClass === undefined || students === undefined) {
+    return <p className="text-text-muted">{t("common.loading")}</p>;
+  }
+  if (schoolClass === null) return <p className="text-text-muted">{t("class.notFound")}</p>;
 
   return (
     <div className="flex flex-col gap-4">

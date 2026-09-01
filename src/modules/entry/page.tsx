@@ -10,7 +10,7 @@ import { Router } from "../../router";
 import { NumberPad } from "../design-system/components/number-pad";
 
 export function EntryPage({ gradebookId, columnId }: { gradebookId: string; columnId: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const db = useDb();
   const [index, setIndex] = useState(0);
   const [draft, setDraft] = useState<string | null>(null);
@@ -24,6 +24,10 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
   const data = useLiveQuery(async () => {
     const column = await db.columns.get(columnId);
     if (!column) return null;
+    // The column must belong to the gradebook in the URL. Without this,
+    // /gradebooks/<B>/entry/<column-of-A> would render B's roster against A's
+    // column and write grade rows keyed to a pair that no grid ever reads.
+    if (column.gradebookId !== gradebookId) return null;
     const gradebook = await db.gradebooks.get(gradebookId);
     if (!gradebook) return null;
     const [students, grades] = await Promise.all([
@@ -99,7 +103,7 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
       ? draft
       : stored === undefined
         ? ""
-        : formatGradeValue(stored, isNumeric ? column.max : undefined);
+        : formatGradeValue(stored, isNumeric ? column.max : undefined, i18n.language);
 
   return (
     <div className="mx-auto flex max-w-sm flex-col gap-4">
@@ -175,7 +179,7 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
                       if (value.type === "attendance") {
                         return t(`gradebook.attendance.${value.value}`);
                       }
-                      return formatGradeValue(value);
+                      return formatGradeValue(value, undefined, i18n.language);
                     })()}
                   </span>
                 </button>

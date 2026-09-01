@@ -7,6 +7,7 @@ import {
   DEFAULT_COLUMN_WEIGHT,
   isNumericColumn,
 } from "@domain/gradebook/column";
+import { parseDecimal } from "@domain/gradebook/decimal";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -27,13 +28,37 @@ export function ColumnForm({
   const [type, setType] = useState<ColumnType>(column?.type ?? "numeric");
   const [weight, setWeight] = useState(String(column?.weight ?? DEFAULT_COLUMN_WEIGHT));
   const [max, setMax] = useState(String(column?.max ?? DEFAULT_COLUMN_MAX));
+  const [error, setError] = useState<string | null>(null);
 
   async function save(): Promise<void> {
-    const parsedWeight = Number(weight.replace(",", ".")) || DEFAULT_COLUMN_WEIGHT;
-    const parsedMax = Number(max.replace(",", ".")) || DEFAULT_COLUMN_MAX;
+    // Weight and max must be strictly positive: a weight of 0 silently drops
+    // the column out of every average, and a max of 0 or less makes the column
+    // permanently un-fillable, since every entry then fails the max check.
+    // Refuse them with a message rather than substituting a default behind the
+    // teacher's back.
+    const parsedWeight = parseDecimal(weight);
+    const parsedMax = parseDecimal(max);
+    const numeric = isNumericColumn(type);
+
+    if (numeric && (parsedWeight === null || parsedWeight <= 0)) {
+      setError(t("gradebook.positiveRequired"));
+      return;
+    }
+    if (type === "numeric" && (parsedMax === null || parsedMax <= 0)) {
+      setError(t("gradebook.positiveRequired"));
+      return;
+    }
+    setError(null);
+
+    // A hidden field is not validated, but its value is still kept if it is
+    // usable — switching a column to a non-numeric type must not silently
+    // reset the scale it would go back to.
+    const nextWeight =
+      parsedWeight !== null && parsedWeight > 0 ? parsedWeight : DEFAULT_COLUMN_WEIGHT;
+    const nextMax = parsedMax !== null && parsedMax > 0 ? parsedMax : DEFAULT_COLUMN_MAX;
 
     if (column) {
-      await db.columns.update(column.id, { label, type, weight: parsedWeight, max: parsedMax });
+      await db.columns.update(column.id, { label, type, weight: nextWeight, max: nextMax });
     } else {
       const siblings = await db.columns.where("gradebookId").equals(gradebookId).count();
       await db.columns.add({
@@ -42,8 +67,8 @@ export function ColumnForm({
         periodId,
         type,
         label: label || t("gradebook.untitledColumn"),
-        weight: parsedWeight,
-        max: parsedMax,
+        weight: nextWeight,
+        max: nextMax,
         order: siblings,
         date: Date.now(),
       });
@@ -99,6 +124,11 @@ export function ColumnForm({
       <button type="button" className="btn" onClick={onDone}>
         {t("common.cancel")}
       </button>
+      {error && (
+        <p role="alert" className="w-full text-danger text-sm">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

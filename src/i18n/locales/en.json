@@ -8,9 +8,6 @@
     "edit": "Edit",
     "add": "Add",
     "search": "Search",
-    "filter": "Filter",
-    "filterColumn": "Filter {{column}}",
-    "all": "All",
     "noData": "No data",
     "noResults": "No results",
     "loading": "Loading…"
@@ -33,7 +30,8 @@
     "addStudent": "Add student",
     "noStudents": "No students in this class",
     "confirmDelete": "Confirm?",
-    "importCsv": "Import CSV"
+    "importCsv": "Import CSV",
+    "notFound": "Class not found"
   },
   "gradebook": {
     "addColumn": "Add column",
@@ -43,6 +41,11 @@
     "max": "Out of",
     "coef": "×{{weight}}",
     "noColumns": "No columns in this period",
+    "period": "Period",
+    "editColumn": "Edit column",
+    "deleteColumn": "Delete column",
+    "confirmDeleteColumn": "Delete this column and its grades?",
+    "positiveRequired": "Must be a number greater than 0",
     "notFound": "Gradebook not found",
     "untitledColumn": "Untitled",
     "type": {

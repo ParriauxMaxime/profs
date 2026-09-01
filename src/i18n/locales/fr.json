@@ -8,9 +8,6 @@
     "edit": "Modifier",
     "add": "Ajouter",
     "search": "Rechercher",
-    "filter": "Filtrer",
-    "filterColumn": "Filtrer {{column}}",
-    "all": "Tous",
     "noData": "Aucune donnée",
     "noResults": "Aucun résultat",
     "loading": "Chargement…"
@@ -33,7 +30,8 @@
     "addStudent": "Ajouter un élève",
     "noStudents": "Aucun élève dans cette classe",
     "confirmDelete": "Confirmer ?",
-    "importCsv": "Importer un CSV"
+    "importCsv": "Importer un CSV",
+    "notFound": "Classe introuvable"
   },
   "gradebook": {
     "addColumn": "Ajouter une colonne",
@@ -43,6 +41,11 @@
     "max": "Barème",
     "coef": "coef {{weight}}",
     "noColumns": "Aucune colonne pour cette période",
+    "period": "Période",
+    "editColumn": "Modifier la colonne",
+    "deleteColumn": "Supprimer la colonne",
+    "confirmDeleteColumn": "Supprimer la colonne et ses notes ?",
+    "positiveRequired": "Doit être un nombre supérieur à 0",
     "notFound": "Carnet introuvable",
     "untitledColumn": "Sans titre",
     "type": {

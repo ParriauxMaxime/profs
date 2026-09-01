@@ -1,9 +1,11 @@
 import type { Grade, GradeColumn, Student } from "@db";
 import { gradeKey } from "@db";
+import { deleteColumn } from "@db/cascade";
 import { useDb } from "@db/provider";
 import type { AverageColumn, AverageGrade } from "@domain/gradebook/average";
 import { classStats, studentAverage } from "@domain/gradebook/average";
 import { isNumericColumn } from "@domain/gradebook/column";
+import { formatDecimal } from "@domain/gradebook/decimal";
 import type { GradeValue } from "@domain/gradebook/grade";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -15,10 +17,13 @@ import { EditableCell } from "../design-system/components/editable-cell";
 import { ColumnForm } from "./components/column-form";
 
 export function GradebookPage({ gradebookId }: { gradebookId: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const db = useDb();
   const [periodId, setPeriodId] = useState<string | null>(null);
   const [addingColumn, setAddingColumn] = useState(false);
+  const [editingColumn, setEditingColumn] = useState<GradeColumn | null>(null);
+  const [confirmingDeleteColumnId, setConfirmingDeleteColumnId] = useState<string | null>(null);
+  const locale = i18n.language;
 
   const data = useLiveQuery(async () => {
     const gradebook = await db.gradebooks.get(gradebookId);
@@ -92,6 +97,7 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
         <div className="flex items-center gap-2">
           <select
             className="field"
+            aria-label={t("gradebook.period")}
             value={activePeriodId}
             onChange={(e) => setPeriodId(e.target.value)}
           >
@@ -101,7 +107,14 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
               </option>
             ))}
           </select>
-          <button type="button" className="btn btn-primary" onClick={() => setAddingColumn(true)}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              setEditingColumn(null);
+              setAddingColumn(true);
+            }}
+          >
             {t("gradebook.addColumn")}
           </button>
         </div>
@@ -109,9 +122,22 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
 
       {addingColumn && (
         <ColumnForm
+          key="new"
           gradebookId={gradebookId}
           periodId={activePeriodId}
           onDone={() => setAddingColumn(false)}
+        />
+      )}
+
+      {editingColumn && (
+        // Keyed by column id so switching target remounts the form instead of
+        // leaving the previous column's values in its state.
+        <ColumnForm
+          key={editingColumn.id}
+          gradebookId={gradebookId}
+          periodId={editingColumn.periodId}
+          column={editingColumn}
+          onDone={() => setEditingColumn(null)}
         />
       )}
 
@@ -122,20 +148,77 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
               <th className="sticky left-0 z-10 bg-bg px-3 py-2">{t("student.lastName")}</th>
               {columns.map((column) => (
                 <th key={column.id} className="min-w-24 px-3 py-2 text-center font-medium">
-                  <Link
-                    to={Router.Entry({ gradebookId, columnId: column.id })}
-                    className="flex flex-col items-center hover:text-accent"
-                  >
-                    <span className="flex items-center gap-1">
-                      <ColumnTypeIcon type={column.type} />
-                      {column.label}
-                    </span>
-                    {isNumericColumn(column.type) && (
-                      <span className="text-text-faint text-xs">
-                        {t("gradebook.coef", { weight: column.weight })}
+                  <div className="flex flex-col items-center gap-1">
+                    {/* Only numeric columns have a fast-entry screen: the entry
+                        page renders the card and keypad for numeric columns
+                        alone, so linking any other type would lead to a header
+                        and a roster with no way to enter anything. */}
+                    {isNumericColumn(column.type) ? (
+                      <Link
+                        to={Router.Entry({ gradebookId, columnId: column.id })}
+                        className="flex flex-col items-center hover:text-accent"
+                      >
+                        <span className="flex items-center gap-1">
+                          <ColumnTypeIcon type={column.type} />
+                          {column.label}
+                        </span>
+                        <span className="text-text-faint text-xs">
+                          {t("gradebook.coef", { weight: column.weight })}
+                        </span>
+                      </Link>
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        <ColumnTypeIcon type={column.type} />
+                        {column.label}
                       </span>
                     )}
-                  </Link>
+
+                    <div className="flex items-center gap-2 font-normal text-xs">
+                      <button
+                        type="button"
+                        className="text-text-muted hover:text-accent"
+                        onClick={() => {
+                          setAddingColumn(false);
+                          setConfirmingDeleteColumnId(null);
+                          setEditingColumn(column);
+                        }}
+                      >
+                        {t("common.edit")}
+                      </button>
+                      {confirmingDeleteColumnId === column.id ? (
+                        <>
+                          <button
+                            type="button"
+                            className="text-danger"
+                            onClick={async () => {
+                              await deleteColumn(db, column.id);
+                              setConfirmingDeleteColumnId(null);
+                              setEditingColumn((current) =>
+                                current?.id === column.id ? null : current,
+                              );
+                            }}
+                          >
+                            {t("gradebook.confirmDeleteColumn")}
+                          </button>
+                          <button
+                            type="button"
+                            className="text-text-muted"
+                            onClick={() => setConfirmingDeleteColumnId(null)}
+                          >
+                            {t("common.cancel")}
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="text-danger hover:underline"
+                          onClick={() => setConfirmingDeleteColumnId(column.id)}
+                        >
+                          {t("common.delete")}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </th>
               ))}
               <th className="min-w-20 px-3 py-2 text-center font-medium">
@@ -163,7 +246,7 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
                   {averages.get(student.id) === null || averages.get(student.id) === undefined ? (
                     <span className="text-text-faint">—</span>
                   ) : (
-                    `${String(averages.get(student.id)).replace(".", ",")}/20`
+                    `${formatDecimal(averages.get(student.id) as number, locale)}/20`
                   )}
                 </td>
               </tr>
@@ -176,19 +259,19 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
         <dl className="flex flex-wrap gap-6 rounded border border-border p-3 text-sm">
           <div>
             <dt className="text-text-muted">{t("gradebook.stats.mean")}</dt>
-            <dd className="font-medium tabular-nums">{String(stats.mean).replace(".", ",")}</dd>
+            <dd className="font-medium tabular-nums">{formatDecimal(stats.mean, locale)}</dd>
           </div>
           <div>
             <dt className="text-text-muted">{t("gradebook.stats.median")}</dt>
-            <dd className="font-medium tabular-nums">{String(stats.median).replace(".", ",")}</dd>
+            <dd className="font-medium tabular-nums">{formatDecimal(stats.median, locale)}</dd>
           </div>
           <div>
             <dt className="text-text-muted">{t("gradebook.stats.min")}</dt>
-            <dd className="font-medium tabular-nums">{String(stats.min).replace(".", ",")}</dd>
+            <dd className="font-medium tabular-nums">{formatDecimal(stats.min, locale)}</dd>
           </div>
           <div>
             <dt className="text-text-muted">{t("gradebook.stats.max")}</dt>
-            <dd className="font-medium tabular-nums">{String(stats.max).replace(".", ",")}</dd>
+            <dd className="font-medium tabular-nums">{formatDecimal(stats.max, locale)}</dd>
           </div>
           <div>
             <dt className="text-text-muted">{t("gradebook.stats.count")}</dt>
