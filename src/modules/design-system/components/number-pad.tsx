@@ -8,11 +8,13 @@ export function NumberPad({
   onDecimal,
   onBackspace,
   onNext,
+  disabled,
 }: {
   onDigit: (digit: string) => void;
   onDecimal: () => void;
   onBackspace: () => void;
   onNext: () => void;
+  disabled?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -22,21 +24,32 @@ export function NumberPad({
           key={digit}
           type="button"
           className="btn py-4 text-lg"
+          disabled={disabled}
           onClick={() => onDigit(digit)}
         >
           {digit}
         </button>
       ))}
-      <button type="button" className="btn py-4 text-lg" onClick={onDecimal}>
+      <button type="button" className="btn py-4 text-lg" disabled={disabled} onClick={onDecimal}>
         ,
       </button>
-      <button type="button" className="btn py-4 text-lg" onClick={() => onDigit("0")}>
+      <button
+        type="button"
+        className="btn py-4 text-lg"
+        disabled={disabled}
+        onClick={() => onDigit("0")}
+      >
         0
       </button>
-      <button type="button" className="btn py-4 text-lg" onClick={onBackspace}>
+      <button type="button" className="btn py-4 text-lg" disabled={disabled} onClick={onBackspace}>
         ⌫
       </button>
-      <button type="button" className="btn btn-primary col-span-3 py-4 text-lg" onClick={onNext}>
+      <button
+        type="button"
+        className="btn btn-primary col-span-3 py-4 text-lg"
+        disabled={disabled}
+        onClick={onNext}
+      >
         {t("entry.next")}
       </button>
     </div>

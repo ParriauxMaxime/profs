@@ -21,8 +21,11 @@ export const gradeValueSchema = z.discriminatedUnion("type", [
 /**
  * Turn raw editor input into a validated GradeValue.
  * Returns null when the input is empty or invalid — the caller deletes the cell.
+ * `max` only matters for numeric columns: a value above it is rejected (not
+ * clamped) — silently rewriting a teacher's mistyped mark would be worse than
+ * refusing it.
  */
-export function parseGradeValue(type: ColumnType, raw: unknown): GradeValue | null {
+export function parseGradeValue(type: ColumnType, raw: unknown, max?: number): GradeValue | null {
   if (type === "checkbox") {
     return typeof raw === "boolean" ? { type, value: raw } : null;
   }
@@ -35,6 +38,7 @@ export function parseGradeValue(type: ColumnType, raw: unknown): GradeValue | nu
       // French keyboards and Excel exports both produce "11,5".
       const parsed = Number(text.replace(",", "."));
       if (!Number.isFinite(parsed) || parsed < 0) return null;
+      if (max !== undefined && parsed > max) return null;
       return { type, value: parsed };
     }
     case "letter":

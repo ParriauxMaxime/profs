@@ -52,6 +52,24 @@ describe("parseGradeValue", () => {
       value: "A+",
     });
   });
+
+  it("accepts a numeric grade equal to max", () => {
+    expect(parseGradeValue("numeric", "20", 20)).toEqual({
+      type: "numeric",
+      value: 20,
+    });
+  });
+
+  it("rejects a numeric grade above max", () => {
+    expect(parseGradeValue("numeric", "314", 20)).toBeNull();
+  });
+
+  it("accepts a numeric grade above 20 when no max is given", () => {
+    expect(parseGradeValue("numeric", "25")).toEqual({
+      type: "numeric",
+      value: 25,
+    });
+  });
 });
 
 describe("gradeValueSchema", () => {

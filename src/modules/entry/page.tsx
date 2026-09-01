@@ -14,6 +14,12 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
   const db = useDb();
   const [index, setIndex] = useState(0);
   const [draft, setDraft] = useState<string | null>(null);
+  // True for the duration of an in-flight commit's IndexedDB write. While
+  // true, Suivant, the roster rows and the keypad are all disabled so a
+  // second tap cannot advance `index` again before the first commit's
+  // `setDraft(null)` has landed — that race silently skipped a student and
+  // dropped keystrokes (see the entry-mode fix report).
+  const [isCommitting, setIsCommitting] = useState(false);
 
   const data = useLiveQuery(async () => {
     const column = await db.columns.get(columnId);
@@ -38,30 +44,38 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
   // Commits the draft for the student CURRENTLY on screen, then clears it.
   // Callers must await this before changing `index`, so a draft typed for
   // student A can never be applied against student B — see the awaited
-  // call sites below.
+  // call sites below. `isCommitting` is set for the duration so re-entrant
+  // taps (Suivant, roster rows, keypad) are inert until this settles.
   async function commit(): Promise<void> {
     if (!current || draft === null) return;
-    const parsed = parseGradeValue(column.type, draft);
-    if (parsed === null) {
-      await db.grades.delete(gradeKey(gradebookId, columnId, current.id));
-    } else {
-      await db.grades.put({
-        gradebookId,
-        columnId,
-        studentId: current.id,
-        value: parsed,
-        updatedAt: Date.now(),
-      });
+    setIsCommitting(true);
+    try {
+      const parsed = parseGradeValue(column.type, draft, isNumeric ? column.max : undefined);
+      if (parsed === null) {
+        await db.grades.delete(gradeKey(gradebookId, columnId, current.id));
+      } else {
+        await db.grades.put({
+          gradebookId,
+          columnId,
+          studentId: current.id,
+          value: parsed,
+          updatedAt: Date.now(),
+        });
+      }
+      setDraft(null);
+    } finally {
+      setIsCommitting(false);
     }
-    setDraft(null);
   }
 
   async function next(): Promise<void> {
+    if (isCommitting) return;
     await commit();
     setIndex((i) => Math.min(i + 1, students.length - 1));
   }
 
   async function jumpTo(i: number): Promise<void> {
+    if (isCommitting) return;
     await commit();
     setIndex(i);
   }
@@ -106,9 +120,19 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
               </div>
 
               <NumberPad
-                onDigit={(digit) => setDraft((d) => (d ?? "") + digit)}
-                onDecimal={() => setDraft((d) => ((d ?? "").includes(",") ? d : `${d ?? ""},`))}
-                onBackspace={() => setDraft((d) => (d ?? "").slice(0, -1))}
+                disabled={isCommitting}
+                onDigit={(digit) => {
+                  if (isCommitting) return;
+                  setDraft((d) => (d ?? "") + digit);
+                }}
+                onDecimal={() => {
+                  if (isCommitting) return;
+                  setDraft((d) => ((d ?? "").includes(",") ? d : `${d ?? ""},`));
+                }}
+                onBackspace={() => {
+                  if (isCommitting) return;
+                  setDraft((d) => (d ?? "").slice(0, -1));
+                }}
                 onNext={() => void next()}
               />
             </>
@@ -119,6 +143,7 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
               <li key={student.id}>
                 <button
                   type="button"
+                  disabled={isCommitting}
                   className={[
                     "flex w-full justify-between rounded px-2 py-1 text-left",
                     i === index ? "bg-bg-hover font-medium" : "",
@@ -131,7 +156,13 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
                   <span className="tabular-nums text-text-muted">
                     {(() => {
                       const value = byStudent.get(student.id)?.value;
-                      return value === undefined ? "—" : formatGradeValue(value);
+                      if (value === undefined) return "—";
+                      // The stored value stays the raw domain string; only the
+                      // displayed label is translated.
+                      if (value.type === "attendance") {
+                        return t(`gradebook.attendance.${value.value}`);
+                      }
+                      return formatGradeValue(value);
                     })()}
                   </span>
                 </button>

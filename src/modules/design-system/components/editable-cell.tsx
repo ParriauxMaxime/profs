@@ -82,7 +82,7 @@ export function EditableCell({
   }
 
   const commit = () => {
-    onChange(parseGradeValue(type, draft));
+    onChange(parseGradeValue(type, draft, type === "numeric" ? max : undefined));
     setEditing(false);
   };
 
