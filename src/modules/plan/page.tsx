@@ -1,21 +1,38 @@
+import type { Session } from "@db";
 import { useDb } from "@db/provider";
+import { createSession, getOrCreateTodaySession } from "@db/sessions";
 import { buildSeats, DEFAULT_COLS, DEFAULT_ROWS, unseatedStudentIds } from "@domain/seating";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LayoutSizeForm } from "./components/layout-size-form";
 import { SeatGrid } from "./components/seat-grid";
+import { StudentCard } from "./components/student-card";
 import { UnseatedPool } from "./components/unseated-pool";
 
 export function PlanPage({ classId }: { classId: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const db = useDb();
   // Armed seat, as "row:col". Anchored to the cell's coordinates, which are
   // its identity — nothing here is index-keyed.
   const [armedSeat, setArmedSeat] = useState<string | null>(null);
   const [resizing, setResizing] = useState(false);
-  // Held for Task 10's <StudentCard />; this task renders nothing for it yet.
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+
+  // The session is fetched once the class is known, not on every render: a
+  // lazy get-or-create is idempotent but still a write, so it lives in an
+  // effect rather than a live query. The `cancelled` flag guards against
+  // React 19 StrictMode's double-invoked effects racing each other.
+  useEffect(() => {
+    let cancelled = false;
+    void getOrCreateTodaySession(db, classId).then((s) => {
+      if (!cancelled) setSession(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [db, classId]);
 
   const schoolClass = useLiveQuery(
     async () => (await db.classes.get(classId)) ?? null,
@@ -73,22 +90,42 @@ export function PlanPage({ classId }: { classId: string }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold text-lg">
-          {t("plan.title")} — {schoolClass.name}
-        </h2>
-        <button
-          type="button"
-          className={resizing ? "btn btn-primary" : "btn"}
-          aria-pressed={resizing}
-          onClick={() => {
-            // Leaving edit mode disarms: an armed seat is a live-entry state
-            // and must not survive into a different mode.
-            setArmedSeat(null);
-            setResizing((v) => !v);
-          }}
-        >
-          {resizing ? t("plan.doneEditing") : t("plan.editLayout")}
-        </button>
+        <div className="flex flex-col">
+          <h2 className="font-semibold text-lg">
+            {t("plan.title")} — {schoolClass.name}
+          </h2>
+          {session && (
+            <span className="text-sm text-text-muted">
+              {t("plan.sessionOf", {
+                date: new Intl.DateTimeFormat(i18n.language, { dateStyle: "long" }).format(
+                  session.date,
+                ),
+              })}
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => void createSession(db, classId).then(setSession)}
+          >
+            {t("plan.newSession")}
+          </button>
+          <button
+            type="button"
+            className={resizing ? "btn btn-primary" : "btn"}
+            aria-pressed={resizing}
+            onClick={() => {
+              // Leaving edit mode disarms: an armed seat is a live-entry state
+              // and must not survive into a different mode.
+              setArmedSeat(null);
+              setResizing((v) => !v);
+            }}
+          >
+            {resizing ? t("plan.doneEditing") : t("plan.editLayout")}
+          </button>
+        </div>
       </div>
 
       {resizing && (
@@ -110,8 +147,20 @@ export function PlanPage({ classId }: { classId: string }) {
         editing={resizing}
       />
 
-      {/* Task 10 renders <StudentCard studentId={selectedStudentId} .../> here. */}
-      {selectedStudentId !== null && null}
+      {selectedStudentId !== null &&
+        session &&
+        (() => {
+          const student = byId.get(selectedStudentId);
+          if (!student) return null;
+          return (
+            <StudentCard
+              key={student.id}
+              student={student}
+              session={session}
+              onClose={() => setSelectedStudentId(null)}
+            />
+          );
+        })()}
 
       <UnseatedPool
         students={unseated.map((id) => byId.get(id)).filter((s) => s !== undefined)}
