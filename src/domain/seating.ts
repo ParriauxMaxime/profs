@@ -45,15 +45,13 @@ export function resizeSeats(
   layoutId: string,
   rows: number,
   cols: number,
+  oldRows: number,
+  oldCols: number,
 ): ResizeResult {
   const kept: Seat[] = [];
   const unseated: string[] = [];
-  let oldMaxRow = -1;
-  let oldMaxCol = -1;
 
   for (const seat of existing) {
-    oldMaxRow = Math.max(oldMaxRow, seat.row);
-    oldMaxCol = Math.max(oldMaxCol, seat.col);
     if (seat.row < rows && seat.col < cols) {
       kept.push(seat);
     } else if (seat.studentId !== null) {
@@ -61,13 +59,14 @@ export function resizeSeats(
     }
   }
 
-  // Only cells beyond the old grid's extent are genuine growth and become
-  // seats. A cell inside that extent but absent from `existing` is a gap the
-  // teacher carved — an aisle, a doorway — and resizing must never invent a
-  // seat back into it. Widening a room must not silently refill its aisles.
+  // The old extent comes from the STORED layout, never from the surviving
+  // seats. Inferring it from the seats meant that carving away a whole edge
+  // row lowered the inferred extent, so the next resize saw that row as new
+  // growth and silently restored it — the teacher's aisle grew back by
+  // opening the size form and saving it unchanged.
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col < cols; col += 1) {
-      if (row <= oldMaxRow && col <= oldMaxCol) continue;
+      if (row < oldRows && col < oldCols) continue;
       kept.push({ layoutId, row, col, studentId: null });
     }
   }

@@ -83,3 +83,19 @@ describe("sessionsForClass", () => {
     db.close();
   });
 });
+
+describe("getOrCreateTodaySession — concurrency", () => {
+  it("creates exactly one session when two callers race", async () => {
+    const db = freshDb("race");
+    // React 19 StrictMode double-invokes effects, so both calls start before
+    // either finishes. Without a transaction both reads saw an empty table
+    // and both wrote, giving the class two sessions for one lesson.
+    const [a, b] = await Promise.all([
+      getOrCreateTodaySession(db, "c1"),
+      getOrCreateTodaySession(db, "c1"),
+    ]);
+    expect(await db.sessions.count()).toBe(1);
+    expect(a.id).toBe(b.id);
+    db.close();
+  });
+});

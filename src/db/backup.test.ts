@@ -227,3 +227,35 @@ describe("workspace backup", () => {
     db.close();
   });
 });
+
+describe("exportWorkspace — unreachable rows", () => {
+  it("drops grades whose value no longer parses, so the export can be imported", async () => {
+    const db = openWorkspaceDb(`backup-stale-${crypto.randomUUID()}`);
+    await db.grades.bulkPut([
+      {
+        gradebookId: "g1",
+        columnId: "c1",
+        studentId: "p1",
+        value: { type: "numeric", value: 14 },
+        updatedAt: 1,
+      },
+      // A row left behind by a workspace created before `attendance` stopped
+      // being a column type. Its column no longer exists.
+      {
+        gradebookId: "g1",
+        columnId: "c2",
+        studentId: "p1",
+        value: { type: "attendance", value: "absent" },
+        updatedAt: 1,
+      } as unknown as Parameters<typeof db.grades.put>[0],
+    ]);
+
+    const backup = await exportWorkspace(db);
+
+    expect(backup.grades).toHaveLength(1);
+    expect(backup.grades[0].columnId).toBe("c1");
+    // The whole point: the export round-trips instead of being rejected.
+    expect(() => parseBackup(backup)).not.toThrow();
+    db.close();
+  });
+});

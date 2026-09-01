@@ -128,7 +128,14 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     gradebooks,
     periods,
     columns,
-    grades,
+    // Grades whose value no longer parses are dropped rather than exported.
+    // A workspace created before `attendance` left the column types still
+    // holds attendance grade rows; their column type is gone, so the rows are
+    // unreachable in every grid and never averaged. Exporting them produced a
+    // file this module's own `parseBackup` rejects — the teacher's backup was
+    // unusable and nothing said why. Dropping an unreachable row loses
+    // nothing that is still reachable.
+    grades: grades.filter((grade) => gradeValueSchema.safeParse(grade.value).success),
     sessions,
     attendance,
     behaviourEvents,

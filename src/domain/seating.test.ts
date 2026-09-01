@@ -21,7 +21,7 @@ describe("resizeSeats", () => {
   ];
 
   it("keeps every seat when the size does not change", () => {
-    const { seats, unseated } = resizeSeats(existing, "l1", 2, 2);
+    const { seats, unseated } = resizeSeats(existing, "l1", 2, 2, 2, 2);
     // Two seats in, two seats out: the cells absent from the input are gaps,
     // and a resize that changes nothing must invent nothing.
     expect(seats).toHaveLength(2);
@@ -31,7 +31,7 @@ describe("resizeSeats", () => {
   });
 
   it("adds seats only where the grid actually grew", () => {
-    const { seats } = resizeSeats(existing, "l1", 3, 3);
+    const { seats } = resizeSeats(existing, "l1", 3, 3, 2, 2);
     // Row 2 and column 2 are new, so their five cells become empty seats,
     // joining the two occupied ones. The two gaps inside the old 2x2 extent
     // stay gaps.
@@ -41,24 +41,43 @@ describe("resizeSeats", () => {
     expect(seats.filter((s) => s.row === 2)).toHaveLength(3);
   });
 
+  it("never restores a whole edge row that was carved away", () => {
+    // The regression the first fix missed: remove ALL of row 1 from a 2x3
+    // room, then re-save the size form unchanged. Inferring the old extent
+    // from the surviving seats put oldMaxRow at 0, so row 1 looked like
+    // growth and came back. The stored layout still says 2 rows, so it must
+    // not.
+    const withoutLastRow = buildSeats("l1", 2, 3).filter((s) => s.row !== 1);
+    const { seats } = resizeSeats(withoutLastRow, "l1", 2, 3, 2, 3);
+    expect(seats).toHaveLength(3);
+    expect(seats.some((s) => s.row === 1)).toBe(false);
+  });
+
+  it("still adds the row when the room genuinely grows", () => {
+    const twoRows = buildSeats("l1", 2, 3);
+    const { seats } = resizeSeats(twoRows, "l1", 3, 3, 2, 3);
+    expect(seats).toHaveLength(9);
+    expect(seats.filter((s) => s.row === 2)).toHaveLength(3);
+  });
+
   it("never refills an aisle the teacher carved when the room widens", () => {
     // The regression that matters: a full 2x3 room with (0,1) removed as an
     // aisle. Widening must leave that hole alone.
     const withAisle = buildSeats("l1", 2, 3).filter((s) => !(s.row === 0 && s.col === 1));
-    const { seats } = resizeSeats(withAisle, "l1", 2, 4);
+    const { seats } = resizeSeats(withAisle, "l1", 2, 4, 2, 3);
     expect(seats.some((s) => s.row === 0 && s.col === 1)).toBe(false);
     expect(seats).toHaveLength(7);
   });
 
   it("reports pupils that shrinking would unseat, and does not keep them", () => {
-    const { seats, unseated } = resizeSeats(existing, "l1", 1, 1);
+    const { seats, unseated } = resizeSeats(existing, "l1", 1, 1, 2, 2);
     expect(seats).toHaveLength(1);
     expect(unseated).toEqual(["b"]);
   });
 
   it("preserves gaps — a cell absent from the input stays absent", () => {
     const withGap = [{ layoutId: "l1", row: 0, col: 1, studentId: null }];
-    const { seats } = resizeSeats(withGap, "l1", 1, 2);
+    const { seats } = resizeSeats(withGap, "l1", 1, 2, 1, 2);
     expect(seats).toHaveLength(1);
     expect(seats[0].col).toBe(1);
   });

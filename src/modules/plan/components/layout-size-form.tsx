@@ -24,13 +24,20 @@ export function LayoutSizeForm({
   const [cols, setCols] = useState(layout.cols);
   const [saving, setSaving] = useState(false);
 
-  const preview = resizeSeats(seats, layout.id, rows, cols);
+  const preview = resizeSeats(seats, layout.id, rows, cols, layout.rows, layout.cols);
   const unseatedCount = preview.unseated.length;
 
   const apply = async (): Promise<void> => {
     setSaving(true);
     try {
-      const { seats: nextSeats } = resizeSeats(seats, layout.id, rows, cols);
+      const { seats: nextSeats } = resizeSeats(
+        seats,
+        layout.id,
+        rows,
+        cols,
+        layout.rows,
+        layout.cols,
+      );
       const keep = new Set(nextSeats.map((s) => `${s.row}:${s.col}`));
       const toDelete = seats
         .filter((s) => !keep.has(`${s.row}:${s.col}`))

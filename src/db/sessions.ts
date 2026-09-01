@@ -52,11 +52,26 @@ export async function getOrCreateTodaySession(
   subjectId?: string,
 ): Promise<Session> {
   const today = startOfDay(Date.now());
-  const todays = await db.sessions.where({ classId, date: today }).toArray();
-  if (todays.length > 0) {
-    return todays.reduce((latest, s) => (s.createdAt > latest.createdAt ? s : latest));
-  }
-  return await createSession(db, classId, subjectId);
+  // Read and write inside ONE transaction. Read-then-write outside a
+  // transaction let React 19 StrictMode's double-invoked effect run both
+  // reads before either write, so a first visit to the plan page created two
+  // sessions for the same lesson. Guarding the caller's setState does not
+  // help — by then both writes have happened.
+  return await db.transaction("rw", db.sessions, async () => {
+    const todays = await db.sessions.where({ classId, date: today }).toArray();
+    if (todays.length > 0) {
+      return todays.reduce((latest, s) => (s.createdAt > latest.createdAt ? s : latest));
+    }
+    const session: Session = {
+      id: crypto.randomUUID(),
+      classId,
+      ...(subjectId === undefined ? {} : { subjectId }),
+      date: today,
+      createdAt: Date.now(),
+    };
+    await db.sessions.add(session);
+    return session;
+  });
 }
 
 /** Every session of a class, newest first. */
