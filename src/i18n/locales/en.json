@@ -43,7 +43,7 @@
   },
   "class": {
     "addStudent": "Add student",
-    "noStudents": "No students in this class",
+    "noStudents": "No students in this class. Add them one by one with “Add student”, or paste your list with “Import CSV”.",
     "confirmDelete": "Confirm?",
     "importCsv": "Import CSV",
     "notFound": "Class not found",
@@ -63,7 +63,7 @@
     "weight": "Weight",
     "max": "Out of",
     "coef": "×{{weight}}",
-    "noColumns": "No columns in this period",
+    "noColumns": "No columns in this period. Add one with “Add column” — that is where grades are entered.",
     "period": "Period",
     "editColumn": "Edit column",
     "deleteColumn": "Delete column",

@@ -43,7 +43,7 @@
   },
   "class": {
     "addStudent": "Ajouter un élève",
-    "noStudents": "Aucun élève dans cette classe",
+    "noStudents": "Aucun élève dans cette classe. Ajoutez-les un par un avec « Ajouter un élève », ou collez votre liste avec « Importer un CSV ».",
     "confirmDelete": "Confirmer ?",
     "importCsv": "Importer un CSV",
     "notFound": "Classe introuvable",
@@ -63,7 +63,7 @@
     "weight": "Coefficient",
     "max": "Barème",
     "coef": "coef {{weight}}",
-    "noColumns": "Aucune colonne pour cette période",
+    "noColumns": "Aucune colonne pour cette période. Ajoutez-en une avec « Ajouter une colonne » : c'est là que se saisissent les notes.",
     "period": "Période",
     "editColumn": "Modifier la colonne",
     "deleteColumn": "Supprimer la colonne",
