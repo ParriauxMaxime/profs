@@ -1,5 +1,6 @@
 import { ClassPage } from "./modules/class/page";
 import { DashboardPage } from "./modules/dashboard/page";
+import { DesignPage } from "./modules/design-system/page";
 import { EntryPage } from "./modules/entry/page";
 import { GradebookPage } from "./modules/gradebook/page";
 import { PlanPage } from "./modules/plan/page";
@@ -17,6 +18,7 @@ export function App() {
     "Gradebook",
     "Entry",
     "Settings",
+    "Design",
   ]);
 
   if (!route) {
@@ -34,7 +36,7 @@ export function App() {
 type AppRoute = NonNullable<
   ReturnType<
     typeof Router.useRoute<
-      "Home" | "Class" | "Plan" | "Student" | "Gradebook" | "Entry" | "Settings"
+      "Home" | "Class" | "Plan" | "Student" | "Gradebook" | "Entry" | "Settings" | "Design"
     >
   >
 >;
@@ -55,5 +57,7 @@ function Routes({ route }: { route: AppRoute }) {
       return <EntryPage gradebookId={route.params.gradebookId} columnId={route.params.columnId} />;
     case "Settings":
       return <SettingsPage />;
+    case "Design":
+      return <DesignPage />;
   }
 }

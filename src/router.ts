@@ -11,6 +11,7 @@ export const Router = createRouter(
     Gradebook: "/gradebooks/:gradebookId",
     Entry: "/gradebooks/:gradebookId/entry/:columnId",
     Settings: "/settings",
+    Design: "/design",
   },
   { basePath },
 );

@@ -84,7 +84,7 @@ describe("workspace backup", () => {
 
     await expect(
       importWorkspace(db, {
-        version: 3,
+        version: 4,
         exportedAt: 0,
         classes: [],
         students: [],
@@ -98,6 +98,9 @@ describe("workspace backup", () => {
         behaviourEvents: [],
         seatingLayouts: [],
         seats: [],
+        rubricTemplates: [],
+        rubricAssessments: [],
+        rubricScores: [],
       }),
     ).rejects.toThrow();
 
@@ -107,22 +110,30 @@ describe("workspace backup", () => {
     db.close();
   });
 
-  it("exports version 2 with the classroom tables", async () => {
-    const db = openWorkspaceDb("backup-export-v2");
+  it("exports version 3 with the classroom and rubric tables", async () => {
+    const db = openWorkspaceDb("backup-export-v3");
     await db.sessions.add({ id: "s1", classId: "c1", date: 1, createdAt: 1 });
     await db.attendance.put({ sessionId: "s1", studentId: "p1", value: "late", updatedAt: 1 });
+    await db.rubricTemplates.add({
+      id: "t1",
+      name: "Oral",
+      criteria: [],
+      createdAt: 1,
+      updatedAt: 1,
+    });
     const backup = await exportWorkspace(db);
-    expect(backup.version).toBe(2);
+    expect(backup.version).toBe(3);
     expect(backup.sessions).toHaveLength(1);
     expect(backup.attendance).toHaveLength(1);
+    expect(backup.rubricTemplates).toHaveLength(1);
     db.close();
   });
 
-  it("rejects a version 1 backup rather than half-importing it", async () => {
-    const db = openWorkspaceDb("backup-import-v1");
+  it("rejects a version 2 backup rather than half-importing it", async () => {
+    const db = openWorkspaceDb("backup-import-v2");
     expect(() =>
       parseBackup({
-        version: 1,
+        version: 2,
         exportedAt: 1,
         classes: [],
         students: [],
@@ -131,6 +142,11 @@ describe("workspace backup", () => {
         periods: [],
         columns: [],
         grades: [],
+        sessions: [],
+        attendance: [],
+        behaviourEvents: [],
+        seatingLayouts: [],
+        seats: [],
       }),
     ).toThrow();
     db.close();
@@ -162,6 +178,48 @@ describe("workspace backup", () => {
     db.close();
   });
 
+  it("round-trips a rubric assessment's embedded criteria and its scores", async () => {
+    const db = openWorkspaceDb("backup-round-trip-rubric");
+    await db.rubricTemplates.add({
+      id: "t1",
+      name: "Exposé oral",
+      criteria: [{ id: "c1", label: "Clarté" }],
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await db.rubricAssessments.add({
+      id: "a1",
+      gradebookId: "g1",
+      periodId: "pe1",
+      name: "Oral du 12 mars",
+      date: 1,
+      criteria: [
+        { id: "c1", label: "Clarté" },
+        { id: "c2", label: "Contenu" },
+      ],
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await db.rubricScores.put({
+      assessmentId: "a1",
+      criterionId: "c1",
+      studentId: "p1",
+      level: 3,
+      updatedAt: 1,
+    });
+
+    const backup = await exportWorkspace(db);
+    await importWorkspace(db, JSON.parse(JSON.stringify(backup)));
+
+    expect(await db.rubricTemplates.get("t1")).toMatchObject({ name: "Exposé oral" });
+    expect((await db.rubricAssessments.get("a1"))?.criteria).toEqual([
+      { id: "c1", label: "Clarté" },
+      { id: "c2", label: "Contenu" },
+    ]);
+    expect(await db.rubricScores.get(["a1", "c1", "p1"])).toMatchObject({ level: 3 });
+    db.close();
+  });
+
   it("importing twice in a row replaces rather than accumulates, in every table", async () => {
     const db = openWorkspaceDb("backup-double-import");
     await seedIfEmpty(db, "backup-double-import");
@@ -177,6 +235,30 @@ describe("workspace backup", () => {
     });
     await db.seatingLayouts.add({ id: "l1", classId: "c1", rows: 1, cols: 1, updatedAt: 1 });
     await db.seats.put({ layoutId: "l1", row: 0, col: 0, studentId: "p1" });
+    await db.rubricTemplates.add({
+      id: "t1",
+      name: "Oral",
+      criteria: [{ id: "c1", label: "Clarté" }],
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await db.rubricAssessments.add({
+      id: "a1",
+      gradebookId: "g1",
+      periodId: "pe1",
+      name: "Oral",
+      date: 1,
+      criteria: [{ id: "c1", label: "Clarté" }],
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await db.rubricScores.put({
+      assessmentId: "a1",
+      criterionId: "c1",
+      studentId: "p1",
+      level: 2,
+      updatedAt: 1,
+    });
 
     const backup = await exportWorkspace(db);
 
@@ -190,6 +272,9 @@ describe("workspace backup", () => {
       behaviourEvents: await db.behaviourEvents.count(),
       seatingLayouts: await db.seatingLayouts.count(),
       seats: await db.seats.count(),
+      rubricTemplates: await db.rubricTemplates.count(),
+      rubricAssessments: await db.rubricAssessments.count(),
+      rubricScores: await db.rubricScores.count(),
     };
 
     await importWorkspace(db, JSON.parse(JSON.stringify(backup)));
@@ -202,6 +287,9 @@ describe("workspace backup", () => {
       behaviourEvents: await db.behaviourEvents.count(),
       seatingLayouts: await db.seatingLayouts.count(),
       seats: await db.seats.count(),
+      rubricTemplates: await db.rubricTemplates.count(),
+      rubricAssessments: await db.rubricAssessments.count(),
+      rubricScores: await db.rubricScores.count(),
     };
 
     expect(secondImportCounts).toEqual(firstImportCounts);

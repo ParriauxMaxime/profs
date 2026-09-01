@@ -63,7 +63,7 @@ export function LayoutSizeForm({
           min={1}
           max={MAX_ROWS}
           value={rows}
-          className="field-sm w-20"
+          className="field w-20"
           onChange={(e) => setRows(Math.min(MAX_ROWS, Math.max(1, Number(e.target.value) || 1)))}
         />
       </label>
@@ -74,7 +74,7 @@ export function LayoutSizeForm({
           min={1}
           max={MAX_COLS}
           value={cols}
-          className="field-sm w-20"
+          className="field w-20"
           onChange={(e) => setCols(Math.min(MAX_COLS, Math.max(1, Number(e.target.value) || 1)))}
         />
       </label>

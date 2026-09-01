@@ -25,24 +25,37 @@ export async function deleteColumn(db: AppDatabase, columnId: string): Promise<v
 export async function deleteStudent(db: AppDatabase, studentId: string): Promise<void> {
   await db.transaction(
     "rw",
-    [db.students, db.grades, db.attendance, db.behaviourEvents, db.seats],
+    [db.students, db.grades, db.attendance, db.behaviourEvents, db.seats, db.rubricScores],
     async () => {
       await db.grades.where("studentId").equals(studentId).delete();
       await db.attendance.where("studentId").equals(studentId).delete();
       await db.behaviourEvents.where("studentId").equals(studentId).delete();
       await db.seats.where("studentId").equals(studentId).modify({ studentId: null });
+      await db.rubricScores.where("studentId").equals(studentId).delete();
       await db.students.delete(studentId);
     },
   );
 }
 
 export async function deleteGradebook(db: AppDatabase, gradebookId: string): Promise<void> {
-  await db.transaction("rw", [db.gradebooks, db.periods, db.columns, db.grades], async () => {
-    await db.grades.where("gradebookId").equals(gradebookId).delete();
-    await db.columns.where("gradebookId").equals(gradebookId).delete();
-    await db.periods.where("gradebookId").equals(gradebookId).delete();
-    await db.gradebooks.delete(gradebookId);
-  });
+  await db.transaction(
+    "rw",
+    [db.gradebooks, db.periods, db.columns, db.grades, db.rubricAssessments, db.rubricScores],
+    async () => {
+      await db.grades.where("gradebookId").equals(gradebookId).delete();
+      await db.columns.where("gradebookId").equals(gradebookId).delete();
+      await db.periods.where("gradebookId").equals(gradebookId).delete();
+      const assessmentIds = await db.rubricAssessments
+        .where("gradebookId")
+        .equals(gradebookId)
+        .primaryKeys();
+      if (assessmentIds.length > 0) {
+        await db.rubricScores.where("assessmentId").anyOf(assessmentIds).delete();
+        await db.rubricAssessments.bulkDelete(assessmentIds);
+      }
+      await db.gradebooks.delete(gradebookId);
+    },
+  );
 }
 
 /**
@@ -50,14 +63,28 @@ export async function deleteGradebook(db: AppDatabase, gradebookId: string): Pro
  * column — so the grades to drop are found by column, not by period.
  */
 export async function deletePeriod(db: AppDatabase, periodId: string): Promise<void> {
-  await db.transaction("rw", [db.periods, db.columns, db.grades], async () => {
-    const columnIds = await db.columns.where("periodId").equals(periodId).primaryKeys();
-    if (columnIds.length > 0) {
-      await db.grades.where("columnId").anyOf(columnIds).delete();
-      await db.columns.bulkDelete(columnIds);
-    }
-    await db.periods.delete(periodId);
-  });
+  await db.transaction(
+    "rw",
+    [db.periods, db.columns, db.grades, db.rubricAssessments, db.rubricScores],
+    async () => {
+      const columnIds = await db.columns.where("periodId").equals(periodId).primaryKeys();
+      if (columnIds.length > 0) {
+        await db.grades.where("columnId").anyOf(columnIds).delete();
+        await db.columns.bulkDelete(columnIds);
+      }
+      // An assessment naming this period is unreachable in the UI once the
+      // period is gone, same as a column would be.
+      const assessmentIds = await db.rubricAssessments
+        .where("periodId")
+        .equals(periodId)
+        .primaryKeys();
+      if (assessmentIds.length > 0) {
+        await db.rubricScores.where("assessmentId").anyOf(assessmentIds).delete();
+        await db.rubricAssessments.bulkDelete(assessmentIds);
+      }
+      await db.periods.delete(periodId);
+    },
+  );
 }
 
 /**
@@ -84,6 +111,8 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
       db.behaviourEvents,
       db.seatingLayouts,
       db.seats,
+      db.rubricAssessments,
+      db.rubricScores,
     ],
     async () => {
       const gradebookIds = await db.gradebooks.where("classId").equals(classId).primaryKeys();
@@ -91,6 +120,14 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
         await db.grades.where("gradebookId").anyOf(gradebookIds).delete();
         await db.columns.where("gradebookId").anyOf(gradebookIds).delete();
         await db.periods.where("gradebookId").anyOf(gradebookIds).delete();
+        const assessmentIds = await db.rubricAssessments
+          .where("gradebookId")
+          .anyOf(gradebookIds)
+          .primaryKeys();
+        if (assessmentIds.length > 0) {
+          await db.rubricScores.where("assessmentId").anyOf(assessmentIds).delete();
+          await db.rubricAssessments.bulkDelete(assessmentIds);
+        }
         await db.gradebooks.bulkDelete(gradebookIds);
       }
 
@@ -104,6 +141,7 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
         await db.attendance.where("studentId").anyOf(studentIds).delete();
         await db.behaviourEvents.where("studentId").anyOf(studentIds).delete();
         await db.seats.where("studentId").anyOf(studentIds).modify({ studentId: null });
+        await db.rubricScores.where("studentId").anyOf(studentIds).delete();
         await db.students.bulkDelete(studentIds);
       }
 
@@ -183,4 +221,20 @@ export async function deleteSeatingLayout(db: AppDatabase, layoutId: string): Pr
     await db.seats.where("layoutId").equals(layoutId).delete();
     await db.seatingLayouts.delete(layoutId);
   });
+}
+
+/** An assessment and every level recorded on it. */
+export async function deleteRubricAssessment(db: AppDatabase, assessmentId: string): Promise<void> {
+  await db.transaction("rw", [db.rubricAssessments, db.rubricScores], async () => {
+    await db.rubricScores.where("assessmentId").equals(assessmentId).delete();
+    await db.rubricAssessments.delete(assessmentId);
+  });
+}
+
+/**
+ * A template holds nothing of its own — assessments copied its criteria — so
+ * deleting one destroys no grades and needs no refusal, unlike `deleteSubject`.
+ */
+export async function deleteRubricTemplate(db: AppDatabase, templateId: string): Promise<void> {
+  await db.rubricTemplates.delete(templateId);
 }

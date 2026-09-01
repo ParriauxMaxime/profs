@@ -2,6 +2,7 @@ import { ATTENDANCE_VALUES } from "@domain/attendance";
 import { BEHAVIOUR_TYPES } from "@domain/behaviour";
 import { defaultGradebookName } from "@domain/gradebook/naming";
 import { DEFAULT_PERIOD_NAMES } from "@domain/gradebook/period";
+import { RUBRIC_LEVELS } from "@domain/rubric";
 import { buildSeats, DEFAULT_COLS, DEFAULT_ROWS } from "@domain/seating";
 import { SUBJECT_COLORS } from "@domain/subject";
 import { hasBeenSeeded, markSeeded } from "@domain/workspaces";
@@ -14,6 +15,9 @@ import type {
   Gradebook,
   GradeColumn,
   Period,
+  RubricAssessment,
+  RubricScore,
+  RubricTemplate,
   Seat,
   SeatingLayout,
   Session,
@@ -232,6 +236,54 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     }
   }
 
+  // One reusable rubric template, and one assessment per gradebook built
+  // from it. Levels are given to roughly two thirds of pupils per criterion
+  // — a partially filled grid is a more honest demo than a complete one.
+  const rubricTemplate: RubricTemplate = {
+    id: id(),
+    name: "Exposé oral",
+    criteria: ["Clarté", "Contenu", "Support", "Interaction"].map((label) => ({
+      id: id(),
+      label,
+    })),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const rubricAssessments: RubricAssessment[] = [];
+  const rubricScores: RubricScore[] = [];
+
+  for (const gradebook of gradebooks) {
+    const gradebookPeriods = periods.filter((p) => p.gradebookId === gradebook.id);
+    const firstPeriod = gradebookPeriods[0];
+    const assessment: RubricAssessment = {
+      id: id(),
+      gradebookId: gradebook.id,
+      periodId: firstPeriod.id,
+      name: "Exposé oral",
+      date: now,
+      criteria: rubricTemplate.criteria.map((c) => ({ id: id(), label: c.label })),
+      createdAt: now,
+      updatedAt: now,
+    };
+    rubricAssessments.push(assessment);
+
+    const gradebookStudents = students.filter((s) => s.classId === gradebook.classId);
+    for (const student of gradebookStudents) {
+      for (const criterion of assessment.criteria) {
+        if (random() > 2 / 3) continue;
+        const level = RUBRIC_LEVELS[Math.floor(random() * RUBRIC_LEVELS.length)];
+        rubricScores.push({
+          assessmentId: assessment.id,
+          criterionId: criterion.id,
+          studentId: student.id,
+          level,
+          updatedAt: now,
+        });
+      }
+    }
+  }
+
   // Classroom data: a seating plan, three lessons, attendance for each and a
   // scattering of behaviour events. No photo is ever seeded here — a
   // fabricated Blob would be a fabricated photograph of a fictional child.
@@ -312,6 +364,9 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       db.behaviourEvents,
       db.seatingLayouts,
       db.seats,
+      db.rubricTemplates,
+      db.rubricAssessments,
+      db.rubricScores,
     ],
     async () => {
       await db.classes.bulkAdd(classes);
@@ -326,6 +381,9 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       await db.behaviourEvents.bulkAdd(behaviourEvents);
       await db.seatingLayouts.bulkAdd(seatingLayouts);
       await db.seats.bulkPut(seats);
+      await db.rubricTemplates.add(rubricTemplate);
+      await db.rubricAssessments.bulkAdd(rubricAssessments);
+      await db.rubricScores.bulkPut(rubricScores);
     },
   );
 

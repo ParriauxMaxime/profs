@@ -8,6 +8,9 @@ import type {
   Gradebook,
   GradeColumn,
   Period,
+  RubricAssessment,
+  RubricScore,
+  RubricTemplate,
   SchoolClass,
   Seat,
   SeatingLayout,
@@ -17,7 +20,7 @@ import type {
 } from "./types";
 
 export interface WorkspaceBackup {
-  version: 2;
+  version: 3;
   exportedAt: number;
   classes: SchoolClass[];
   students: Student[];
@@ -31,19 +34,22 @@ export interface WorkspaceBackup {
   behaviourEvents: BehaviourEvent[];
   seatingLayouts: SeatingLayout[];
   seats: Seat[];
+  rubricTemplates: RubricTemplate[];
+  rubricAssessments: RubricAssessment[];
+  rubricScores: RubricScore[];
 }
 
 /**
  * Shape check only — the rows themselves are trusted, since a backup can only
  * come from this app. A wrong shape must fail loudly rather than half-import.
  *
- * Version 1 is rejected outright, not upgraded: phase 2 introduced no
- * migration path, and a v1 file predates the classroom tables entirely, so
- * half-importing it would leave a workspace with gradebooks but no sessions
- * to hang attendance or behaviour off of.
+ * Version 2 is rejected outright, not upgraded: phase 2B introduced no
+ * migration path, and a v2 file predates the rubric tables entirely, so
+ * half-importing it would leave a workspace with gradebooks but no rubric
+ * assessments to hang scores off of.
  */
 const backupSchema = z.object({
-  version: z.literal(2),
+  version: z.literal(3),
   exportedAt: z.number(),
   classes: z.array(z.object({ id: z.string() }).loose()),
   students: z.array(z.object({ id: z.string() }).loose()),
@@ -82,6 +88,17 @@ const backupSchema = z.object({
       })
       .loose(),
   ),
+  rubricTemplates: z.array(z.object({ id: z.string() }).loose()),
+  rubricAssessments: z.array(z.object({ id: z.string() }).loose()),
+  rubricScores: z.array(
+    z
+      .object({
+        assessmentId: z.string(),
+        criterionId: z.string(),
+        studentId: z.string(),
+      })
+      .loose(),
+  ),
 });
 
 /**
@@ -105,6 +122,9 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     behaviourEvents,
     seatingLayouts,
     seats,
+    rubricTemplates,
+    rubricAssessments,
+    rubricScores,
   ] = await Promise.all([
     db.classes.toArray(),
     db.students.toArray(),
@@ -118,10 +138,13 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     db.behaviourEvents.toArray(),
     db.seatingLayouts.toArray(),
     db.seats.toArray(),
+    db.rubricTemplates.toArray(),
+    db.rubricAssessments.toArray(),
+    db.rubricScores.toArray(),
   ]);
 
   return {
-    version: 2,
+    version: 3,
     exportedAt: Date.now(),
     classes,
     students: students.map(({ photo: _photo, ...rest }) => rest),
@@ -142,6 +165,9 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     behaviourEvents,
     seatingLayouts,
     seats,
+    rubricTemplates,
+    rubricAssessments,
+    rubricScores,
   };
 }
 
@@ -176,6 +202,9 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     db.behaviourEvents,
     db.seatingLayouts,
     db.seats,
+    db.rubricTemplates,
+    db.rubricAssessments,
+    db.rubricScores,
   ];
 
   await db.transaction("rw", tables, async () => {
@@ -192,5 +221,8 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     await db.behaviourEvents.bulkAdd(data.behaviourEvents);
     await db.seatingLayouts.bulkAdd(data.seatingLayouts);
     await db.seats.bulkPut(data.seats);
+    await db.rubricTemplates.bulkAdd(data.rubricTemplates);
+    await db.rubricAssessments.bulkAdd(data.rubricAssessments);
+    await db.rubricScores.bulkPut(data.rubricScores);
   });
 }
