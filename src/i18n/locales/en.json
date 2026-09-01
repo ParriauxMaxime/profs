@@ -229,6 +229,10 @@
       "2": "Developing",
       "3": "Achieved",
       "4": "Expert"
-    }
+    },
+    "notInAverage": "These levels do not count toward the gradebook average.",
+    "previousCriterion": "Previous criterion",
+    "nextCriterion": "Next criterion",
+    "editCriteria": "Edit criteria"
   }
 }

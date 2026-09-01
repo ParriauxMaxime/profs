@@ -1,6 +1,8 @@
 import type { RubricAssessment } from "@db";
 import { deleteRubricAssessment } from "@db/cascade";
 import { useDb } from "@db/provider";
+import { setCriteria } from "@db/rubrics";
+import type { RubricCriterion } from "@domain/rubric";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
@@ -8,6 +10,8 @@ import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { ConfirmButton } from "../design-system/components/confirm-button";
 import { AssessmentForm } from "./components/assessment-form";
+import { CriteriaEditor } from "./components/criteria-editor";
+import { RubricGrid } from "./grid";
 
 /** How many distinct pupils have at least one level recorded on an assessment. */
 function scoredCount(
@@ -135,33 +139,76 @@ export function RubricAssessmentPage({
   const { t, i18n } = useTranslation();
   const db = useDb();
   const locale = i18n.language;
+  const [editingCriteria, setEditingCriteria] = useState(false);
+  const [draftCriteria, setDraftCriteria] = useState<RubricCriterion[]>([]);
 
-  const assessment = useLiveQuery(async () => {
+  const data = useLiveQuery(async () => {
     const found = await db.rubricAssessments.get(assessmentId);
     if (!found || found.gradebookId !== gradebookId) return null;
-    return found;
+    const gradebook = await db.gradebooks.get(gradebookId);
+    if (!gradebook) return null;
+    const [students, scores] = await Promise.all([
+      db.students.where("classId").equals(gradebook.classId).sortBy("lastName"),
+      db.rubricScores.where("assessmentId").equals(assessmentId).toArray(),
+    ]);
+    return { assessment: found, students, scores };
   }, [db, gradebookId, assessmentId]);
 
-  if (assessment === undefined) return <p className="text-text-muted">{t("common.loading")}</p>;
-  if (assessment === null) return <p className="text-text-muted">{t("rubric.notFound")}</p>;
+  if (data === undefined) return <p className="text-text-muted">{t("common.loading")}</p>;
+  if (data === null) return <p className="text-text-muted">{t("rubric.notFound")}</p>;
+
+  const { assessment, students, scores } = data;
+
+  async function saveCriteria(): Promise<void> {
+    await setCriteria(db, assessmentId, draftCriteria);
+    setEditingCriteria(false);
+  }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-baseline gap-2">
-        <h2 className="font-semibold text-lg">{assessment.name}</h2>
-        <span className="text-sm text-text-muted">
-          {new Date(assessment.date).toLocaleDateString(locale)}
-        </span>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div className="flex flex-wrap items-baseline gap-2">
+          <h2 className="font-semibold text-lg">{assessment.name}</h2>
+          <span className="text-sm text-text-muted">
+            {new Date(assessment.date).toLocaleDateString(locale)}
+          </span>
+        </div>
+        {!editingCriteria && (
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setDraftCriteria(assessment.criteria);
+              setEditingCriteria(true);
+            }}
+          >
+            {t("rubric.editCriteria")}
+          </button>
+        )}
       </div>
 
-      {assessment.criteria.length === 0 ? (
+      {editingCriteria ? (
+        <div className="flex flex-col gap-3 rounded border border-border p-3">
+          <CriteriaEditor value={draftCriteria} onChange={setDraftCriteria} />
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-primary" onClick={() => void saveCriteria()}>
+              {t("common.save")}
+            </button>
+            <button type="button" className="btn" onClick={() => setEditingCriteria(false)}>
+              {t("common.cancel")}
+            </button>
+          </div>
+        </div>
+      ) : assessment.criteria.length === 0 ? (
         <p className="text-text-muted">{t("rubric.noCriteria")}</p>
       ) : (
-        <ul className="flex flex-col gap-1 text-sm">
-          {assessment.criteria.map((criterion) => (
-            <li key={criterion.id}>{criterion.label}</li>
-          ))}
-        </ul>
+        <RubricGrid
+          db={db}
+          assessmentId={assessmentId}
+          criteria={assessment.criteria}
+          students={students}
+          scores={scores}
+        />
       )}
     </div>
   );

@@ -229,6 +229,10 @@
       "2": "En cours d'acquisition",
       "3": "Acquis",
       "4": "Expert"
-    }
+    },
+    "notInAverage": "Ces niveaux ne comptent pas dans la moyenne du carnet.",
+    "previousCriterion": "Critère précédent",
+    "nextCriterion": "Critère suivant",
+    "editCriteria": "Modifier les critères"
   }
 }
