@@ -10,9 +10,12 @@ export const ATTENDANCE_VALUES = ["present", "absent", "late", "excused"] as con
 
 export type AttendanceValue = (typeof ATTENDANCE_VALUES)[number];
 
-/** What a pupil is assumed to be until someone says otherwise. */
-export const DEFAULT_ATTENDANCE: AttendanceValue = "present";
-
+/**
+ * There is deliberately no default value. An absent row means "not recorded",
+ * not "present": the pupil page counts only what a teacher actually marked,
+ * and a constant implying otherwise would argue for backfilling unmarked
+ * sessions as present — inventing a record nobody made.
+ */
 export function parseAttendanceValue(raw: unknown): AttendanceValue | null {
   const text = typeof raw === "string" ? raw.trim() : "";
   return ATTENDANCE_VALUES.find((v) => v === text) ?? null;

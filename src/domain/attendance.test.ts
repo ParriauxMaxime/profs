@@ -1,12 +1,8 @@
-import { ATTENDANCE_VALUES, DEFAULT_ATTENDANCE, parseAttendanceValue } from "./attendance";
+import { ATTENDANCE_VALUES, parseAttendanceValue } from "./attendance";
 
 describe("attendance", () => {
   it("lists the four values", () => {
     expect(ATTENDANCE_VALUES).toEqual(["present", "absent", "late", "excused"]);
-  });
-
-  it("defaults to present", () => {
-    expect(DEFAULT_ATTENDANCE).toBe("present");
   });
 
   it("parses a known value", () => {
