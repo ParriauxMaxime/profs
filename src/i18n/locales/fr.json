@@ -94,7 +94,15 @@
       "count": "Élèves notés"
     },
     "deleteGradebook": "Supprimer le carnet",
-    "confirmDeleteGradebook": "Supprimer le carnet, ses colonnes et toutes leurs notes ?"
+    "confirmDeleteGradebook": "Supprimer le carnet, ses colonnes et toutes leurs notes ?",
+    "addPeriod": "Ajouter une période",
+    "renamePeriod": "Renommer la période",
+    "deletePeriod": "Supprimer la période",
+    "confirmDeletePeriod": "Supprimer la période, ses colonnes et toutes leurs notes ?",
+    "periodName": "Nom de la période",
+    "periodNamePlaceholder": "Trimestre 1",
+    "periodNameRequired": "Le nom de la période est obligatoire",
+    "noPeriods": "Ce carnet n'a plus aucune période. Ajoutez-en une pour pouvoir y créer des colonnes."
   },
   "entry": {
     "next": "Suivant",

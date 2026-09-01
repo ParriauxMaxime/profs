@@ -16,6 +16,7 @@ import { ColumnTypeIcon } from "../design-system/components/column-type-icon";
 import { ConfirmButton } from "../design-system/components/confirm-button";
 import { EditableCell } from "../design-system/components/editable-cell";
 import { ColumnForm } from "./components/column-form";
+import { PeriodBar } from "./components/period-bar";
 
 export function GradebookPage({ gradebookId }: { gradebookId: string }) {
   const { t, i18n } = useTranslation();
@@ -40,7 +41,10 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
   if (data === undefined) return <p className="text-text-muted">{t("common.loading")}</p>;
   if (data === null) return <p className="text-text-muted">{t("gradebook.notFound")}</p>;
 
-  const activePeriodId = periodId ?? data.periods[0]?.id ?? "";
+  // Fall back to the first period whenever the selected one is gone — a
+  // deleted period must not leave the grid pointing at an id nothing matches.
+  const selectedPeriod = data.periods.find((period) => period.id === periodId);
+  const activePeriodId = selectedPeriod?.id ?? data.periods[0]?.id ?? "";
   const columns = data.columns.filter((c) => c.periodId === activePeriodId);
   const gradeMap = new Map<string, Grade>(
     data.grades.map((g) => [`${g.columnId}|${g.studentId}`, g]),
@@ -94,29 +98,21 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-semibold text-lg">{data.gradebook.name}</h2>
-        <div className="flex items-center gap-2">
-          <select
-            className="field"
-            aria-label={t("gradebook.period")}
-            value={activePeriodId}
-            onChange={(e) => setPeriodId(e.target.value)}
-          >
-            {data.periods.map((period) => (
-              <option key={period.id} value={period.id}>
-                {period.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => {
-              setEditingColumn(null);
-              setAddingColumn(true);
-            }}
-          >
-            {t("gradebook.addColumn")}
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* A column belongs to a period, so there is nothing to add a column
+              to until one exists. */}
+          {data.periods.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                setEditingColumn(null);
+                setAddingColumn(true);
+              }}
+            >
+              {t("gradebook.addColumn")}
+            </button>
+          )}
           <ConfirmButton
             danger
             label={t("gradebook.deleteGradebook")}
@@ -130,6 +126,15 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
           />
         </div>
       </div>
+
+      <PeriodBar
+        gradebookId={gradebookId}
+        periods={data.periods}
+        activePeriodId={activePeriodId}
+        onSelect={setPeriodId}
+      />
+
+      {data.periods.length === 0 && <p className="text-text-muted">{t("gradebook.noPeriods")}</p>}
 
       {addingColumn && (
         <ColumnForm
@@ -270,7 +275,9 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
         </dl>
       )}
 
-      {columns.length === 0 && <p className="text-text-muted">{t("gradebook.noColumns")}</p>}
+      {data.periods.length > 0 && columns.length === 0 && (
+        <p className="text-text-muted">{t("gradebook.noColumns")}</p>
+      )}
     </div>
   );
 }

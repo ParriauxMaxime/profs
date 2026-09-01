@@ -94,7 +94,15 @@
       "count": "Students graded"
     },
     "deleteGradebook": "Delete gradebook",
-    "confirmDeleteGradebook": "Delete this gradebook, its columns and all their grades?"
+    "confirmDeleteGradebook": "Delete this gradebook, its columns and all their grades?",
+    "addPeriod": "Add a period",
+    "renamePeriod": "Rename period",
+    "deletePeriod": "Delete period",
+    "confirmDeletePeriod": "Delete this period, its columns and all their grades?",
+    "periodName": "Period name",
+    "periodNamePlaceholder": "Term 1",
+    "periodNameRequired": "The period name is required",
+    "noPeriods": "This gradebook has no period left. Add one before you can create columns in it."
   },
   "entry": {
     "next": "Next",
