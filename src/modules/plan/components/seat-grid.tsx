@@ -63,6 +63,7 @@ export function SeatGrid({
   armedSeat,
   onArmSeat,
   onSelectStudent,
+  editing,
 }: {
   layout: SeatingLayout;
   seats: Seat[];
@@ -71,6 +72,12 @@ export function SeatGrid({
   armedSeat: string | null;
   onArmSeat: (armedSeat: string | null) => void;
   onSelectStudent: (studentId: string) => void;
+  /**
+   * Layout-edit mode. The controls that carve gaps and empty chairs are
+   * destructive and small, so they exist only here — never on the grid a
+   * teacher is tapping mid-lesson, where a mis-tap would remove a seat.
+   */
+  editing: boolean;
 }) {
   const { t } = useTranslation();
   const db = useDb();
@@ -98,6 +105,28 @@ export function SeatGrid({
     await db.seats.put({ layoutId: layout.id, row, col, studentId: null });
   };
 
+  /**
+   * Move a seated pupil into the armed seat.
+   *
+   * Without this the only way to rearrange a room is to empty a chair and
+   * re-assign from the pool, and rearranging is what a seating plan is for.
+   * Both writes go in one transaction so a pupil is never briefly in two
+   * chairs or in none.
+   */
+  const movePupil = async (from: Seat, toCoord: string): Promise<void> => {
+    const [row, col] = toCoord.split(":").map(Number);
+    await db.transaction("rw", db.seats, async () => {
+      await db.seats.put({ layoutId: layout.id, row, col, studentId: from.studentId });
+      await db.seats.put({
+        layoutId: layout.id,
+        row: from.row,
+        col: from.col,
+        studentId: null,
+      });
+    });
+    onArmSeat(null);
+  };
+
   return (
     <div className="overflow-x-auto rounded-md border border-border">
       <div
@@ -109,6 +138,8 @@ export function SeatGrid({
           const seat = byCoord.get(coord);
 
           if (!seat) {
+            // Outside layout-edit mode a gap is just empty floor, not a control.
+            if (!editing) return <div key={coord} className="h-14 w-16" />;
             return (
               <button
                 key={coord}
@@ -135,18 +166,20 @@ export function SeatGrid({
                 >
                   {t("plan.emptySeat")}
                 </button>
-                <button
-                  type="button"
-                  aria-label={t("plan.makeGap")}
-                  title={t("plan.makeGap")}
-                  className="-right-1 -top-1 absolute flex h-5 w-5 items-center justify-center rounded-full border border-border bg-bg text-text-faint text-xs leading-none hover:text-danger"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void makeGap(row, col);
-                  }}
-                >
-                  ×
-                </button>
+                {editing && (
+                  <button
+                    type="button"
+                    aria-label={t("plan.makeGap")}
+                    title={t("plan.makeGap")}
+                    className="-right-2 -top-2 absolute flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg text-sm text-text-muted leading-none hover:text-danger"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void makeGap(row, col);
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
               </div>
             );
           }
@@ -171,24 +204,34 @@ export function SeatGrid({
             <div key={coord} className="relative">
               <button
                 type="button"
-                className="flex h-14 w-16 flex-col items-center justify-center gap-0.5 rounded-md border border-border p-1 hover:bg-bg-hover"
-                onClick={() => onSelectStudent(student.id)}
+                title={armedSeat ? t("plan.moveHere") : undefined}
+                className={`flex h-14 w-16 flex-col items-center justify-center gap-0.5 rounded-md border p-1 hover:bg-bg-hover ${
+                  armedSeat ? "border-accent border-dashed" : "border-border"
+                }`}
+                onClick={() => {
+                  // With a seat armed, tapping an occupant moves them into it.
+                  // With nothing armed, it opens their card.
+                  if (armedSeat) void movePupil(seat, armedSeat);
+                  else onSelectStudent(student.id);
+                }}
               >
                 <PupilDisc student={student} />
                 <span className="w-full truncate text-[10px] text-text">{student.lastName}</span>
               </button>
-              <button
-                type="button"
-                aria-label={t("plan.clearSeat")}
-                title={t("plan.clearSeat")}
-                className="-right-1 -top-1 absolute flex h-5 w-5 items-center justify-center rounded-full border border-border bg-bg text-text-faint text-xs leading-none hover:text-danger"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void clearSeat(row, col);
-                }}
-              >
-                ×
-              </button>
+              {editing && (
+                <button
+                  type="button"
+                  aria-label={t("plan.clearSeat")}
+                  title={t("plan.clearSeat")}
+                  className="-right-2 -top-2 absolute flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg text-sm text-text-muted leading-none hover:text-danger"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void clearSeat(row, col);
+                  }}
+                >
+                  ×
+                </button>
+              )}
             </div>
           );
         })}

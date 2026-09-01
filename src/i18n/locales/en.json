@@ -176,7 +176,10 @@
     "cols": "Columns",
     "resizeWarning_one": "{{count}} student will lose their seat.",
     "resizeWarning_other": "{{count}} students will lose their seat.",
-    "noLayout": "No classroom plan"
+    "noLayout": "No classroom plan",
+    "editLayout": "Edit layout",
+    "doneEditing": "Done",
+    "moveHere": "Move here"
   },
   "behaviour": {
     "title": "Behaviour",

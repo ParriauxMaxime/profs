@@ -76,8 +76,18 @@ export function PlanPage({ classId }: { classId: string }) {
         <h2 className="font-semibold text-lg">
           {t("plan.title")} — {schoolClass.name}
         </h2>
-        <button type="button" className="btn" onClick={() => setResizing((v) => !v)}>
-          {t("plan.resize")}
+        <button
+          type="button"
+          className={resizing ? "btn btn-primary" : "btn"}
+          aria-pressed={resizing}
+          onClick={() => {
+            // Leaving edit mode disarms: an armed seat is a live-entry state
+            // and must not survive into a different mode.
+            setArmedSeat(null);
+            setResizing((v) => !v);
+          }}
+        >
+          {resizing ? t("plan.doneEditing") : t("plan.editLayout")}
         </button>
       </div>
 
@@ -97,6 +107,7 @@ export function PlanPage({ classId }: { classId: string }) {
         armedSeat={armedSeat}
         onArmSeat={setArmedSeat}
         onSelectStudent={setSelectedStudentId}
+        editing={resizing}
       />
 
       {/* Task 10 renders <StudentCard studentId={selectedStudentId} .../> here. */}

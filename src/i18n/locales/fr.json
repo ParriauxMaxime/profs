@@ -176,7 +176,10 @@
     "cols": "Colonnes",
     "resizeWarning_one": "{{count}} élève perdra sa place.",
     "resizeWarning_other": "{{count}} élèves perdront leur place.",
-    "noLayout": "Aucun plan de classe"
+    "noLayout": "Aucun plan de classe",
+    "editLayout": "Modifier le plan",
+    "doneEditing": "Terminer",
+    "moveHere": "Déplacer ici"
   },
   "behaviour": {
     "title": "Comportement",
