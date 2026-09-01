@@ -56,17 +56,30 @@ Routes (`src/router.ts`, Chicane): `/`, `/classes/:classId`, `/gradebooks/:grade
 - **i18n:** `fr` is both the default and the fallback, `en` alongside. Every user-visible string goes through `t()`, and every key must exist in BOTH `src/i18n/locales/fr.json` and `en.json` — a parity test fails the build otherwise. Plurals use i18next v4 suffixes (`_one` / `_other`). Never pass an interpolation variable named `count` unless you actually want plural resolution.
 - **Naming:** identifiers are English; only translation values are French. `class` is reserved, so the row type is `SchoolClass` while the table stays `classes`. The column row type is `GradeColumn`, never `Column` — that collides with TanStack Table's export.
 - **Navigation** uses Chicane `<Link to={Router.X({...})}>`. A raw `<a href>` causes a full page reload.
-- **A component bound to a record needs a `key`** that changes with the record. `react-hook-form` captures `defaultValues` at mount; without a key, switching the edit target silently writes one record's values onto another. This has bitten this codebase twice.
+- **State bound to a record must be anchored to that record's identity, never to its position.** This codebase has produced the same bug three times, in three disguises, and every instance risked writing to or deleting the wrong student:
+  - A form bound to a record needs a `key` that changes with the record — `react-hook-form` captures `defaultValues` at mount, so without one, switching the edit target writes one student's values onto another.
+  - A row-local armed/confirm state needs the table's React key to be the record id. TanStack Table's `row.id` defaults to the **row index**, so `DataTable` takes a `getRowId` and callers must pass it; otherwise sorting or searching while a delete is armed retargets it onto whoever now sits at that index.
+  - A control acting on a *selected* record (the period delete beside the switcher) needs a `key` on that selection, or changing the selection while armed destroys the newly selected one.
+  When you add any armed, staged, or draft state, ask what happens if the underlying list reorders or the selection changes underneath it.
 - IDs come from `crypto.randomUUID()`; timestamps are epoch-ms from `Date.now()`.
 
 ### Testing posture
 
 Domain and `src/db` modules are TDD, tested against `fake-indexeddb`. **There are deliberately no component tests** (matching the sibling `open-setlist` project) — UI is verified by reading and by driving a real browser. Do not add a component-test framework without being asked.
 
+### Deleting things
+
+Every multi-table delete lives in `src/db/cascade.ts` (`deleteStudent`, `deleteColumn`, `deletePeriod`, `deleteGradebook`, `deleteClass`), each one a single `rw` transaction covering every table it touches. If you find yourself writing a multi-table delete inline in a component, stop and add it there with tests instead — an orphaned grade row is invisible in the UI, never averaged, and survives export/import.
+
+`deleteSubject` is the exception that **refuses** rather than cascades: it returns `{ deleted: false, reason: "in-use", gradebookCount }` and writes nothing when a gradebook still references the subject. Destroying gradebooks as a side effect of removing a subject is too much to do implicitly.
+
+Destructive actions in the UI go through `ConfirmButton` (two-step, in place). Its confirm label should say what else goes — the column delete names its grades, the class delete names its students and their grades, the period delete names the period.
+
 ## Known v1 gaps
 
-- **There is no UI to create a class, subject, gradebook or period.** Students can be added to an existing class and columns to an existing gradebook, but the only school that exists is the seeded demo. This is a known scope gap, not an oversight to quietly patch.
 - No sync of any kind. JSON export/import in Réglages is the only way to move data between devices, and it omits student photos (they are `Blob`s and cannot survive `JSON.stringify`) — both documents say so, and any change here must keep them accurate.
+- A gradebook cannot be renamed after creation, and periods cannot be reordered.
+- `src/modules/dashboard/page.tsx` imports `ClassForm` from the class module. That crosses the module boundary this file otherwise describes; it is an accepted exception rather than an oversight, since both screens create classes.
 
 ## Reference
 
