@@ -166,7 +166,9 @@
   "plan": {
     "title": "Plan de classe",
     "newSession": "Nouvelle séance",
-    "sessionOf": "Séance du {{date}}",
+    "session": "Séance",
+    "deleteSession": "Supprimer la séance",
+    "confirmDeleteSession": "Supprimer la séance du {{date}} ? Sa présence et son comportement partent avec elle.",
     "unseated": "Élèves sans place",
     "allSeated": "Tous les élèves sont placés",
     "tapSeatThenStudent": "Touchez une place, puis un élève",
@@ -174,12 +176,10 @@
     "makeGap": "Retirer la place",
     "makeSeat": "Ajouter une place",
     "clearSeat": "Libérer la place",
-    "resize": "Dimensions",
     "rows": "Rangées",
     "cols": "Colonnes",
     "resizeWarning_one": "{{count}} élève perdra sa place.",
     "resizeWarning_other": "{{count}} élèves perdront leur place.",
-    "noLayout": "Aucun plan de classe",
     "editLayout": "Modifier le plan",
     "doneEditing": "Terminer",
     "moveHere": "Déplacer ici"
@@ -191,9 +191,7 @@
     "red": "Mot dans le carnet",
     "note": "Observation",
     "comment": "Commentaire",
-    "add": "Ajouter",
     "none": "Aucun événement",
-    "confirmDelete": "Supprimer cet événement ?",
-    "thisTerm": "Ce trimestre"
+    "confirmDelete": "Supprimer cet événement ?"
   }
 }

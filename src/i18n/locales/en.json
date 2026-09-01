@@ -166,7 +166,9 @@
   "plan": {
     "title": "Classroom plan",
     "newSession": "New session",
-    "sessionOf": "Session of {{date}}",
+    "session": "Session",
+    "deleteSession": "Delete session",
+    "confirmDeleteSession": "Delete the session of {{date}}? Its attendance and behaviour go with it.",
     "unseated": "Students without a seat",
     "allSeated": "All students are seated",
     "tapSeatThenStudent": "Tap a seat, then a student",
@@ -174,12 +176,10 @@
     "makeGap": "Remove seat",
     "makeSeat": "Add seat",
     "clearSeat": "Clear seat",
-    "resize": "Dimensions",
     "rows": "Rows",
     "cols": "Columns",
     "resizeWarning_one": "{{count}} student will lose their seat.",
     "resizeWarning_other": "{{count}} students will lose their seat.",
-    "noLayout": "No classroom plan",
     "editLayout": "Edit layout",
     "doneEditing": "Done",
     "moveHere": "Move here"
@@ -191,9 +191,7 @@
     "red": "Note home",
     "note": "Observation",
     "comment": "Comment",
-    "add": "Add",
     "none": "No events",
-    "confirmDelete": "Delete this event?",
-    "thisTerm": "This term"
+    "confirmDelete": "Delete this event?"
   }
 }
