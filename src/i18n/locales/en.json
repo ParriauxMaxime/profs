@@ -69,6 +69,19 @@
     }
   },
   "entry": { "next": "Next", "backToGrid": "Back to grid" },
+  "settings": {
+    "language": "Language",
+    "locale": { "fr": "French", "en": "English" },
+    "subjects": "Subjects",
+    "backup": "Backup",
+    "backupHelp": "Export your data as JSON to move it to another device. Student photos are not included.",
+    "export": "Export",
+    "importFailed": "Invalid backup file",
+    "dangerZone": "Danger zone",
+    "wipeHelp": "Permanently deletes every piece of data in this workspace on this device.",
+    "wipe": "Delete all data",
+    "wipeConfirm": "Yes, delete everything"
+  },
   "csv": {
     "title": "Import a student list",
     "pastePlaceholder": "Paste your list here (Last name;First name)",

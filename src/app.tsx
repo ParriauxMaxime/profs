@@ -2,6 +2,7 @@ import { ClassPage } from "./modules/class/page";
 import { DashboardPage } from "./modules/dashboard/page";
 import { EntryPage } from "./modules/entry/page";
 import { GradebookPage } from "./modules/gradebook/page";
+import { SettingsPage } from "./modules/settings/page";
 import { AdminLayout } from "./modules/shared/components/admin-layout";
 import { Router } from "./router";
 
@@ -35,6 +36,6 @@ function Routes({ route }: { route: AppRoute }) {
     case "Entry":
       return <EntryPage gradebookId={route.params.gradebookId} columnId={route.params.columnId} />;
     case "Settings":
-      return <p className="text-text-muted">…</p>;
+      return <SettingsPage />;
   }
 }

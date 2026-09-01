@@ -69,6 +69,19 @@
     }
   },
   "entry": { "next": "Suivant", "backToGrid": "Retour au tableau" },
+  "settings": {
+    "language": "Langue",
+    "locale": { "fr": "Français", "en": "Anglais" },
+    "subjects": "Matières",
+    "backup": "Sauvegarde",
+    "backupHelp": "Exportez vos données en JSON pour les transférer sur un autre appareil. Les photos des élèves ne sont pas incluses.",
+    "export": "Exporter",
+    "importFailed": "Fichier de sauvegarde invalide",
+    "dangerZone": "Zone dangereuse",
+    "wipeHelp": "Supprime définitivement toutes les données de cet espace de travail sur cet appareil.",
+    "wipe": "Supprimer toutes les données",
+    "wipeConfirm": "Oui, tout supprimer"
+  },
   "csv": {
     "title": "Importer une liste d'élèves",
     "pastePlaceholder": "Collez ici votre liste (Nom;Prénom)",
