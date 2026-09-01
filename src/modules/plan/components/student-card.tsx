@@ -1,11 +1,12 @@
 import type { BehaviourEvent, Session, Student } from "@db";
 import { attendanceKey } from "@db";
+import { deleteBehaviourEvent } from "@db/cascade";
 import { useDb } from "@db/provider";
 import { ATTENDANCE_VALUES, type AttendanceValue } from "@domain/attendance";
 import { BEHAVIOUR_COLORS, BEHAVIOUR_TYPES, type BehaviourType } from "@domain/behaviour";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../../router";
 import { ConfirmButton } from "../../design-system/components/confirm-button";
@@ -30,6 +31,15 @@ export function StudentCard({
   const db = useDb();
   const [notes, setNotes] = useState(student.notes ?? "");
   const [comment, setComment] = useState("");
+  // Another surface (the class page's own draft) can write `student.notes`
+  // while this card sits open on the same pupil — dexie-react-hooks keeps
+  // both live. Re-sync from the prop whenever it changes, but only while the
+  // field isn't focused: otherwise an incoming update would stomp on
+  // whatever the teacher is currently typing here.
+  const notesFocused = useRef(false);
+  useEffect(() => {
+    if (!notesFocused.current) setNotes(student.notes ?? "");
+  }, [student.notes]);
 
   const attendance = useLiveQuery(
     async () => (await db.attendance.get(attendanceKey(session.id, student.id))) ?? null,
@@ -166,7 +176,7 @@ export function StudentCard({
                   danger
                   label={t("common.delete")}
                   confirmLabel={t("behaviour.confirmDelete")}
-                  onConfirm={() => db.behaviourEvents.delete(event.id)}
+                  onConfirm={() => deleteBehaviourEvent(db, event.id)}
                 />
               </div>
             ))
@@ -181,7 +191,11 @@ export function StudentCard({
           rows={3}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
+          onFocus={() => {
+            notesFocused.current = true;
+          }}
           onBlur={() => {
+            notesFocused.current = false;
             if (notes !== (student.notes ?? "")) {
               void db.students.update(student.id, { notes, updatedAt: Date.now() });
             }
