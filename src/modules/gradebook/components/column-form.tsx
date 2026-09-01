@@ -5,6 +5,7 @@ import {
   type ColumnType,
   DEFAULT_COLUMN_MAX,
   DEFAULT_COLUMN_WEIGHT,
+  isNumericColumn,
 } from "@domain/gradebook/column";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -70,15 +71,17 @@ export function ColumnForm({
           ))}
         </select>
       </label>
-      <label className="flex flex-col gap-1">
-        <span className="text-sm text-text-muted">{t("gradebook.weight")}</span>
-        <input
-          className="field"
-          inputMode="decimal"
-          value={weight}
-          onChange={(e) => setWeight(e.target.value)}
-        />
-      </label>
+      {isNumericColumn(type) && (
+        <label className="flex flex-col gap-1">
+          <span className="text-sm text-text-muted">{t("gradebook.weight")}</span>
+          <input
+            className="field"
+            inputMode="decimal"
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+          />
+        </label>
+      )}
       {type === "numeric" && (
         <label className="flex flex-col gap-1">
           <span className="text-sm text-text-muted">{t("gradebook.max")}</span>

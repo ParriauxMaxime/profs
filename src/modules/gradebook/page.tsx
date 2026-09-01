@@ -3,6 +3,7 @@ import { gradeKey } from "@db";
 import { useDb } from "@db/provider";
 import type { AverageColumn, AverageGrade } from "@domain/gradebook/average";
 import { classStats, studentAverage } from "@domain/gradebook/average";
+import { isNumericColumn } from "@domain/gradebook/column";
 import type { GradeValue } from "@domain/gradebook/grade";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -129,9 +130,11 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
                       <ColumnTypeIcon type={column.type} />
                       {column.label}
                     </span>
-                    <span className="text-text-faint text-xs">
-                      {t("gradebook.coef", { weight: column.weight })}
-                    </span>
+                    {isNumericColumn(column.type) && (
+                      <span className="text-text-faint text-xs">
+                        {t("gradebook.coef", { weight: column.weight })}
+                      </span>
+                    )}
                   </Link>
                 </th>
               ))}
