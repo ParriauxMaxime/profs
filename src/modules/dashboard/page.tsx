@@ -1,12 +1,15 @@
 import { useDb } from "@db/provider";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
+import { ClassForm } from "../class/components/class-form";
 
 export function DashboardPage() {
   const { t } = useTranslation();
   const db = useDb();
+  const [addingClass, setAddingClass] = useState(false);
 
   const data = useLiveQuery(async () => {
     const [classes, subjects, gradebooks, students] = await Promise.all([
@@ -27,7 +30,15 @@ export function DashboardPage() {
   return (
     <div className="flex flex-col gap-8">
       <section className="flex flex-col gap-3">
-        <h2 className="font-semibold text-lg">{t("dashboard.classes")}</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold text-lg">{t("dashboard.classes")}</h2>
+          <button type="button" className="btn btn-primary" onClick={() => setAddingClass(true)}>
+            {t("dashboard.addClass")}
+          </button>
+        </div>
+
+        {addingClass && <ClassForm key="new" onDone={() => setAddingClass(false)} />}
+
         {data.classes.length === 0 ? (
           <p className="text-text-muted">{t("dashboard.noClasses")}</p>
         ) : (

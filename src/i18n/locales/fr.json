@@ -1,6 +1,12 @@
 {
-  "app": { "name": "profs", "tagline": "Le carnet de notes qui reste sur votre appareil" },
-  "nav": { "dashboard": "Accueil", "settings": "Réglages" },
+  "app": {
+    "name": "profs",
+    "tagline": "Le carnet de notes qui reste sur votre appareil"
+  },
+  "nav": {
+    "dashboard": "Accueil",
+    "settings": "Réglages"
+  },
   "common": {
     "save": "Enregistrer",
     "cancel": "Annuler",
@@ -15,10 +21,11 @@
   "dashboard": {
     "classes": "Mes classes",
     "gradebooks": "Mes carnets de notes",
-    "noClasses": "Aucune classe pour l'instant",
+    "noClasses": "Aucune classe pour l'instant. Créez-en une avec « Ajouter une classe » : c'est le point de départ de tout le reste.",
     "noGradebooks": "Aucun carnet de notes pour l'instant",
     "studentCount_one": "{{count}} élève",
-    "studentCount_other": "{{count}} élèves"
+    "studentCount_other": "{{count}} élèves",
+    "addClass": "Ajouter une classe"
   },
   "student": {
     "lastName": "Nom",
@@ -31,7 +38,15 @@
     "noStudents": "Aucun élève dans cette classe",
     "confirmDelete": "Confirmer ?",
     "importCsv": "Importer un CSV",
-    "notFound": "Classe introuvable"
+    "notFound": "Classe introuvable",
+    "name": "Nom de la classe",
+    "namePlaceholder": "3°B",
+    "nameRequired": "Le nom de la classe est obligatoire",
+    "level": "Niveau (facultatif)",
+    "levelPlaceholder": "3e",
+    "rename": "Renommer la classe",
+    "deleteClass": "Supprimer la classe",
+    "confirmDeleteClass": "Supprimer la classe, ses élèves et toutes leurs notes ?"
   },
   "gradebook": {
     "addColumn": "Ajouter une colonne",
@@ -71,10 +86,16 @@
       "count": "Élèves notés"
     }
   },
-  "entry": { "next": "Suivant", "backToGrid": "Retour au tableau" },
+  "entry": {
+    "next": "Suivant",
+    "backToGrid": "Retour au tableau"
+  },
   "settings": {
     "language": "Langue",
-    "locale": { "fr": "Français", "en": "Anglais" },
+    "locale": {
+      "fr": "Français",
+      "en": "Anglais"
+    },
     "subjects": "Matières",
     "backup": "Sauvegarde",
     "backupHelp": "Exportez vos données en JSON pour les transférer sur un autre appareil. Les photos des élèves ne sont pas incluses.",

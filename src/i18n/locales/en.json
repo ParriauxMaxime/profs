@@ -1,6 +1,12 @@
 {
-  "app": { "name": "profs", "tagline": "The gradebook that stays on your device" },
-  "nav": { "dashboard": "Home", "settings": "Settings" },
+  "app": {
+    "name": "profs",
+    "tagline": "The gradebook that stays on your device"
+  },
+  "nav": {
+    "dashboard": "Home",
+    "settings": "Settings"
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",
@@ -15,10 +21,11 @@
   "dashboard": {
     "classes": "My classes",
     "gradebooks": "My gradebooks",
-    "noClasses": "No classes yet",
+    "noClasses": "No classes yet. Create one with “Add a class” — everything else starts there.",
     "noGradebooks": "No gradebooks yet",
     "studentCount_one": "{{count}} student",
-    "studentCount_other": "{{count}} students"
+    "studentCount_other": "{{count}} students",
+    "addClass": "Add a class"
   },
   "student": {
     "lastName": "Last name",
@@ -31,7 +38,15 @@
     "noStudents": "No students in this class",
     "confirmDelete": "Confirm?",
     "importCsv": "Import CSV",
-    "notFound": "Class not found"
+    "notFound": "Class not found",
+    "name": "Class name",
+    "namePlaceholder": "3°B",
+    "nameRequired": "The class name is required",
+    "level": "Level (optional)",
+    "levelPlaceholder": "Year 10",
+    "rename": "Rename class",
+    "deleteClass": "Delete class",
+    "confirmDeleteClass": "Delete this class, its students and all their grades?"
   },
   "gradebook": {
     "addColumn": "Add column",
@@ -71,10 +86,16 @@
       "count": "Students graded"
     }
   },
-  "entry": { "next": "Next", "backToGrid": "Back to grid" },
+  "entry": {
+    "next": "Next",
+    "backToGrid": "Back to grid"
+  },
   "settings": {
     "language": "Language",
-    "locale": { "fr": "French", "en": "English" },
+    "locale": {
+      "fr": "French",
+      "en": "English"
+    },
     "subjects": "Subjects",
     "backup": "Backup",
     "backupHelp": "Export your data as JSON to move it to another device. Student photos are not included.",
