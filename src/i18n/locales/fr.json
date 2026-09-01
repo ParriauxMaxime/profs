@@ -10,6 +10,15 @@
     "filter": "Filtrer",
     "all": "Tous",
     "noData": "Aucune donnée",
-    "noResults": "Aucun résultat"
+    "noResults": "Aucun résultat",
+    "loading": "Chargement…"
+  },
+  "dashboard": {
+    "classes": "Mes classes",
+    "gradebooks": "Mes carnets de notes",
+    "noClasses": "Aucune classe pour l'instant",
+    "noGradebooks": "Aucun carnet de notes pour l'instant",
+    "studentCount_one": "{{count}} élève",
+    "studentCount_other": "{{count}} élèves"
   }
 }

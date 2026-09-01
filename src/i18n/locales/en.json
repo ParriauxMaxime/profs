@@ -10,6 +10,15 @@
     "filter": "Filter",
     "all": "All",
     "noData": "No data",
-    "noResults": "No results"
+    "noResults": "No results",
+    "loading": "Loading…"
+  },
+  "dashboard": {
+    "classes": "My classes",
+    "gradebooks": "My gradebooks",
+    "noClasses": "No classes yet",
+    "noGradebooks": "No gradebooks yet",
+    "studentCount_one": "{{count}} student",
+    "studentCount_other": "{{count}} students"
   }
 }
