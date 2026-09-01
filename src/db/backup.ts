@@ -1,3 +1,4 @@
+import { gradeValueSchema } from "@domain/gradebook/grade";
 import { z } from "zod";
 import type { AppDatabase } from ".";
 import type { Grade, Gradebook, GradeColumn, Period, SchoolClass, Student, Subject } from "./types";
@@ -27,7 +28,16 @@ const backupSchema = z.object({
   gradebooks: z.array(z.object({ id: z.string() }).loose()),
   periods: z.array(z.object({ id: z.string() }).loose()),
   columns: z.array(z.object({ id: z.string() }).loose()),
-  grades: z.array(z.object({ gradebookId: z.string() }).loose()),
+  grades: z.array(
+    z
+      .object({
+        gradebookId: z.string(),
+        columnId: z.string(),
+        studentId: z.string(),
+        value: gradeValueSchema,
+      })
+      .loose(),
+  ),
 });
 
 /** Photos are Blobs and are not included — JSON cannot carry them. */
@@ -55,13 +65,23 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
   };
 }
 
-/** Destructive: clears every table, then writes the backup's rows. */
-export async function importWorkspace(db: AppDatabase, backup: unknown): Promise<void> {
+/**
+ * Validates an unknown payload as a `WorkspaceBackup`, throwing on any
+ * mismatch. Shared by `importWorkspace` and by the settings page, which
+ * needs to read a chosen file's `exportedAt` before the teacher confirms —
+ * without writing anything to the database yet.
+ */
+export function parseBackup(backup: unknown): WorkspaceBackup {
   const parsed = backupSchema.safeParse(backup);
   if (!parsed.success) {
     throw new Error("Invalid backup file");
   }
-  const data = parsed.data as unknown as WorkspaceBackup;
+  return parsed.data as unknown as WorkspaceBackup;
+}
+
+/** Destructive: clears every table, then writes the backup's rows. */
+export async function importWorkspace(db: AppDatabase, backup: unknown): Promise<void> {
+  const data = parseBackup(backup);
 
   const tables = [
     db.classes,

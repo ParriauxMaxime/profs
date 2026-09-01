@@ -77,8 +77,11 @@
     "backupHelp": "Exportez vos données en JSON pour les transférer sur un autre appareil. Les photos des élèves ne sont pas incluses.",
     "export": "Exporter",
     "importFailed": "Fichier de sauvegarde invalide",
+    "importConfirmMessage": "Ceci remplacera toutes les données actuelles par le contenu de « {{fileName}} », exporté le {{date}}. Cette action est irréversible.",
+    "importConfirm": "Importer et remplacer",
+    "importSuccess": "Import réussi",
     "dangerZone": "Zone dangereuse",
-    "wipeHelp": "Supprime définitivement toutes les données de cet espace de travail sur cet appareil.",
+    "wipeHelp": "Supprime définitivement toutes les données de cet espace de travail sur cet appareil. Cette action est irréversible.",
     "wipe": "Supprimer toutes les données",
     "wipeConfirm": "Oui, tout supprimer"
   },
