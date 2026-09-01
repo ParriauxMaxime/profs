@@ -31,6 +31,7 @@
   },
   "class": {
     "addStudent": "Ajouter un élève",
-    "noStudents": "Aucun élève dans cette classe"
+    "noStudents": "Aucun élève dans cette classe",
+    "confirmDelete": "Confirmer ?"
   }
 }

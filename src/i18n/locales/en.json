@@ -31,6 +31,7 @@
   },
   "class": {
     "addStudent": "Add student",
-    "noStudents": "No students in this class"
+    "noStudents": "No students in this class",
+    "confirmDelete": "Confirm?"
   }
 }
