@@ -565,3 +565,46 @@ describe("deleteSeatingLayout", () => {
     db.close();
   });
 });
+
+describe("deleteClass — defensive sweeps", () => {
+  it("removes a pupil's rows even when they hang off another class's session", async () => {
+    const db = openWorkspaceDb("cascade-class-foreign-session");
+    await db.classes.bulkAdd([
+      { id: "c1", name: "3B", createdAt: 1, updatedAt: 1 },
+      { id: "c2", name: "5A", createdAt: 1, updatedAt: 1 },
+    ]);
+    await db.students.bulkAdd([
+      {
+        id: "p1",
+        classId: "c1",
+        firstName: "Emma",
+        lastName: "Martin",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      { id: "p2", classId: "c2", firstName: "Léo", lastName: "Roux", createdAt: 1, updatedAt: 1 },
+    ]);
+    // A row an import could produce but the UI never would: c1's pupil
+    // recorded against c2's session.
+    await db.sessions.add({ id: "s2", classId: "c2", date: 1, createdAt: 1 });
+    await db.attendance.bulkPut([
+      { sessionId: "s2", studentId: "p1", value: "absent", updatedAt: 1 },
+      { sessionId: "s2", studentId: "p2", value: "present", updatedAt: 1 },
+    ]);
+    await db.behaviourEvents.bulkAdd([
+      { id: "e1", sessionId: "s2", studentId: "p1", classId: "c2", type: "red", createdAt: 1 },
+      { id: "e2", sessionId: "s2", studentId: "p2", classId: "c2", type: "green", createdAt: 1 },
+    ]);
+
+    await deleteClass(db, "c1");
+
+    // c1's pupil is gone from both tables; c2's pupil and session are intact.
+    expect(await db.attendance.count()).toBe(1);
+    expect((await db.attendance.toArray())[0].studentId).toBe("p2");
+    expect(await db.behaviourEvents.count()).toBe(1);
+    expect((await db.behaviourEvents.toArray())[0].id).toBe("e2");
+    expect(await db.sessions.count()).toBe(1);
+    expect(await db.students.count()).toBe(1);
+    db.close();
+  });
+});

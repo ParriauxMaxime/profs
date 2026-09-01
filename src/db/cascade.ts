@@ -97,6 +97,13 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
       const studentIds = await db.students.where("classId").equals(classId).primaryKeys();
       if (studentIds.length > 0) {
         await db.grades.where("studentId").anyOf(studentIds).delete();
+        // Swept by student as well as by session, for the same reason grades
+        // are swept twice: a row attached to another class's session should be
+        // impossible, and if a bad import produced one it must not outlive the
+        // pupil it describes.
+        await db.attendance.where("studentId").anyOf(studentIds).delete();
+        await db.behaviourEvents.where("studentId").anyOf(studentIds).delete();
+        await db.seats.where("studentId").anyOf(studentIds).modify({ studentId: null });
         await db.students.bulkDelete(studentIds);
       }
 
