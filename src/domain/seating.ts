@@ -48,37 +48,26 @@ export function resizeSeats(
 ): ResizeResult {
   const kept: Seat[] = [];
   const unseated: string[] = [];
-  const occupied = new Set<string>();
-  const rowsPresent = new Set<number>();
-  const colsPresent = new Set<number>();
   let oldMaxRow = -1;
   let oldMaxCol = -1;
 
   for (const seat of existing) {
-    rowsPresent.add(seat.row);
-    colsPresent.add(seat.col);
     oldMaxRow = Math.max(oldMaxRow, seat.row);
     oldMaxCol = Math.max(oldMaxCol, seat.col);
     if (seat.row < rows && seat.col < cols) {
       kept.push(seat);
-      occupied.add(`${seat.row}:${seat.col}`);
     } else if (seat.studentId !== null) {
       unseated.push(seat.studentId);
     }
   }
 
-  // A cell beyond everything the old grid ever had is genuine growth and
-  // becomes a seat. A cell inside the old grid's extent but absent from
-  // `existing` is only filled when its row AND its column each showed up
-  // somewhere else in the old data — otherwise the row or column itself was
-  // never part of the grid (a deliberate aisle or doorway), and it stays a
-  // gap rather than being invented here.
+  // Only cells beyond the old grid's extent are genuine growth and become
+  // seats. A cell inside that extent but absent from `existing` is a gap the
+  // teacher carved — an aisle, a doorway — and resizing must never invent a
+  // seat back into it. Widening a room must not silently refill its aisles.
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col < cols; col += 1) {
-      if (occupied.has(`${row}:${col}`)) continue;
-      const isGrowth = row > oldMaxRow || col > oldMaxCol;
-      const isKnownGap = !rowsPresent.has(row) || !colsPresent.has(col);
-      if (!isGrowth && isKnownGap) continue;
+      if (row <= oldMaxRow && col <= oldMaxCol) continue;
       kept.push({ layoutId, row, col, studentId: null });
     }
   }
