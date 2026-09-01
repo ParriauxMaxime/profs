@@ -1,5 +1,6 @@
 import type { RubricTemplate } from "@db";
 import { useDb } from "@db/provider";
+import { saveTemplate } from "@db/rubrics";
 import type { RubricCriterion } from "@domain/rubric";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -28,23 +29,11 @@ export function RubricTemplateForm({
   async function save(): Promise<void> {
     const trimmed = name.trim();
     if (trimmed.length === 0) return;
-
-    const now = Date.now();
-    if (template) {
-      await db.rubricTemplates.update(template.id, {
-        name: trimmed,
-        criteria,
-        updatedAt: now,
-      });
-    } else {
-      await db.rubricTemplates.add({
-        id: crypto.randomUUID(),
-        name: trimmed,
-        criteria,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
+    // The write itself lives in src/db/rubrics.ts: deciding between add and
+    // update, minting the id and stamping the timestamps are database
+    // concerns, and inline versions of them are what let defects through in
+    // phase 2A.
+    await saveTemplate(db, { templateId: template?.id, name: trimmed, criteria });
     onDone();
   }
 

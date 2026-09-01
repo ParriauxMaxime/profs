@@ -111,3 +111,38 @@ export async function clearScore(
 ): Promise<void> {
   await db.rubricScores.delete(rubricScoreKey(assessmentId, criterionId, studentId));
 }
+
+/**
+ * Create or update a template in one call.
+ *
+ * The component that edits a template must not decide between `add` and
+ * `update`, nor mint the id and timestamps: that is a write, and writes live
+ * here where they can be tested. Passing no `templateId` creates.
+ */
+export async function saveTemplate(
+  db: AppDatabase,
+  input: { templateId?: string; name: string; criteria: RubricCriterion[] },
+): Promise<string> {
+  const now = Date.now();
+  const name = input.name.trim();
+  if (name.length === 0) throw new Error("a rubric template needs a name");
+
+  if (input.templateId !== undefined) {
+    await db.rubricTemplates.update(input.templateId, {
+      name,
+      criteria: input.criteria,
+      updatedAt: now,
+    });
+    return input.templateId;
+  }
+
+  const id = crypto.randomUUID();
+  await db.rubricTemplates.add({
+    id,
+    name,
+    criteria: input.criteria,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return id;
+}
