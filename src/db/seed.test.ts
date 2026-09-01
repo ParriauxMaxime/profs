@@ -98,4 +98,44 @@ describe("seedIfEmpty", () => {
     first.close();
     second.close();
   });
+
+  it("seeds one rubric template and one assessment per gradebook, partially filled", async () => {
+    const db = openWorkspaceDb("seed-rubric");
+    await seedIfEmpty(db, "seed-rubric");
+
+    const templates = await db.rubricTemplates.toArray();
+    expect(templates).toHaveLength(1);
+    expect(templates[0].name).toBe("Exposé oral");
+    expect(templates[0].criteria.map((c) => c.label)).toEqual([
+      "Clarté",
+      "Contenu",
+      "Support",
+      "Interaction",
+    ]);
+
+    const gradebooks = await db.gradebooks.toArray();
+    const assessments = await db.rubricAssessments.toArray();
+    expect(assessments).toHaveLength(gradebooks.length);
+
+    const scores = await db.rubricScores.toArray();
+    expect(scores.length).toBeGreaterThan(0);
+
+    for (const assessment of assessments) {
+      const gradebook = gradebooks.find((g) => g.id === assessment.gradebookId);
+      if (!gradebook) throw new Error("assessment references an unknown gradebook");
+      const studentCount =
+        (await db.students.where("classId").equals(gradebook.classId).count()) *
+        assessment.criteria.length;
+      const assessmentScores = scores.filter((s) => s.assessmentId === assessment.id);
+      // Roughly two thirds filled — never all of it, never none of it.
+      expect(assessmentScores.length).toBeGreaterThan(0);
+      expect(assessmentScores.length).toBeLessThan(studentCount);
+      // Every scored criterion id belongs to this assessment's own copy.
+      const criterionIds = new Set(assessment.criteria.map((c) => c.id));
+      for (const score of assessmentScores) {
+        expect(criterionIds.has(score.criterionId)).toBe(true);
+      }
+    }
+    db.close();
+  });
 });
