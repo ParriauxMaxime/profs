@@ -70,12 +70,21 @@ export function ToggleOption({
   selected,
   onSelect,
   color,
+  ariaLabel,
+  title,
 }: {
   children: ReactNode;
   selected: boolean;
   onSelect: () => void;
   /** Fills the control when selected. Never the sole indicator of state. */
   color?: string;
+  /**
+   * The accessible name, when the visible content is abbreviated. A dense
+   * matrix shows the level number alone to stay scannable; the full label
+   * still has to reach a screen reader, so it comes through here.
+   */
+  ariaLabel?: string;
+  title?: string;
 }) {
   const base =
     "flex min-h-(--control-min) min-w-(--control-min) flex-1 items-center justify-center rounded-(--control-radius) border px-3 py-2 font-medium text-sm";
@@ -88,6 +97,8 @@ export function ToggleOption({
     <button
       type="button"
       aria-pressed={selected}
+      aria-label={ariaLabel}
+      title={title}
       className={`${base} ${state}`}
       style={selected && color ? { background: color } : undefined}
       onClick={onSelect}

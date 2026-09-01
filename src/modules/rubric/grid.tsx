@@ -140,6 +140,7 @@ export function RubricGrid({
                 {criteria.map((criterion) => (
                   <td key={criterion.id} className="px-2 py-2">
                     <LevelButtons
+                      compact
                       value={scoreMap.get(cellKey(criterion.id, student.id)) ?? null}
                       onChange={(next) => void handleChange(criterion.id, student.id, next)}
                     />
