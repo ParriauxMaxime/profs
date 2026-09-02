@@ -8,6 +8,7 @@ import {
   moveSeat,
   resizeLayout,
   seatStudent,
+  swapSeats,
 } from "./seating";
 
 function freshDb(label: string) {
@@ -170,6 +171,95 @@ describe("resizeLayout", () => {
     const stored = await db.seatingLayouts.get(layout.id);
     expect([stored?.rows, stored?.cols]).toEqual([3, 4]);
     expect(await db.seats.where("layoutId").equals(layout.id).count()).toBe(12);
+    db.close();
+  });
+});
+
+describe("swapSeats", () => {
+  it("exchanges two occupants", async () => {
+    const db = freshDb("swap-two");
+    const layout = await getOrCreateLayout(db, "c1");
+    await seatStudent(db, layout.id, 0, 0, "s1");
+    await seatStudent(db, layout.id, 2, 3, "s2");
+
+    await swapSeats(db, layout.id, { row: 0, col: 0 }, { row: 2, col: 3 });
+
+    expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBe("s2");
+    expect((await db.seats.get(seatKey(layout.id, 2, 3)))?.studentId).toBe("s1");
+    db.close();
+  });
+
+  it("behaves as a move when the target is an empty seat", async () => {
+    const db = freshDb("swap-empty");
+    const layout = await getOrCreateLayout(db, "c1");
+    await seatStudent(db, layout.id, 0, 0, "s1");
+
+    await swapSeats(db, layout.id, { row: 0, col: 0 }, { row: 4, col: 5 });
+
+    expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBeNull();
+    expect((await db.seats.get(seatKey(layout.id, 4, 5)))?.studentId).toBe("s1");
+    db.close();
+  });
+
+  it("changes nothing when a cell is swapped with itself", async () => {
+    const db = freshDb("swap-self");
+    const layout = await getOrCreateLayout(db, "c1");
+    await seatStudent(db, layout.id, 1, 1, "s1");
+
+    await swapSeats(db, layout.id, { row: 1, col: 1 }, { row: 1, col: 1 });
+
+    expect((await db.seats.get(seatKey(layout.id, 1, 1)))?.studentId).toBe("s1");
+    db.close();
+  });
+
+  it("refuses to swap into a gap rather than creating a seat there", async () => {
+    // A gap is an aisle, a doorway, a pillar. Writing a seat row into one
+    // would put a chair where the teacher carved the room open, and the grid
+    // would render it as if they had asked for it.
+    const db = freshDb("swap-gap");
+    const layout = await getOrCreateLayout(db, "c1");
+    await seatStudent(db, layout.id, 0, 0, "s1");
+    await makeGap(db, layout.id, 3, 3);
+
+    await swapSeats(db, layout.id, { row: 0, col: 0 }, { row: 3, col: 3 });
+
+    expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBe("s1");
+    expect(await db.seats.get(seatKey(layout.id, 3, 3))).toBeUndefined();
+    db.close();
+  });
+
+  it("does nothing when the source seat is empty", async () => {
+    const db = freshDb("swap-empty-source");
+    const layout = await getOrCreateLayout(db, "c1");
+    await seatStudent(db, layout.id, 2, 2, "s1");
+
+    await swapSeats(db, layout.id, { row: 0, col: 0 }, { row: 2, col: 2 });
+
+    expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBeNull();
+    expect((await db.seats.get(seatKey(layout.id, 2, 2)))?.studentId).toBe("s1");
+    db.close();
+  });
+});
+
+describe("seatStudent displacement", () => {
+  it("displaces the pupil already sitting there, leaving them unseated", async () => {
+    // This is the rule the rail relies on: dropping a pupil from the rail
+    // onto an occupied seat always completes, and the occupant reappears in
+    // the rail rather than the gesture being refused. It was already true and
+    // asserted nowhere, which is how an invariant leaves.
+    const db = freshDb("seat-displace");
+    const layout = await getOrCreateLayout(db, "c1");
+    await seatStudent(db, layout.id, 1, 1, "sitting");
+
+    await seatStudent(db, layout.id, 1, 1, "incoming");
+
+    expect((await db.seats.get(seatKey(layout.id, 1, 1)))?.studentId).toBe("incoming");
+    const stillSeated = await db.seats
+      .where("layoutId")
+      .equals(layout.id)
+      .filter((s) => s.studentId === "sitting")
+      .count();
+    expect(stillSeated).toBe(0);
     db.close();
   });
 });

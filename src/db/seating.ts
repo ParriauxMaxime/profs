@@ -85,6 +85,38 @@ export async function moveSeat(
   });
 }
 
+/**
+ * Exchange the occupants of two cells.
+ *
+ * The whole point of the seating plan is rearranging, and rearranging is
+ * mostly swapping: before this, exchanging two pupils meant clearing one seat,
+ * moving, re-ariming and moving back — four writes, through a state that is not
+ * the room.
+ *
+ * Both seats are read INSIDE the transaction rather than taken from what the
+ * caller last rendered, for the same reason `resizeLayout` does it: a swap
+ * submitted from a stale grid must not write back a pupil another tab has
+ * already moved.
+ *
+ * A gap at either end is refused rather than filled: no row means the teacher
+ * carved that cell out of the room, and a swap must not put a chair back.
+ */
+export async function swapSeats(
+  db: AppDatabase,
+  layoutId: string,
+  a: { row: number; col: number },
+  b: { row: number; col: number },
+): Promise<void> {
+  if (a.row === b.row && a.col === b.col) return;
+  await db.transaction("rw", db.seats, async () => {
+    const source = await db.seats.get(seatKey(layoutId, a.row, a.col));
+    const target = await db.seats.get(seatKey(layoutId, b.row, b.col));
+    if (!source || !target || source.studentId === null) return;
+    await db.seats.put({ layoutId, row: a.row, col: a.col, studentId: target.studentId });
+    await db.seats.put({ layoutId, row: b.row, col: b.col, studentId: source.studentId });
+  });
+}
+
 /** Empty a seat without removing it. */
 export async function clearSeat(
   db: AppDatabase,
