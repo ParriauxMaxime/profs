@@ -160,10 +160,21 @@ export function PlanPage({ classId }: { classId: string }) {
       if (action.kind === "seat") {
         await seatStudent(db, layout.id, action.row, action.col, action.studentId);
       } else if (action.kind === "swap") {
-        await swapSeats(db, layout.id, action.from, action.to);
+        // A held seat is coordinates only, so tell the write which pupil we
+        // believe is sitting there: if another tab has moved them out and
+        // seated somebody else since, the swap must not move that stranger.
+        const source = seats.find((s) => s.row === action.from.row && s.col === action.from.col);
+        if (source?.studentId != null) {
+          await swapSeats(db, layout.id, action.from, action.to, source.studentId);
+        }
       }
-      setHeld(null);
+    } catch (error) {
+      // No blocking dialog here — they are banned. A failed write must still
+      // end the gesture rather than stranding a pupil in the teacher's hand;
+      // the live query re-renders the room as it actually is.
+      console.error(error);
     } finally {
+      setHeld(null);
       dropping.current = false;
     }
   };

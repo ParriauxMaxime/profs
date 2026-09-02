@@ -85,6 +85,10 @@ export function CsvImport({
   }
 
   async function onImport(): Promise<void> {
+    // The ceiling is enforced here as well as on the button, exactly as
+    // `student-form` guards its submit handler: a disabled button is a
+    // rendering, not a rule.
+    if (excess > 0) return;
     const now = Date.now();
     const toAdd = roster
       .filter((_, index) => !excluded.has(index))

@@ -136,6 +136,7 @@ export function SeatGrid({
                 <button
                   type="button"
                   disabled={held === null}
+                  title={held ? t("plan.moveHere") : undefined}
                   className={`flex h-14 w-20 flex-col items-center justify-center rounded-md border text-[11px] text-text-muted disabled:cursor-default ${
                     held !== null
                       ? "border-accent border-dashed bg-accent/10 hover:bg-bg-hover"
@@ -166,13 +167,21 @@ export function SeatGrid({
           const student = studentsById.get(seat.studentId);
           if (!student) {
             // The pupil was deleted elsewhere; the seat row is stale until the
-            // teacher clears it. Render it as empty rather than crashing.
+            // teacher clears it. Render it as empty rather than crashing —
+            // and while something is held it is a target like every other
+            // cell, not a clear button that would swallow the gesture.
             return (
               <button
                 key={coord}
                 type="button"
-                className="flex h-14 w-20 flex-col items-center justify-center rounded-md border border-border text-[11px] text-text-muted hover:bg-bg-hover"
-                onClick={() => void onClearSeat(row, col)}
+                title={held ? t("plan.moveHere") : undefined}
+                className={`flex h-14 w-20 flex-col items-center justify-center rounded-md border text-[11px] text-text-muted hover:bg-bg-hover ${
+                  held !== null ? "border-accent border-dashed bg-accent/10" : "border-border"
+                }`}
+                onClick={() => {
+                  if (held) onDrop(row, col);
+                  else void onClearSeat(row, col);
+                }}
               >
                 {t("plan.emptySeat")}
               </button>
@@ -186,6 +195,9 @@ export function SeatGrid({
               <button
                 type="button"
                 title={held ? t("plan.moveHere") : undefined}
+                // Only the seat in hand is announced as pressed; the others
+                // are targets, not toggles, so they carry no state at all.
+                aria-pressed={isHeldSeat || undefined}
                 className={`flex h-14 w-20 flex-col items-center justify-center gap-0.5 rounded-md border p-1 hover:bg-bg-hover ${
                   isHeldSeat
                     ? "border-accent ring-2 ring-accent"

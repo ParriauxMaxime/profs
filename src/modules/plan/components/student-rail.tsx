@@ -30,6 +30,15 @@ export function StudentRail({
   const [query, setQuery] = useState("");
 
   const showSearch = students.length > SEARCH_THRESHOLD;
+  // The hint states the rule that actually applies, and the two are different:
+  // a pupil held from a seat SWAPS with an occupant, a pupil held from the
+  // rail DISPLACES them back into the rail.
+  const hint =
+    held === null
+      ? t("plan.hintPick")
+      : held.kind === "pool"
+        ? t("plan.hintPlaceFromRail")
+        : t("plan.hintPlaceFromSeat");
   const visible = showSearch
     ? students.filter((s) => fuzzyMatchAny([s.lastName, s.firstName], query))
     : students;
@@ -78,12 +87,13 @@ export function StudentRail({
               );
             })}
           </div>
-
-          <p className="text-text-faint text-xs">
-            {held === null ? t("plan.hintPick") : t("plan.hintPlace")}
-          </p>
         </>
       )}
+
+      {/* A full room still needs the hint: a pupil can be picked up from a
+          seat, through the card's Déplacer or a tap in layout-edit mode, with
+          no chip in the rail at all. */}
+      {(held !== null || students.length > 0) && <p className="text-text-faint text-xs">{hint}</p>}
     </div>
   );
 }
