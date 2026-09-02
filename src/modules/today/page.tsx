@@ -124,7 +124,7 @@ export function TodayPage() {
           {lessons.map((lesson, index) => (
             <li key={lesson.key}>
               <Link
-                to={Router.Plan({ classId: lesson.classId })}
+                to={Router.ClassPlan({ classId: lesson.classId })}
                 className={`paper flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded border p-3 hover:bg-bg-hover ${
                   index === nextIndex ? "border-accent" : "border-border"
                 }`}

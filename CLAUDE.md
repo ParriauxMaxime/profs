@@ -48,7 +48,41 @@ The seating plan's gesture is pick-up-then-place, not drag: the teacher first ho
 
 **`src/modules/<name>/page.tsx`** — one page per route, with module-local `components/`. `design-system/` holds shared UI, `shared/` the layout. There is no `src/routes/` folder — each module owns its page. Components read the database through `useLiveQuery` and hold UI state only.
 
-Routes (`src/router.ts`, Chicane): `/` (**Today**), `/classes`, `/gradebooks`, `/students`, `/schedule`, `/diary`, `/classes/:classId`, `/classes/:classId/plan`, `/students/:studentId`, `/gradebooks/:gradebookId`, `/gradebooks/:gradebookId/entry/:columnId`, `/gradebooks/:gradebookId/rubrics`, `/gradebooks/:gradebookId/rubrics/:assessmentId`, `/settings`.
+Routes (`src/router.ts`, Chicane): `/` (**Today**), `/classes`, `/students`, `/schedule`, `/diary`, `/classes/:classId` (redirects to its plan), `/classes/:classId/plan`, `/classes/:classId/students`, `/classes/:classId/books`, `/classes/:classId/diary`, `/students/:studentId`, `/gradebooks/:gradebookId`, `/gradebooks/:gradebookId/entry/:columnId`, `/gradebooks/:gradebookId/rubrics`, `/gradebooks/:gradebookId/rubrics/:assessmentId`, `/settings`.
+
+### The class is the page
+
+A teacher thinks in 3°B, not in carnets and rosters, so a class is **one page
+with four tabs** — Plan de table, Élèves, Carnets, Journal — and a route per tab
+(`src/modules/class/page.tsx` is the shell, `tabs/` holds the four).
+`ClassPage` loads the class, its pupils, its groups and their memberships
+**once** and passes them down as `ClassTabProps`; a tab that re-queried them
+would flash "Chargement…" over a class whose name is already on screen. The
+grid stays a full-screen route outside the tabs, because a tab bar above a wide
+scrolling table costs vertical space on the one screen that has none.
+
+Two selections live in the shell rather than in the tabs, and must stay there:
+the **group filter** (filtering the roster to Groupe A and finding the plan
+unfiltered reads as a bug) and the **selected session**. The session is why the
+pupil card can be opened from a roster row at all: attendance belongs to a
+lesson, so the card shows the register only when a session is selected, and says
+so when there is none. Inventing a second attendance path from the roster is
+exactly the duplication phase 2A refused.
+
+**`/gradebooks` — the flat list — was removed deliberately, and this is a
+reversal of phase 4a.** That phase added the flat list because reaching a grid
+meant going through a class. The judgement in phase 6 is that it treated a
+symptom: the hop was expensive because the class page was a dead end, a roster
+and one button. Passing through a class that carries the register, the journal
+and the carnets is arriving, not detouring. Marking now starts at Classes → the
+class → Carnets. If that proves wrong the reversal is cheap — re-add the list
+and a drawer entry; no data moves either way. Do not "fix" it back by accident:
+`docs/superpowers/specs/2026-09-02-profs-phase6-class-hub.md` carries the
+argument.
+
+The journal tab is `DiaryPage` with a `classId` prop that pins the class and
+hides the selector — not a second calendar over the same tables, for the reason
+phase 4b gave.
 
 ### The schedule predicts; it never pre-creates
 
@@ -125,7 +159,8 @@ Nothing here adds days by arithmetic — `nextDay` walks the calendar, because
 
 There is no top bar. `AdminLayout` renders one floating hamburger fixed at the
 top left (44px, safe-area inset) and `AppDrawer`, which holds every
-destination: Aujourd'hui, Classes, Carnets, Élèves, Emploi du temps, Journal, Réglages.
+destination: Aujourd'hui, Classes, Élèves, Emploi du temps, Journal, Réglages.
+Carnets is not among them — a carnet is reached through its class.
 The drawer is not a `<dialog>` — blocking dialogs are banned here — so it
 implements the discipline by hand: Escape closes, focus moves in on open and
 returns to the button on close, Tab is trapped, the backdrop closes on click,

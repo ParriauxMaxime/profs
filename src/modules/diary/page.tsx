@@ -44,14 +44,18 @@ interface Lesson {
  * the 4c planner. A second calendar rendering the same tables would have been
  * one more thing to keep in sync.
  */
-export function DiaryPage() {
+export function DiaryPage({ classId: pinnedClassId }: { classId?: string } = {}) {
   const { t, i18n } = useTranslation();
   const db = useDb();
   const termStart = readTermStart();
 
   const [view, setView] = useState<View>("agenda");
   // Held as a class id, never an index into the list.
-  const [classId, setClassId] = useState<string | null>(null);
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  // A pinned class wins over the selector, and hides it: that is the class
+  // hub's Journal tab, which is this page over one class rather than a second
+  // calendar built on the same tables.
+  const classId = pinnedClassId ?? selectedClassId;
   const [query, setQuery] = useState("");
   // The day the visible window is anchored on. Local midnight, always.
   const [anchor, setAnchor] = useState(() => startOfDay(Date.now()));
@@ -101,7 +105,11 @@ export function DiaryPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold text-lg">{t("diary.title")}</h2>
+        {/* Pinned inside the class hub, the tab is already labelled "Journal"
+            — a second heading two lines below it says nothing. */}
+        {pinnedClassId === undefined && (
+          <h2 className="font-semibold text-lg">{t("diary.title")}</h2>
+        )}
         <ToggleGroup label={t("diary.view")}>
           {VIEWS.map((option) => (
             <ToggleOption key={option} selected={view === option} onSelect={() => setView(option)}>
@@ -112,19 +120,21 @@ export function DiaryPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          className="field w-auto"
-          aria-label={t("diary.filterByClass")}
-          value={classId ?? ""}
-          onChange={(e) => setClassId(e.target.value === "" ? null : e.target.value)}
-        >
-          <option value="">{t("diary.allClasses")}</option>
-          {data.classes.map((schoolClass: SchoolClass) => (
-            <option key={schoolClass.id} value={schoolClass.id}>
-              {schoolClass.name}
-            </option>
-          ))}
-        </select>
+        {pinnedClassId === undefined && (
+          <select
+            className="field w-auto"
+            aria-label={t("diary.filterByClass")}
+            value={selectedClassId ?? ""}
+            onChange={(e) => setSelectedClassId(e.target.value === "" ? null : e.target.value)}
+          >
+            <option value="">{t("diary.allClasses")}</option>
+            {data.classes.map((schoolClass: SchoolClass) => (
+              <option key={schoolClass.id} value={schoolClass.id}>
+                {schoolClass.name}
+              </option>
+            ))}
+          </select>
+        )}
 
         <input
           type="search"

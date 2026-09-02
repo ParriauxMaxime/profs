@@ -4,8 +4,6 @@ import { DesignPage } from "./modules/design-system/page";
 import { DiaryPage } from "./modules/diary/page";
 import { EntryPage } from "./modules/entry/page";
 import { GradebookPage } from "./modules/gradebook/page";
-import { GradebooksPage } from "./modules/gradebooks/page";
-import { PlanPage } from "./modules/plan/page";
 import { RubricAssessmentPage, RubricsPage } from "./modules/rubric/page";
 import { SchedulePage } from "./modules/schedule/page";
 import { SettingsPage } from "./modules/settings/page";
@@ -24,12 +22,14 @@ export function App() {
   const route = Router.useRoute([
     "Home",
     "Classes",
-    "Gradebooks",
     "Students",
     "Schedule",
     "Diary",
     "Class",
-    "Plan",
+    "ClassPlan",
+    "ClassStudents",
+    "ClassBooks",
+    "ClassDiary",
     "Student",
     "Gradebook",
     "Entry",
@@ -56,12 +56,14 @@ type AppRoute = NonNullable<
     typeof Router.useRoute<
       | "Home"
       | "Classes"
-      | "Gradebooks"
       | "Students"
       | "Schedule"
       | "Diary"
       | "Class"
-      | "Plan"
+      | "ClassPlan"
+      | "ClassStudents"
+      | "ClassBooks"
+      | "ClassDiary"
       | "Student"
       | "Gradebook"
       | "Entry"
@@ -79,8 +81,6 @@ function Routes({ route }: { route: AppRoute }) {
       return <TodayPage />;
     case "Classes":
       return <ClassesPage />;
-    case "Gradebooks":
-      return <GradebooksPage />;
     case "Students":
       return <StudentsPage />;
     case "Schedule":
@@ -88,9 +88,19 @@ function Routes({ route }: { route: AppRoute }) {
     case "Diary":
       return <DiaryPage />;
     case "Class":
-      return <ClassPage classId={route.params.classId} />;
-    case "Plan":
-      return <PlanPage classId={route.params.classId} />;
+      // A class opens on its seating plan: that is the view a teacher reaches
+      // for mid-lesson, and the tabs are routes, so the bare class URL has to
+      // resolve to one of them.
+      Router.replace("ClassPlan", { classId: route.params.classId });
+      return null;
+    case "ClassPlan":
+      return <ClassPage classId={route.params.classId} tab="plan" />;
+    case "ClassStudents":
+      return <ClassPage classId={route.params.classId} tab="students" />;
+    case "ClassBooks":
+      return <ClassPage classId={route.params.classId} tab="books" />;
+    case "ClassDiary":
+      return <ClassPage classId={route.params.classId} tab="diary" />;
     case "Student":
       return <StudentPage studentId={route.params.studentId} />;
     case "Gradebook":

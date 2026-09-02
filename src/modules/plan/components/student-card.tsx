@@ -22,10 +22,15 @@ import { PhotoInput } from "../../design-system/components/photo-input";
 import { PupilName } from "../../design-system/components/pupil-name";
 
 /**
- * The live-entry surface: opened from a seat, closed by the teacher, one
- * pupil at a time. Takes `key={student.id}` from its caller so switching
- * pupils resets every piece of local draft state (the notes textarea and the
- * behaviour comment input) rather than carrying it onto the next child.
+ * The live-entry surface: opened from a seat or from a roster row, closed by
+ * the teacher, one pupil at a time. Takes `key={student.id}` from its caller so
+ * switching pupils resets every piece of local draft state (the notes textarea
+ * and the behaviour comment input) rather than carrying it onto the next child.
+ *
+ * Attendance and behaviour belong to a **session** — a lesson that happened on
+ * a date — so without one the card shows the pupil's notes and a link to their
+ * page and nothing else. Recording an absence against no lesson is exactly the
+ * second attendance path phase 2A refused to create.
  */
 export function StudentCard({
   student,
@@ -34,9 +39,10 @@ export function StudentCard({
   onMove,
 }: {
   student: Student;
-  session: Session;
+  session?: Session | null;
   onClose: () => void;
-  onMove: () => void;
+  /** Only the seating plan can pick a pupil back up. */
+  onMove?: () => void;
 }) {
   const { t } = useTranslation();
   const db = useDb();
@@ -53,26 +59,29 @@ export function StudentCard({
   }, [student.notes]);
 
   const attendance = useLiveQuery(
-    async () => (await db.attendance.get(attendanceKey(session.id, student.id))) ?? null,
-    [db, session.id, student.id],
+    async () =>
+      session ? ((await db.attendance.get(attendanceKey(session.id, student.id))) ?? null) : null,
+    [db, session?.id, student.id],
   );
   const events = useLiveQuery(
     () =>
-      db.behaviourEvents
-        .where({ sessionId: session.id, studentId: student.id })
-        .reverse()
-        .sortBy("createdAt"),
-    [db, session.id, student.id],
+      session
+        ? db.behaviourEvents
+            .where({ sessionId: session.id, studentId: student.id })
+            .reverse()
+            .sortBy("createdAt")
+        : [],
+    [db, session?.id, student.id],
   );
 
   // Tapping the value already recorded clears it. `toggleAttendance` re-reads
   // inside its transaction rather than trusting `attendance` from this render.
-  const setAttendance = (value: AttendanceValue): Promise<void> =>
-    toggleAttendance(db, session.id, student.id, value);
+  const setAttendance = (sessionId: string, value: AttendanceValue): Promise<void> =>
+    toggleAttendance(db, sessionId, student.id, value);
 
-  const addBehaviour = async (type: BehaviourType): Promise<void> => {
+  const addBehaviour = async (sessionId: string, type: BehaviourType): Promise<void> => {
     await logBehaviour(db, {
-      sessionId: session.id,
+      sessionId,
       studentId: student.id,
       classId: student.classId,
       type,
@@ -99,89 +108,101 @@ export function StudentCard({
           </div>
         </div>
         <div className="flex gap-2">
-          <button type="button" className="btn" onClick={onMove}>
-            {t("plan.movePupil")}
-          </button>
+          {onMove && (
+            <button type="button" className="btn" onClick={onMove}>
+              {t("plan.movePupil")}
+            </button>
+          )}
           <button type="button" className="btn" onClick={onClose}>
             {t("common.close")}
           </button>
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <span className="font-medium text-sm text-text-muted">{t("attendance.title")}</span>
-        <div className="flex flex-wrap gap-2">
-          {ATTENDANCE_VALUES.map((value) => {
-            const selected = attendance?.value === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={selected}
-                className={`min-h-11 min-w-11 flex-1 rounded-md border px-3 py-2 font-medium text-sm ${
-                  selected ? "border-accent bg-accent text-white" : "border-border bg-bg text-text"
-                }`}
-                onClick={() => void setAttendance(value)}
-              >
-                {t(`attendance.${value}`)}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {session ? (
+        <>
+          <div className="flex flex-col gap-2">
+            <span className="font-medium text-sm text-text-muted">{t("attendance.title")}</span>
+            <div className="flex flex-wrap gap-2">
+              {ATTENDANCE_VALUES.map((value) => {
+                const selected = attendance?.value === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={selected}
+                    className={`min-h-11 min-w-11 flex-1 rounded-md border px-3 py-2 font-medium text-sm ${
+                      selected
+                        ? "border-accent bg-accent text-white"
+                        : "border-border bg-bg text-text"
+                    }`}
+                    onClick={() => void setAttendance(session.id, value)}
+                  >
+                    {t(`attendance.${value}`)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-      <div className="flex flex-col gap-2">
-        <span className="font-medium text-sm text-text-muted">{t("behaviour.title")}</span>
-        <div className="flex flex-wrap gap-2">
-          {BEHAVIOUR_TYPES.map((type) => (
-            <button
-              key={type}
-              type="button"
-              className="min-h-11 min-w-11 flex-1 rounded-md border border-border px-3 py-2 font-medium text-sm text-white"
-              style={{ background: BEHAVIOUR_COLORS[type], color: BEHAVIOUR_TEXT_COLORS[type] }}
-              onClick={() => void addBehaviour(type)}
-            >
-              {t(`behaviour.${type}`)}
-            </button>
-          ))}
-        </div>
-        <input
-          type="text"
-          className="field"
-          placeholder={t("behaviour.comment")}
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-        />
+          <div className="flex flex-col gap-2">
+            <span className="font-medium text-sm text-text-muted">{t("behaviour.title")}</span>
+            <div className="flex flex-wrap gap-2">
+              {BEHAVIOUR_TYPES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  className="min-h-11 min-w-11 flex-1 rounded-md border border-border px-3 py-2 font-medium text-sm text-white"
+                  style={{ background: BEHAVIOUR_COLORS[type], color: BEHAVIOUR_TEXT_COLORS[type] }}
+                  onClick={() => void addBehaviour(session.id, type)}
+                >
+                  {t(`behaviour.${type}`)}
+                </button>
+              ))}
+            </div>
+            <input
+              type="text"
+              className="field"
+              placeholder={t("behaviour.comment")}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+            />
 
-        <div className="flex flex-col gap-1">
-          {events === undefined || events.length === 0 ? (
-            <span className="text-sm text-text-faint">{t("behaviour.none")}</span>
-          ) : (
-            events.map((event) => (
-              <div
-                key={event.id}
-                className="flex items-center justify-between gap-2 rounded border border-border px-2 py-1 text-sm"
-              >
-                <span className="flex items-center gap-2">
-                  <span
-                    className="inline-block h-3 w-3 rounded-full"
-                    style={{ background: BEHAVIOUR_COLORS[event.type] }}
-                  />
-                  {t(`behaviour.${event.type}`)}
-                  {event.comment ? ` — ${event.comment}` : ""}
-                </span>
-                <ConfirmButton
-                  variant="link"
-                  danger
-                  label={t("common.delete")}
-                  confirmLabel={t("behaviour.confirmDelete")}
-                  onConfirm={() => deleteBehaviourEvent(db, event.id)}
-                />
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+            <div className="flex flex-col gap-1">
+              {events === undefined || events.length === 0 ? (
+                <span className="text-sm text-text-faint">{t("behaviour.none")}</span>
+              ) : (
+                events.map((event) => (
+                  <div
+                    key={event.id}
+                    className="flex items-center justify-between gap-2 rounded border border-border px-2 py-1 text-sm"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="inline-block h-3 w-3 rounded-full"
+                        style={{ background: BEHAVIOUR_COLORS[event.type] }}
+                      />
+                      {t(`behaviour.${event.type}`)}
+                      {event.comment ? ` — ${event.comment}` : ""}
+                    </span>
+                    <ConfirmButton
+                      variant="link"
+                      danger
+                      label={t("common.delete")}
+                      confirmLabel={t("behaviour.confirmDelete")}
+                      onConfirm={() => deleteBehaviourEvent(db, event.id)}
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        // No lesson selected — say why the register is not here, rather than
+        // leaving a gap the teacher reads as a missing feature.
+        <p className="text-sm text-text-faint">{t("attendance.needsSession")}</p>
+      )}
 
       <label className="flex flex-col gap-1">
         <span className="text-sm text-text-muted">{t("student.notes")}</span>

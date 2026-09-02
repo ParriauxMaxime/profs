@@ -20,7 +20,6 @@
     "settings": "Réglages",
     "today": "Aujourd'hui",
     "classes": "Classes",
-    "gradebooks": "Carnets",
     "students": "Élèves",
     "schedule": "Emploi du temps",
     "menu": "Menu",
@@ -49,7 +48,6 @@
     "studentCount_other": "{{count}} élèves",
     "addClass": "Ajouter une classe",
     "addGradebook": "Créer un carnet",
-    "gradebookClass": "Classe",
     "gradebookSubject": "Matière",
     "gradebookName": "Nom du carnet",
     "gradebookPeriodsHint": "Le carnet est créé avec trois trimestres ; vous pourrez les renommer ou en ajouter d'autres depuis le carnet.",
@@ -84,7 +82,15 @@
     "rename": "Renommer la classe",
     "deleteClass": "Supprimer la classe",
     "confirmDeleteClass": "Supprimer la classe, ses élèves et toutes leurs notes ?",
-    "rosterFull": "Cette classe a atteint {{max}} élèves : impossible d'en ajouter un autre."
+    "rosterFull": "Cette classe a atteint {{max}} élèves : impossible d'en ajouter un autre.",
+    "tabs": "Sections de la classe",
+    "tab": {
+      "plan": "Plan de table",
+      "students": "Élèves",
+      "books": "Carnets",
+      "diary": "Journal"
+    },
+    "openCard": "Ouvrir la fiche de l'élève"
   },
   "group": {
     "title": "Groupes",
@@ -232,7 +238,8 @@
     "absent": "Absent",
     "late": "En retard",
     "excused": "Excusé",
-    "title": "Présence"
+    "title": "Présence",
+    "needsSession": "Sélectionnez une séance dans le plan de table pour noter la présence et le comportement."
   },
   "plan": {
     "title": "Plan de classe",

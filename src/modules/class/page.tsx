@@ -1,36 +1,56 @@
-import type { Student, StudentGroup } from "@db";
-import { deleteClass, deleteGroup, deleteStudent } from "@db/cascade";
+import { deleteClass } from "@db/cascade";
 import { useDb } from "@db/provider";
-import { filterByGroup, groupsForStudent } from "@domain/group";
 import { Link } from "@swan-io/chicane";
-import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { ConfirmButton } from "../design-system/components/confirm-button";
-import { DataTable } from "../design-system/components/data-table";
-import { Chip } from "../design-system/components/primitives";
-import { PupilName } from "../design-system/components/pupil-name";
 import { ClassForm } from "./components/class-form";
-import { CsvImport } from "./components/csv-import";
 import { GroupFilter } from "./components/group-filter";
-import { GroupForm } from "./components/group-form";
-import { StudentForm } from "./components/student-form";
+import { ClassBooksTab } from "./tabs/books";
+import { ClassDiaryTab } from "./tabs/diary";
+import { ClassPlanTab } from "./tabs/plan";
+import { ClassStudentsTab } from "./tabs/students";
+import type { ClassTabProps } from "./tabs/types";
 
-const helper = createColumnHelper<Student>();
+export const CLASS_TABS = ["plan", "students", "books", "diary"] as const;
+export type ClassTab = (typeof CLASS_TABS)[number];
 
-export function ClassPage({ classId }: { classId: string }) {
+function tabHref(tab: ClassTab, classId: string): string {
+  switch (tab) {
+    case "plan":
+      return Router.ClassPlan({ classId });
+    case "students":
+      return Router.ClassStudents({ classId });
+    case "books":
+      return Router.ClassBooks({ classId });
+    case "diary":
+      return Router.ClassDiary({ classId });
+  }
+}
+
+/**
+ * A class is one page. The seating plan, the roster, the carnets and the
+ * journal are tabs of it rather than four destinations reached through the
+ * drawer, because a teacher does not think in carnets and rosters — they think
+ * in 3°B, and everything about 3°B should be one page.
+ *
+ * The shell loads what every tab needs (the class, its pupils, its groups and
+ * their memberships) exactly once, so changing tab never flashes "Chargement…"
+ * over a class whose name is already on screen.
+ */
+export function ClassPage({ classId, tab }: { classId: string; tab: ClassTab }) {
   const { t } = useTranslation();
   const db = useDb();
-  const [editing, setEditing] = useState<Student | "new" | null>(null);
-  const [importing, setImporting] = useState(false);
   const [renaming, setRenaming] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<StudentGroup | "new" | null>(null);
-  // Held as a group id, never an index: a deleted group must fall back to
-  // "Tous" (handled by GroupFilter/filterByGroup), not to whatever now sits
-  // at that position.
+  // Held as a group id, never an index: a deleted group falls back to "Tous",
+  // not to whatever now sits at that position.
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  // Held as a session id, never a position. The Plan tab keeps it in step with
+  // today's lesson; the roster only reads it, to decide whether the pupil card
+  // may record attendance at all.
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
   // An explicit null distinguishes "no such class" from "still loading":
   // useLiveQuery gives undefined for both, and the page would otherwise sit on
@@ -53,64 +73,21 @@ export function ClassPage({ classId }: { classId: string }) {
     return await db.groupMembers.where("groupId").anyOf(groupIds).toArray();
   }, [db, groups]);
 
-  const columns = useMemo(
-    () => [
-      helper.accessor("lastName", {
-        header: () => t("student.lastName"),
-        // Through PupilName like every other surname in the app, rather than
-        // repeating the styling here. The accessor keeps returning the raw
-        // value, so sorting and the global search still work on what the
-        // teacher typed.
-        cell: (info) => <PupilName student={info.row.original} format="surname" />,
-      }),
-      helper.accessor("firstName", { header: () => t("student.firstName") }),
-      helper.display({
-        id: "groups",
-        header: () => t("group.title"),
-        cell: (info) => {
-          const mine = groupsForStudent(groups ?? [], memberships ?? [], info.row.original.id);
-          if (mine.length === 0) return null;
-          return (
-            <div className="flex flex-wrap gap-1">
-              {mine.map((group) => (
-                <Chip key={group.id} color={group.color}>
-                  {group.name}
-                </Chip>
-              ))}
-            </div>
-          );
-        },
-      }),
-      helper.display({
-        id: "actions",
-        header: () => "",
-        cell: (info) => {
-          const student = info.row.original;
-          return (
-            <div className="flex gap-2">
-              <button type="button" className="btn" onClick={() => setEditing(student)}>
-                {t("common.edit")}
-              </button>
-              <ConfirmButton
-                danger
-                label={t("common.delete")}
-                confirmLabel={t("class.confirmDelete")}
-                onConfirm={() => deleteStudent(db, student.id)}
-              />
-            </div>
-          );
-        },
-      }),
-    ],
-    [t, db, groups, memberships],
-  );
-
   if (schoolClass === undefined || students === undefined || groups === undefined) {
     return <p className="text-text-muted">{t("common.loading")}</p>;
   }
   if (schoolClass === null) return <p className="text-text-muted">{t("class.notFound")}</p>;
 
-  const visibleStudents = filterByGroup(students, memberships ?? [], selectedGroupId);
+  const tabProps: ClassTabProps = {
+    classId,
+    students,
+    groups,
+    memberships: memberships ?? [],
+    selectedGroupId,
+    onSelectGroup: setSelectedGroupId,
+    selectedSessionId,
+    onSelectSession: setSelectedSessionId,
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -120,6 +97,9 @@ export function ClassPage({ classId }: { classId: string }) {
           {schoolClass.level && (
             <span className="text-sm text-text-muted">{schoolClass.level}</span>
           )}
+          <span className="text-sm text-text-faint">
+            {t("dashboard.studentCount", { count: students.length })}
+          </span>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" className="btn" onClick={() => setRenaming(true)}>
@@ -137,15 +117,6 @@ export function ClassPage({ classId }: { classId: string }) {
               Router.push("Home");
             }}
           />
-          <Link className="btn" to={Router.Plan({ classId })}>
-            {t("plan.title")}
-          </Link>
-          <button type="button" className="btn" onClick={() => setImporting(true)}>
-            {t("class.importCsv")}
-          </button>
-          <button type="button" className="btn btn-primary" onClick={() => setEditing("new")}>
-            {t("class.addStudent")}
-          </button>
         </div>
       </div>
 
@@ -158,122 +129,43 @@ export function ClassPage({ classId }: { classId: string }) {
         />
       )}
 
-      {editing === "new" && (
-        <StudentForm
-          key="new"
-          classId={classId}
-          studentCount={students.length}
-          onDone={() => setEditing(null)}
-        />
-      )}
-      {editing && editing !== "new" && (
-        <StudentForm
-          key={editing.id}
-          classId={classId}
-          student={editing}
-          studentCount={students.length}
-          onDone={() => setEditing(null)}
-        />
-      )}
+      <div className="flex flex-wrap items-end justify-between gap-2 border-border border-b">
+        <nav className="flex gap-1" aria-label={t("class.tabs")}>
+          {CLASS_TABS.map((name) => (
+            <Link
+              key={name}
+              to={tabHref(name, classId)}
+              className="rounded-t px-3 py-2 font-medium text-sm text-text-muted hover:bg-bg-hover hover:text-text"
+              activeClassName="bg-bg-hover text-text"
+              // Chicane sets activeClassName on an exact match; aria-current
+              // has to be told separately or a screen reader never learns
+              // which tab is the current one.
+              aria-current={name === tab ? "page" : undefined}
+            >
+              {t(`class.tab.${name}`)}
+            </Link>
+          ))}
+        </nav>
 
-      {importing && (
-        <CsvImport
-          classId={classId}
-          existing={students.map((s) => ({ lastName: s.lastName, firstName: s.firstName }))}
-          studentCount={students.length}
-          onDone={() => setImporting(false)}
-        />
-      )}
-
-      <section className="flex flex-col gap-2 rounded border border-border p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-medium text-sm text-text-muted">{t("group.title")}</h3>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => setEditingGroup("new")}
-            disabled={editingGroup === "new"}
-          >
-            {t("group.add")}
-          </button>
-        </div>
-
-        {groups.length > 0 && (
-          <>
+        {/* One filter for the whole class, not one per tab: filtering the
+            roster to a group and finding the seating plan unfiltered reads as
+            a bug. It shows only on the two tabs that list pupils — a filter
+            that changes nothing on screen is worse than no filter. */}
+        {groups.length > 0 && (tab === "plan" || tab === "students") && (
+          <div className="pb-1">
             <GroupFilter
               groups={groups}
               selectedGroupId={selectedGroupId}
               onSelect={setSelectedGroupId}
             />
-            <ul className="flex flex-col gap-1">
-              {groups.map((group) => {
-                const count = (memberships ?? []).filter((m) => m.groupId === group.id).length;
-                return (
-                  <li
-                    key={group.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded p-1"
-                  >
-                    <Chip color={group.color}>
-                      {group.name} · {t("group.memberCount", { count })}
-                    </Chip>
-                    <div className="flex gap-2">
-                      <button type="button" className="btn" onClick={() => setEditingGroup(group)}>
-                        {t("common.edit")}
-                      </button>
-                      <ConfirmButton
-                        // Keyed by group id: an armed delete must not survive
-                        // onto a different group if the list reorders.
-                        key={group.id}
-                        danger
-                        label={t("common.delete")}
-                        confirmLabel={t("group.confirmDelete", { count })}
-                        onConfirm={async () => {
-                          await deleteGroup(db, group.id);
-                          if (selectedGroupId === group.id) setSelectedGroupId(null);
-                        }}
-                      />
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
+          </div>
         )}
+      </div>
 
-        {editingGroup === "new" && (
-          <GroupForm
-            key="new"
-            classId={classId}
-            students={students}
-            onDone={() => setEditingGroup(null)}
-          />
-        )}
-        {editingGroup && editingGroup !== "new" && (
-          // Keyed by group id: the form captures its name, colour and
-          // membership at mount.
-          <GroupForm
-            key={editingGroup.id}
-            classId={classId}
-            students={students}
-            group={editingGroup}
-            memberIds={(memberships ?? [])
-              .filter((m) => m.groupId === editingGroup.id)
-              .map((m) => m.studentId)}
-            onDone={() => setEditingGroup(null)}
-          />
-        )}
-      </section>
-
-      <DataTable
-        columns={columns as ColumnDef<Student, unknown>[]}
-        data={visibleStudents}
-        // The row keys must be student ids: the actions cell holds an armed
-        // delete, and an index key would let a sort or a search hand that
-        // armed button to a different student.
-        getRowId={(student) => student.id}
-        globalSearchFields={["lastName", "firstName"]}
-        emptyMessage={t("class.noStudents")}
-      />
+      {tab === "plan" && <ClassPlanTab {...tabProps} />}
+      {tab === "students" && <ClassStudentsTab {...tabProps} />}
+      {tab === "books" && <ClassBooksTab {...tabProps} />}
+      {tab === "diary" && <ClassDiaryTab {...tabProps} />}
     </div>
   );
 }

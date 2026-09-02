@@ -20,7 +20,6 @@
     "settings": "Settings",
     "today": "Today",
     "classes": "Classes",
-    "gradebooks": "Gradebooks",
     "students": "Students",
     "schedule": "Timetable",
     "menu": "Menu",
@@ -49,7 +48,6 @@
     "studentCount_other": "{{count}} students",
     "addClass": "Add a class",
     "addGradebook": "New gradebook",
-    "gradebookClass": "Class",
     "gradebookSubject": "Subject",
     "gradebookName": "Gradebook name",
     "gradebookPeriodsHint": "The gradebook is created with three terms; you can rename them or add more from the gradebook itself.",
@@ -84,7 +82,15 @@
     "rename": "Rename class",
     "deleteClass": "Delete class",
     "confirmDeleteClass": "Delete this class, its students and all their grades?",
-    "rosterFull": "This class has reached {{max}} pupils: no more can be added."
+    "rosterFull": "This class has reached {{max}} pupils: no more can be added.",
+    "tabs": "Class sections",
+    "tab": {
+      "plan": "Seating plan",
+      "students": "Pupils",
+      "books": "Gradebooks",
+      "diary": "Journal"
+    },
+    "openCard": "Open the pupil card"
   },
   "group": {
     "title": "Groups",
@@ -232,7 +238,8 @@
     "absent": "Absent",
     "late": "Late",
     "excused": "Excused",
-    "title": "Attendance"
+    "title": "Attendance",
+    "needsSession": "Select a lesson in the seating plan to record attendance and behaviour."
   },
   "plan": {
     "title": "Classroom plan",

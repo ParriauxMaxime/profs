@@ -88,7 +88,6 @@ export function AppDrawer({
   const destinations: Destination[] = [
     { key: "today", to: Router.Home(), label: t("nav.today") },
     { key: "classes", to: Router.Classes(), label: t("nav.classes") },
-    { key: "gradebooks", to: Router.Gradebooks(), label: t("nav.gradebooks") },
     { key: "students", to: Router.Students(), label: t("nav.students") },
     { key: "schedule", to: Router.Schedule(), label: t("nav.schedule") },
     { key: "diary", to: Router.Diary(), label: t("nav.diary") },

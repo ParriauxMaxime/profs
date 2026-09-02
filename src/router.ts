@@ -6,12 +6,18 @@ export const Router = createRouter(
   {
     Home: "/",
     Classes: "/classes",
-    Gradebooks: "/gradebooks",
     Students: "/students",
     Schedule: "/schedule",
     Diary: "/diary",
+    // A class is one page with four tabs, and a route per tab: the back button
+    // steps between them, a reload keeps the one you were on, and Aujourd'hui
+    // can link straight to a lesson's seating plan. `Class` itself only
+    // redirects — see `app.tsx`.
     Class: "/classes/:classId",
-    Plan: "/classes/:classId/plan",
+    ClassPlan: "/classes/:classId/plan",
+    ClassStudents: "/classes/:classId/students",
+    ClassBooks: "/classes/:classId/books",
+    ClassDiary: "/classes/:classId/diary",
     Student: "/students/:studentId",
     Gradebook: "/gradebooks/:gradebookId",
     Entry: "/gradebooks/:gradebookId/entry/:columnId",

@@ -7,24 +7,25 @@ import { useTranslation } from "react-i18next";
 import { useEscape } from "../../shared/use-escape";
 
 /**
- * Creates a gradebook: one class taught in one subject.
+ * Creates a gradebook: this class taught in one subject.
  *
- * Both lists are guaranteed non-empty by the caller — a gradebook needs a
- * class and a subject to exist, and the dashboard says so rather than
- * rendering a form with two empty dropdowns.
+ * The class is not a choice — the form only ever opens inside a class, so
+ * offering a dropdown of every class would invite creating a carnet for 5°A
+ * while standing in 3°B. Only the subject is picked, and the caller guarantees
+ * there is at least one to pick.
  */
 export function GradebookForm({
-  classes,
+  schoolClass,
   subjects,
   onDone,
 }: {
-  classes: SchoolClass[];
+  schoolClass: SchoolClass;
   subjects: Subject[];
   onDone: () => void;
 }) {
   const { t } = useTranslation();
   const db = useDb();
-  const [classId, setClassId] = useState(classes[0].id);
+  const classId = schoolClass.id;
   const [subjectId, setSubjectId] = useState(subjects[0].id);
   // Until the teacher types a name of their own, the field follows the two
   // dropdowns; the first keystroke pins it, so changing a dropdown afterwards
@@ -33,7 +34,7 @@ export function GradebookForm({
 
   const suggestedName = defaultGradebookName(
     subjects.find((subject) => subject.id === subjectId)?.name ?? "",
-    classes.find((schoolClass) => schoolClass.id === classId)?.name ?? "",
+    schoolClass.name,
   );
   const name = customName ?? suggestedName;
 
@@ -57,27 +58,13 @@ export function GradebookForm({
       }}
       className="flex flex-col gap-3 rounded border border-border p-3"
     >
-      <div className="grid gap-3 sm:grid-cols-3">
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-text-muted">{t("dashboard.gradebookClass")}</span>
-          <select
-            className="field"
-            // biome-ignore lint/a11y/noAutofocus: opens ready to use — one-handed, mid-lesson, no spare tap to reach the field.
-            autoFocus
-            value={classId}
-            onChange={(e) => setClassId(e.target.value)}
-          >
-            {classes.map((schoolClass) => (
-              <option key={schoolClass.id} value={schoolClass.id}>
-                {schoolClass.name}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1">
           <span className="text-sm text-text-muted">{t("dashboard.gradebookSubject")}</span>
           <select
             className="field"
+            // biome-ignore lint/a11y/noAutofocus: opens ready to use — one-handed, mid-lesson, no spare tap to reach the field.
+            autoFocus
             value={subjectId}
             onChange={(e) => setSubjectId(e.target.value)}
           >

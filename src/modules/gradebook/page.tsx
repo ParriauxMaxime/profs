@@ -179,10 +179,14 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
             label={t("gradebook.deleteGradebook")}
             confirmLabel={t("gradebook.confirmDeleteGradebook")}
             onConfirm={async () => {
+              // Read the class off the loaded row BEFORE the delete: after it,
+              // there is no row to read it from.
+              const { classId } = data.gradebook;
               await deleteGradebook(db, gradebookId);
               // Nothing is left to render on this route once the gradebook is
-              // gone, so leave it rather than show "Carnet introuvable".
-              Router.push("Home");
+              // gone, so leave it rather than show "Carnet introuvable" — back
+              // to the class's carnets, which is where the teacher came from.
+              Router.push("ClassBooks", { classId });
             }}
           />
         </div>
