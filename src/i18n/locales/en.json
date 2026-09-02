@@ -64,6 +64,21 @@
     "deleteClass": "Delete class",
     "confirmDeleteClass": "Delete this class, its students and all their grades?"
   },
+  "group": {
+    "title": "Groups",
+    "add": "Add group",
+    "name": "Group name",
+    "namePlaceholder": "Group A",
+    "nameRequired": "The group name is required",
+    "color": "Colour",
+    "members": "Group members",
+    "memberCount_one": "{{count}} student",
+    "memberCount_other": "{{count}} students",
+    "confirmDelete_one": "Delete this group? Its {{count}} student will no longer be grouped, but stays in the class.",
+    "confirmDelete_other": "Delete this group? Its {{count}} students will no longer be grouped, but stay in the class.",
+    "filterLabel": "Filter by group",
+    "all": "All"
+  },
   "gradebook": {
     "addColumn": "Add column",
     "columnLabel": "Label",

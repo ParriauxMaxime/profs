@@ -1,9 +1,11 @@
 import { useDb } from "@db/provider";
 import { createSession, getOrCreateTodaySession, sessionsForClass, startOfDay } from "@db/sessions";
+import { filterByGroup } from "@domain/group";
 import { buildSeats, DEFAULT_COLS, DEFAULT_ROWS, unseatedStudentIds } from "@domain/seating";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { GroupFilter } from "../class/components/group-filter";
 import { LayoutSizeForm } from "./components/layout-size-form";
 import { SeatGrid } from "./components/seat-grid";
 import { SessionBar } from "./components/session-bar";
@@ -13,6 +15,8 @@ import { UnseatedPool } from "./components/unseated-pool";
 export function PlanPage({ classId }: { classId: string }) {
   const { t } = useTranslation();
   const db = useDb();
+  // Held as a group id, never an index — see GroupFilter.
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   // Armed seat, as "row:col". Anchored to the cell's coordinates, which are
   // its identity — nothing here is index-keyed.
   const [armedSeat, setArmedSeat] = useState<string | null>(null);
@@ -94,6 +98,17 @@ export function PlanPage({ classId }: { classId: string }) {
     async () => (layout ? await db.seats.where("layoutId").equals(layout.id).toArray() : []),
     [db, layout?.id],
   );
+  const groups = useLiveQuery(
+    () => db.studentGroups.where("classId").equals(classId).sortBy("name"),
+    [db, classId],
+  );
+  const memberships = useLiveQuery(async () => {
+    if (!groups || groups.length === 0) return [];
+    return await db.groupMembers
+      .where("groupId")
+      .anyOf(groups.map((g) => g.id))
+      .toArray();
+  }, [db, groups]);
 
   // A class gets its room the first time someone looks at it. Creating it in
   // an effect rather than in the live query keeps the query a pure read. The
@@ -122,7 +137,8 @@ export function PlanPage({ classId }: { classId: string }) {
     students === undefined ||
     layout === undefined ||
     seats === undefined ||
-    sessions === undefined
+    sessions === undefined ||
+    groups === undefined
   ) {
     return <p className="text-text-muted">{t("common.loading")}</p>;
   }
@@ -131,6 +147,8 @@ export function PlanPage({ classId }: { classId: string }) {
 
   const unseated = unseatedStudentIds(students, seats);
   const byId = new Map(students.map((s) => [s.id, s]));
+  const unseatedStudents = unseated.map((id) => byId.get(id)).filter((s) => s !== undefined);
+  const visibleUnseated = filterByGroup(unseatedStudents, memberships ?? [], selectedGroupId);
 
   return (
     <div className="flex flex-col gap-4">
@@ -205,8 +223,16 @@ export function PlanPage({ classId }: { classId: string }) {
           );
         })()}
 
+      {groups.length > 0 && (
+        <GroupFilter
+          groups={groups}
+          selectedGroupId={selectedGroupId}
+          onSelect={setSelectedGroupId}
+        />
+      )}
+
       <UnseatedPool
-        students={unseated.map((id) => byId.get(id)).filter((s) => s !== undefined)}
+        students={visibleUnseated}
         armedSeat={armedSeat}
         onAssign={async (studentId) => {
           if (!armedSeat) return;

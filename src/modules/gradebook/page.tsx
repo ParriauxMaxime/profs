@@ -8,11 +8,13 @@ import { classStats, studentAverage } from "@domain/gradebook/average";
 import { isNumericColumn } from "@domain/gradebook/column";
 import { formatDecimal } from "@domain/gradebook/decimal";
 import type { GradeValue } from "@domain/gradebook/grade";
+import { filterByGroup } from "@domain/group";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
+import { GroupFilter } from "../class/components/group-filter";
 import { ColumnTypeIcon } from "../design-system/components/column-type-icon";
 import { ConfirmButton } from "../design-system/components/confirm-button";
 import { EditableCell } from "../design-system/components/editable-cell";
@@ -25,18 +27,28 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
   const [periodId, setPeriodId] = useState<string | null>(null);
   const [addingColumn, setAddingColumn] = useState(false);
   const [editingColumn, setEditingColumn] = useState<GradeColumn | null>(null);
+  // Held as a group id, never an index — see GroupFilter.
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const locale = i18n.language;
 
   const data = useLiveQuery(async () => {
     const gradebook = await db.gradebooks.get(gradebookId);
     if (!gradebook) return null;
-    const [periods, columns, students, grades] = await Promise.all([
+    const [periods, columns, students, grades, groups] = await Promise.all([
       db.periods.where("gradebookId").equals(gradebookId).sortBy("order"),
       db.columns.where("gradebookId").equals(gradebookId).sortBy("order"),
       db.students.where("classId").equals(gradebook.classId).sortBy("lastName"),
       db.grades.where("gradebookId").equals(gradebookId).toArray(),
+      db.studentGroups.where("classId").equals(gradebook.classId).sortBy("name"),
     ]);
-    return { gradebook, periods, columns, students, grades };
+    const memberships =
+      groups.length > 0
+        ? await db.groupMembers
+            .where("groupId")
+            .anyOf(groups.map((g) => g.id))
+            .toArray()
+        : [];
+    return { gradebook, periods, columns, students, grades, groups, memberships };
   }, [db, gradebookId]);
 
   if (data === undefined) return <p className="text-text-muted">{t("common.loading")}</p>;
@@ -47,6 +59,7 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
   const selectedPeriod = data.periods.find((period) => period.id === periodId);
   const activePeriodId = selectedPeriod?.id ?? data.periods[0]?.id ?? "";
   const columns = data.columns.filter((c) => c.periodId === activePeriodId);
+  const visibleStudents = filterByGroup(data.students, data.memberships, selectedGroupId);
   const gradeMap = new Map<string, Grade>(
     data.grades.map((g) => [`${g.columnId}|${g.studentId}`, g]),
   );
@@ -151,6 +164,14 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
         onSelect={setPeriodId}
       />
 
+      {data.groups.length > 0 && (
+        <GroupFilter
+          groups={data.groups}
+          selectedGroupId={selectedGroupId}
+          onSelect={setSelectedGroupId}
+        />
+      )}
+
       {data.periods.length === 0 && <p className="text-text-muted">{t("gradebook.noPeriods")}</p>}
 
       {addingColumn && (
@@ -239,7 +260,7 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
             </tr>
           </thead>
           <tbody>
-            {data.students.map((student) => (
+            {visibleStudents.map((student) => (
               <tr key={student.id} className="border-border/50 border-b">
                 <td className="sticky left-0 z-10 whitespace-nowrap bg-bg px-3 py-2">
                   {student.lastName} {student.firstName}

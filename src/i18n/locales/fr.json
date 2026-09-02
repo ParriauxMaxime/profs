@@ -64,6 +64,21 @@
     "deleteClass": "Supprimer la classe",
     "confirmDeleteClass": "Supprimer la classe, ses élèves et toutes leurs notes ?"
   },
+  "group": {
+    "title": "Groupes",
+    "add": "Ajouter un groupe",
+    "name": "Nom du groupe",
+    "namePlaceholder": "Groupe A",
+    "nameRequired": "Le nom du groupe est obligatoire",
+    "color": "Couleur",
+    "members": "Élèves du groupe",
+    "memberCount_one": "{{count}} élève",
+    "memberCount_other": "{{count}} élèves",
+    "confirmDelete_one": "Supprimer ce groupe ? Ses {{count}} élève ne sera plus regroupé, mais restera dans la classe.",
+    "confirmDelete_other": "Supprimer ce groupe ? Ses {{count}} élèves ne seront plus regroupés, mais resteront dans la classe.",
+    "filterLabel": "Filtrer par groupe",
+    "all": "Tous"
+  },
   "gradebook": {
     "addColumn": "Ajouter une colonne",
     "columnLabel": "Intitulé",

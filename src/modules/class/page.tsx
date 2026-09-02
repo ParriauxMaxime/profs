@@ -1,6 +1,7 @@
-import type { Student } from "@db";
-import { deleteClass, deleteStudent } from "@db/cascade";
+import type { Student, StudentGroup } from "@db";
+import { deleteClass, deleteGroup, deleteStudent } from "@db/cascade";
 import { useDb } from "@db/provider";
+import { filterByGroup, groupsForStudent } from "@domain/group";
 import { Link } from "@swan-io/chicane";
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -9,8 +10,11 @@ import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { ConfirmButton } from "../design-system/components/confirm-button";
 import { DataTable } from "../design-system/components/data-table";
+import { Chip } from "../design-system/components/primitives";
 import { ClassForm } from "./components/class-form";
 import { CsvImport } from "./components/csv-import";
+import { GroupFilter } from "./components/group-filter";
+import { GroupForm } from "./components/group-form";
 import { StudentForm } from "./components/student-form";
 
 const helper = createColumnHelper<Student>();
@@ -21,6 +25,11 @@ export function ClassPage({ classId }: { classId: string }) {
   const [editing, setEditing] = useState<Student | "new" | null>(null);
   const [importing, setImporting] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<StudentGroup | "new" | null>(null);
+  // Held as a group id, never an index: a deleted group must fall back to
+  // "Tous" (handled by GroupFilter/filterByGroup), not to whatever now sits
+  // at that position.
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   // An explicit null distinguishes "no such class" from "still loading":
   // useLiveQuery gives undefined for both, and the page would otherwise sit on
@@ -33,11 +42,37 @@ export function ClassPage({ classId }: { classId: string }) {
     () => db.students.where("classId").equals(classId).sortBy("lastName"),
     [db, classId],
   );
+  const groups = useLiveQuery(
+    () => db.studentGroups.where("classId").equals(classId).sortBy("name"),
+    [db, classId],
+  );
+  const memberships = useLiveQuery(async () => {
+    if (!groups || groups.length === 0) return [];
+    const groupIds = groups.map((g) => g.id);
+    return await db.groupMembers.where("groupId").anyOf(groupIds).toArray();
+  }, [db, groups]);
 
   const columns = useMemo(
     () => [
       helper.accessor("lastName", { header: () => t("student.lastName") }),
       helper.accessor("firstName", { header: () => t("student.firstName") }),
+      helper.display({
+        id: "groups",
+        header: () => t("group.title"),
+        cell: (info) => {
+          const mine = groupsForStudent(groups ?? [], memberships ?? [], info.row.original.id);
+          if (mine.length === 0) return null;
+          return (
+            <div className="flex flex-wrap gap-1">
+              {mine.map((group) => (
+                <Chip key={group.id} color={group.color}>
+                  {group.name}
+                </Chip>
+              ))}
+            </div>
+          );
+        },
+      }),
       helper.display({
         id: "actions",
         header: () => "",
@@ -59,13 +94,15 @@ export function ClassPage({ classId }: { classId: string }) {
         },
       }),
     ],
-    [t, db],
+    [t, db, groups, memberships],
   );
 
-  if (schoolClass === undefined || students === undefined) {
+  if (schoolClass === undefined || students === undefined || groups === undefined) {
     return <p className="text-text-muted">{t("common.loading")}</p>;
   }
   if (schoolClass === null) return <p className="text-text-muted">{t("class.notFound")}</p>;
+
+  const visibleStudents = filterByGroup(students, memberships ?? [], selectedGroupId);
 
   return (
     <div className="flex flex-col gap-4">
@@ -133,9 +170,88 @@ export function ClassPage({ classId }: { classId: string }) {
         />
       )}
 
+      <section className="flex flex-col gap-2 rounded border border-border p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-medium text-sm text-text-muted">{t("group.title")}</h3>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setEditingGroup("new")}
+            disabled={editingGroup === "new"}
+          >
+            {t("group.add")}
+          </button>
+        </div>
+
+        {groups.length > 0 && (
+          <>
+            <GroupFilter
+              groups={groups}
+              selectedGroupId={selectedGroupId}
+              onSelect={setSelectedGroupId}
+            />
+            <ul className="flex flex-col gap-1">
+              {groups.map((group) => {
+                const count = (memberships ?? []).filter((m) => m.groupId === group.id).length;
+                return (
+                  <li
+                    key={group.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded p-1"
+                  >
+                    <Chip color={group.color}>
+                      {group.name} · {t("group.memberCount", { count })}
+                    </Chip>
+                    <div className="flex gap-2">
+                      <button type="button" className="btn" onClick={() => setEditingGroup(group)}>
+                        {t("common.edit")}
+                      </button>
+                      <ConfirmButton
+                        // Keyed by group id: an armed delete must not survive
+                        // onto a different group if the list reorders.
+                        key={group.id}
+                        danger
+                        label={t("common.delete")}
+                        confirmLabel={t("group.confirmDelete", { count })}
+                        onConfirm={async () => {
+                          await deleteGroup(db, group.id);
+                          if (selectedGroupId === group.id) setSelectedGroupId(null);
+                        }}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+
+        {editingGroup === "new" && (
+          <GroupForm
+            key="new"
+            classId={classId}
+            students={students}
+            onDone={() => setEditingGroup(null)}
+          />
+        )}
+        {editingGroup && editingGroup !== "new" && (
+          // Keyed by group id: the form captures its name, colour and
+          // membership at mount.
+          <GroupForm
+            key={editingGroup.id}
+            classId={classId}
+            students={students}
+            group={editingGroup}
+            memberIds={(memberships ?? [])
+              .filter((m) => m.groupId === editingGroup.id)
+              .map((m) => m.studentId)}
+            onDone={() => setEditingGroup(null)}
+          />
+        )}
+      </section>
+
       <DataTable
         columns={columns as ColumnDef<Student, unknown>[]}
-        data={students}
+        data={visibleStudents}
         // The row keys must be student ids: the actions cell holds an armed
         // delete, and an index key would let a sort or a search hand that
         // armed button to a different student.
