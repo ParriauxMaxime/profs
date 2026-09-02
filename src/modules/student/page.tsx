@@ -75,7 +75,7 @@ export function StudentPage({ studentId }: { studentId: string }) {
         )}
         <div className="flex flex-col">
           <span className="font-semibold text-lg">
-            {student.firstName} {student.lastName}
+            {student.lastName} {student.firstName}
           </span>
           {schoolClass && (
             <Link to={Router.Class({ classId: schoolClass.id })} className="text-accent text-sm">

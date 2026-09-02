@@ -34,7 +34,7 @@ export function UnseatedPool({
               className="btn flex min-h-11 items-center gap-1.5 text-sm disabled:cursor-not-allowed"
               onClick={() => onAssign(student.id)}
             >
-              {student.firstName} {student.lastName}
+              {student.lastName} {student.firstName}
             </button>
           ))}
         </div>

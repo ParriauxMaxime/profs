@@ -88,7 +88,7 @@ export function StudentCard({
           />
           <div className="flex flex-col">
             <span className="font-semibold text-lg">
-              {student.firstName} {student.lastName}
+              {student.lastName} {student.firstName}
             </span>
             <Link to={Router.Student({ studentId: student.id })} className="text-accent text-sm">
               {t("student.timeline")}
