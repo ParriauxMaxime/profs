@@ -1,3 +1,4 @@
+import { classesOverCapacity, MAX_STUDENTS_PER_CLASS } from "@domain/class-size";
 import { gradeValueSchema } from "@domain/gradebook/grade";
 import { z } from "zod";
 import type { AppDatabase } from ".";
@@ -216,6 +217,24 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
 }
 
 /**
+ * A backup file carrying a class larger than the ceiling.
+ *
+ * Its own type, not a generic `Error`, because the settings page must tell
+ * the teacher which of the two refusals happened: a malformed file is a bad
+ * file, an over-capacity one is their own data hitting a rule added after it
+ * was exported, and those need different words.
+ */
+export class BackupOverCapacityError extends Error {
+  readonly classIds: string[];
+
+  constructor(classIds: string[]) {
+    super(`Class over capacity: ${classIds.join(", ")} (max ${MAX_STUDENTS_PER_CLASS})`);
+    this.name = "BackupOverCapacityError";
+    this.classIds = classIds;
+  }
+}
+
+/**
  * Validates an unknown payload as a `WorkspaceBackup`, throwing on any
  * mismatch. Shared by `importWorkspace` and by the settings page, which
  * needs to read a chosen file's `exportedAt` before the teacher confirms —
@@ -226,7 +245,18 @@ export function parseBackup(backup: unknown): WorkspaceBackup {
   if (!parsed.success) {
     throw new Error("Invalid backup file");
   }
-  return parsed.data as unknown as WorkspaceBackup;
+  const data = parsed.data as unknown as WorkspaceBackup;
+
+  // Refused whole, never imported and capped afterwards: a backup that
+  // violates an invariant is rejected the same way a v5 file is rejected
+  // rather than upgraded. Half a legal workspace looks like a whole one.
+  //
+  // This runs BEFORE `importWorkspace`'s transaction clears every table, so a
+  // refusal costs the teacher nothing.
+  const over = classesOverCapacity(data.students);
+  if (over.length > 0) throw new BackupOverCapacityError(over);
+
+  return data;
 }
 
 /** Destructive: clears every table, then writes the backup's rows. */

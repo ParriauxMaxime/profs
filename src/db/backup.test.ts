@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { openWorkspaceDb } from ".";
-import { exportWorkspace, importWorkspace, parseBackup } from "./backup";
+import { BackupOverCapacityError, exportWorkspace, importWorkspace, parseBackup } from "./backup";
 import { seedIfEmpty } from "./seed";
 import { wipeWorkspace } from "./workspace";
 
@@ -606,6 +606,72 @@ describe("importing twice", () => {
     for (const [name, count] of Object.entries(first)) {
       expect([name, count > 0]).toEqual([name, true]);
     }
+    db.close();
+  });
+});
+
+describe("class-size ceiling on import", () => {
+  /** A minimal, schema-valid backup carrying `count` pupils in one class. */
+  function backupWithRoster(count: number) {
+    return {
+      version: 6,
+      exportedAt: Date.now(),
+      classes: [{ id: "c1", name: "3°B", createdAt: 1, updatedAt: 1 }],
+      students: Array.from({ length: count }, (_, i) => ({
+        id: `s${i}`,
+        classId: "c1",
+        lastName: `NOM${i}`,
+        firstName: "Test",
+        createdAt: 1,
+        updatedAt: 1,
+      })),
+      subjects: [],
+      gradebooks: [],
+      periods: [],
+      columns: [],
+      grades: [],
+      sessions: [],
+      attendance: [],
+      behaviourEvents: [],
+      seatingLayouts: [],
+      seats: [],
+      rubricTemplates: [],
+      rubricAssessments: [],
+      rubricScores: [],
+      studentGroups: [],
+      groupMembers: [],
+      scheduleEntries: [],
+      diaryEntries: [],
+    };
+  }
+
+  it("accepts a class sitting exactly on the ceiling", () => {
+    expect(() => parseBackup(backupWithRoster(100))).not.toThrow();
+  });
+
+  it("refuses a file whose class exceeds the ceiling, naming the class", () => {
+    try {
+      parseBackup(backupWithRoster(101));
+      throw new Error("expected parseBackup to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(BackupOverCapacityError);
+      expect((error as BackupOverCapacityError).classIds).toEqual(["c1"]);
+    }
+  });
+
+  it("leaves the workspace untouched when it refuses", async () => {
+    // The refusal has to happen before the transaction that clears every
+    // table, or a rejected file would still have destroyed the workspace.
+    const db = openWorkspaceDb("backup-over-capacity");
+    await seedIfEmpty(db, "backup-over-capacity");
+    const before = await db.students.count();
+
+    await expect(importWorkspace(db, backupWithRoster(101))).rejects.toBeInstanceOf(
+      BackupOverCapacityError,
+    );
+
+    expect(await db.students.count()).toBe(before);
+    expect(await db.classes.count()).toBeGreaterThan(0);
     db.close();
   });
 });

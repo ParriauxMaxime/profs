@@ -159,6 +159,7 @@
     "backupHelp": "Exportez vos données en JSON pour les transférer sur un autre appareil. Les photos des élèves ne sont pas incluses.",
     "export": "Exporter",
     "importFailed": "Fichier de sauvegarde invalide",
+    "importOverCapacity": "Import refusé : ce fichier contient une classe de plus de {{max}} élèves.",
     "importConfirmMessage": "Ceci remplacera toutes les données actuelles par le contenu de « {{fileName}} », exporté le {{date}}. Cette action est irréversible.",
     "importConfirm": "Importer et remplacer",
     "importSuccess": "Import réussi",

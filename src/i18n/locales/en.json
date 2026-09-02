@@ -159,6 +159,7 @@
     "backupHelp": "Export your data as JSON to move it to another device. Student photos are not included.",
     "export": "Export",
     "importFailed": "Invalid backup file",
+    "importOverCapacity": "Import refused: this file contains a class of more than {{max}} pupils.",
     "importConfirmMessage": "This will replace all current data with the contents of \"{{fileName}}\", exported on {{date}}. This action cannot be undone.",
     "importConfirm": "Import and replace",
     "importSuccess": "Import successful",
