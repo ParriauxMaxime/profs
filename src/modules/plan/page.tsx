@@ -1,26 +1,27 @@
 import { useDb } from "@db/provider";
-import { getOrCreateLayout, seatStudent } from "@db/seating";
+import { getOrCreateLayout, seatStudent, swapSeats } from "@db/seating";
 import { createSession, getOrCreateTodaySession, sessionsForClass, startOfDay } from "@db/sessions";
 import { filterByGroup } from "@domain/group";
-import { unseatedStudentIds } from "@domain/seating";
+import { type Held, resolveDrop, unseatedStudentIds } from "@domain/seating";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GroupFilter } from "../class/components/group-filter";
+import { useEscape } from "../shared/use-escape";
 import { LayoutSizeForm } from "./components/layout-size-form";
 import { SeatGrid } from "./components/seat-grid";
 import { SessionBar } from "./components/session-bar";
 import { StudentCard } from "./components/student-card";
-import { UnseatedPool } from "./components/unseated-pool";
+import { StudentRail } from "./components/student-rail";
 
 export function PlanPage({ classId }: { classId: string }) {
   const { t } = useTranslation();
   const db = useDb();
   // Held as a group id, never an index — see GroupFilter.
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  // Armed seat, as "row:col". Anchored to the cell's coordinates, which are
-  // its identity — nothing here is index-keyed.
-  const [armedSeat, setArmedSeat] = useState<string | null>(null);
+  // Who is in the teacher's hand: a pupil id from the rail, or a seat's
+  // coordinates. Never a list index — the rail reorders on every placement.
+  const [held, setHeld] = useState<Held | null>(null);
   const [resizing, setResizing] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   // Held as a session id, never a position: a deleted or vanished id must
@@ -36,6 +37,9 @@ export function PlanPage({ classId }: { classId: string }) {
     setSelectedSessionId(sessionId);
     setManualSelection(manual);
   }, []);
+
+  const releaseHeld = useCallback(() => setHeld(null), []);
+  useEscape(releaseHeld);
 
   const sessions = useLiveQuery(() => sessionsForClass(db, classId), [db, classId]);
 
@@ -138,6 +142,18 @@ export function PlanPage({ classId }: { classId: string }) {
   const unseatedStudents = unseated.map((id) => byId.get(id)).filter((s) => s !== undefined);
   const visibleUnseated = filterByGroup(unseatedStudents, memberships ?? [], selectedGroupId);
 
+  const onDrop = async (row: number, col: number): Promise<void> => {
+    if (held === null) return;
+    const target = seats.find((s) => s.row === row && s.col === col);
+    const action = resolveDrop(held, target, { row, col });
+    if (action.kind === "seat") {
+      await seatStudent(db, layout.id, action.row, action.col, action.studentId);
+    } else if (action.kind === "swap") {
+      await swapSeats(db, layout.id, action.from, action.to);
+    }
+    setHeld(null);
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -166,9 +182,9 @@ export function PlanPage({ classId }: { classId: string }) {
             className={resizing ? "btn btn-primary" : "btn"}
             aria-pressed={resizing}
             onClick={() => {
-              // Leaving edit mode disarms: an armed seat is a live-entry state
-              // and must not survive into a different mode.
-              setArmedSeat(null);
+              // Leaving edit mode releases: a held pupil is a live gesture and
+              // must not survive a mode change, exactly as the armed seat did not.
+              setHeld(null);
               setResizing((v) => !v);
             }}
           >
@@ -186,15 +202,44 @@ export function PlanPage({ classId }: { classId: string }) {
         />
       )}
 
-      <SeatGrid
-        layout={layout}
-        seats={seats}
-        studentsById={byId}
-        armedSeat={armedSeat}
-        onArmSeat={setArmedSeat}
-        onSelectStudent={setSelectedStudentId}
-        editing={resizing}
-      />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        {/* The rail comes first in the DOM so that on a narrow screen the
+            pupil you are about to place is not below the fold while you look
+            at where to put them. */}
+        <div className="flex flex-col gap-2 lg:order-2 lg:w-64 lg:shrink-0">
+          {groups.length > 0 && (
+            <GroupFilter
+              groups={groups}
+              selectedGroupId={selectedGroupId}
+              onSelect={setSelectedGroupId}
+            />
+          )}
+          <StudentRail
+            students={visibleUnseated}
+            held={held}
+            onHold={(studentId) =>
+              setHeld((current) =>
+                current?.kind === "pool" && current.studentId === studentId
+                  ? null
+                  : { kind: "pool", studentId },
+              )
+            }
+          />
+        </div>
+
+        <div className="lg:order-1 lg:min-w-0 lg:flex-1">
+          <SeatGrid
+            layout={layout}
+            seats={seats}
+            studentsById={byId}
+            held={held}
+            onHoldSeat={(row, col) => setHeld({ kind: "seat", row, col })}
+            onDrop={(row, col) => void onDrop(row, col)}
+            onSelectStudent={setSelectedStudentId}
+            editing={resizing}
+          />
+        </div>
+      </div>
 
       {selectedStudentId !== null &&
         session &&
@@ -207,28 +252,15 @@ export function PlanPage({ classId }: { classId: string }) {
               student={student}
               session={session}
               onClose={() => setSelectedStudentId(null)}
+              onMove={() => {
+                const seat = seats.find((s) => s.studentId === student.id);
+                if (!seat) return;
+                setSelectedStudentId(null);
+                setHeld({ kind: "seat", row: seat.row, col: seat.col });
+              }}
             />
           );
         })()}
-
-      {groups.length > 0 && (
-        <GroupFilter
-          groups={groups}
-          selectedGroupId={selectedGroupId}
-          onSelect={setSelectedGroupId}
-        />
-      )}
-
-      <UnseatedPool
-        students={visibleUnseated}
-        armedSeat={armedSeat}
-        onAssign={async (studentId) => {
-          if (!armedSeat) return;
-          const [row, col] = armedSeat.split(":").map(Number);
-          await seatStudent(db, layout.id, row, col, studentId);
-          setArmedSeat(null);
-        }}
-      />
     </div>
   );
 }
