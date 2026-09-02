@@ -42,6 +42,7 @@ export function studentAverage(
     if (periodId !== undefined && column.periodId !== periodId) continue;
     if (!isNumericColumn(column.type)) continue;
     if (column.weight <= 0) continue;
+    if (grade.value === undefined) continue;
     if (grade.value.type !== "numeric") continue;
     if (column.max <= 0) continue;
 

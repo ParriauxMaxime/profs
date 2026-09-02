@@ -60,6 +60,8 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
 
   const gradesByStudent = new Map<string, AverageGrade[]>();
   for (const grade of data.grades) {
+    // A note-only row (no mark yet) has nothing for the average to consume.
+    if (grade.value === undefined) continue;
     const list = gradesByStudent.get(grade.studentId) ?? [];
     list.push({ columnId: grade.columnId, value: grade.value });
     gradesByStudent.set(grade.studentId, list);

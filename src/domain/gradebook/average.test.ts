@@ -84,6 +84,23 @@ describe("studentAverage", () => {
     ];
     expect(studentAverage(grades, columns)).toBe(11.33);
   });
+
+  it("ignores a row that carries a note but no mark", () => {
+    const columns = [{ id: "c1", type: "numeric" as const, weight: 1, max: 20, periodId: "p1" }];
+    const withMark = studentAverage(
+      [{ columnId: "c1", value: { type: "numeric", value: 10 } }],
+      columns,
+    );
+    // A note-only row reaches this function with no value at all.
+    const withNoteOnly = studentAverage(
+      [
+        { columnId: "c1", value: { type: "numeric", value: 10 } },
+        { columnId: "c2", value: undefined as never },
+      ],
+      columns,
+    );
+    expect(withNoteOnly).toBe(withMark);
+  });
 });
 
 describe("classStats", () => {

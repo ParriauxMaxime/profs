@@ -33,7 +33,9 @@ describe("workspace backup", () => {
     // A non-numeric grade proves the discriminated union survives JSON.stringify
     // with its `type` intact, not just its outer shape.
     const sourceGrades = await source.grades.toArray();
-    const nonNumericGrade = sourceGrades.find((g) => g.value.type !== "numeric");
+    const nonNumericGrade = sourceGrades.find(
+      (g) => g.value !== undefined && g.value.type !== "numeric",
+    );
     if (!nonNumericGrade) throw new Error("seed did not produce a non-numeric grade");
     const targetGrade = await target.grades.get([
       nonNumericGrade.gradebookId,

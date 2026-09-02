@@ -63,12 +63,18 @@ export interface GradeColumn {
   date?: number;
 }
 
-/** One cell. Keyed by [gradebookId+columnId+studentId]. */
+/**
+ * One cell. Keyed by [gradebookId+columnId+studentId].
+ *
+ * `value` is optional: a note can exist before a mark does ("absent, à
+ * rattraper"). A row with neither `value` nor `note` must never be stored —
+ * see `src/db/grades.ts`.
+ */
 export interface Grade {
   gradebookId: string;
   columnId: string;
   studentId: string;
-  value: GradeValue;
+  value?: GradeValue;
   note?: string;
   updatedAt: number;
 }
