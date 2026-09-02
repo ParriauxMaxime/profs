@@ -18,7 +18,14 @@ and no subscription.
 - **Gradebooks** — one per class and subject, split into terms, with columns
   you add, edit, and delete yourself
 - **Typed columns** — numeric marks with any scale, letters, icons, checkboxes,
-  free text, attendance
+  free text, attendance, and **calculation columns** (weighted mean, sum,
+  best-of-N, or count) whose value is derived from other numeric columns and
+  never stored — display-only, so it never duplicates or feeds the average
+- **Cell annotations** — a free-text note on any grid cell, independent of the
+  mark, visible on both the grid and fast entry
+- **Student groups** — named subsets of a class, reusable to filter the
+  gradebook grid; a way of selecting and viewing pupils, never a thing that
+  holds a grade
 - **Weighted averages** — every numeric column normalised to /20 by its own
   scale, with class statistics
 - **Fast entry** — a phone-sized keypad for grading a whole class in class

@@ -141,24 +141,38 @@ Any future demand here needs a product decision first, not an implementation.
 
 ## Missing, ranked by value against cost
 
-### 1. Cell annotations — nearly free, ships next
-`Grade.note?: string` already exists in the v1 schema and **nothing writes or
-reads it**. iDoceo treats "add extensive annotations to any cell" as core: it is
-where a teacher records why a mark is what it is. Needs a note affordance on the
-grid cell and on fast entry, plus an indicator on an annotated cell. No schema
-change.
+### 1. Cell annotations — delivered, phase 3
+**Status: delivered, phase 3.** `Grade.note?: string` — already in the v1
+schema — is now written and read: the grid cell and the fast-entry screen both
+carry a note field beside the mark, with a corner marker (never colour alone)
+on an annotated cell and the note reachable through the cell's `title` and
+accessible name too. A note is independent of the mark — clearing one never
+clears the other — and a grade row with neither a value nor a note is never
+stored (see the invariant in `CLAUDE.md`). No schema change, as expected;
+`PRIVACY.md` now documents that a note, like `Student.notes`, is free text
+included in the JSON export.
 
-### 2. Calculation columns
-A column whose value is derived from other columns — the average of a set, a
-best-of-N, a sum. Today `average.ts` computes one gradebook-wide weighted
-average and nothing else. Open questions: how is a formula expressed without
-becoming a spreadsheet language, and does a calculation column feed other
-calculations (cycles)? Suggest a small fixed set of aggregate kinds over a
-chosen column set, not a formula parser.
+### 2. Calculation columns — delivered, phase 3
+**Status: delivered, phase 3.** `src/domain/gradebook/calculation.ts`
+(`evaluateCalculation`) plus a `calculation` column type wired into the DB and
+the grid. The open questions above were resolved as: a small fixed set of
+aggregate kinds — `mean`, `sum`, `bestOf`, `count` — over a chosen set of
+plain numeric columns, not a formula language; and a calculation may **not**
+reference another calculation, so no cycle can exist and there is no
+evaluation order to define. The column stores nothing — its value is derived
+on read from the source columns' grades — so it never enters `studentAverage`
+(`isNumericColumn` stays false for it) and `average.ts` itself was not
+touched. Deleting a source column prunes it out of every calculation that
+referenced it, in the same transaction as the delete (`deleteColumn` in
+`src/db/cascade.ts`), so a calculation can never silently point at a column
+that no longer exists.
 
-### 3. Student groups
-Named subsets of a class, reusable across the seating plan (group-work layout),
-rubrics, and filtering. Cheap schema (`groups`, `groupMembers`), broad payoff.
+### 3. Student groups — delivered, phase 3
+**Status: delivered, phase 3.** `StudentGroup` and `GroupMember` tables
+(`src/db/cascade.ts`'s `deleteGroup`, `src/domain/group.ts`'s
+`filterByGroup`), reusable as a filter on the gradebook grid. A group is a way
+of selecting and viewing pupils, never a thing that can hold a grade — deleting
+one removes only the group and its memberships, never a student.
 
 ### 4. Class duplication and templates
 "Same structure, new year" is a teacher's September. Duplicating a class with

@@ -38,6 +38,11 @@ with the current version before moving data between devices.
 - **Comportement.** Chaque observation (encouragement, avertissement, mot
   dans le carnet, note libre) est horodatée et rattachée à une séance. C'est
   une donnée sur un mineur, conservée jusqu'à sa suppression explicite.
+- **Annotations de cellule (`Grade.note`).** Chaque note de la grille est un
+  champ de texte libre : l'enseignant peut y écrire n'importe quoi, y compris
+  des informations sensibles sur un élève. Comme les remarques (`Student.notes`),
+  **les annotations sont incluses dans l'export JSON** — c'est l'export de
+  l'enseignant, et ce point est précisé ici pour la même raison.
 
 ## Deleting data
 
