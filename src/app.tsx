@@ -1,14 +1,18 @@
 import { ClassPage } from "./modules/class/page";
-import { DashboardPage } from "./modules/dashboard/page";
+import { ClassesPage } from "./modules/classes/page";
 import { DesignPage } from "./modules/design-system/page";
 import { EntryPage } from "./modules/entry/page";
 import { GradebookPage } from "./modules/gradebook/page";
+import { GradebooksPage } from "./modules/gradebooks/page";
 import { PlanPage } from "./modules/plan/page";
 import { RubricAssessmentPage, RubricsPage } from "./modules/rubric/page";
+import { SchedulePage } from "./modules/schedule/page";
 import { SettingsPage } from "./modules/settings/page";
 import { AdminLayout } from "./modules/shared/components/admin-layout";
 import { useTheme } from "./modules/shared/use-theme";
 import { StudentPage } from "./modules/student/page";
+import { StudentsPage } from "./modules/students/page";
+import { TodayPage } from "./modules/today/page";
 import { Router } from "./router";
 
 export function App() {
@@ -18,6 +22,10 @@ export function App() {
 
   const route = Router.useRoute([
     "Home",
+    "Classes",
+    "Gradebooks",
+    "Students",
+    "Schedule",
     "Class",
     "Plan",
     "Student",
@@ -45,6 +53,10 @@ type AppRoute = NonNullable<
   ReturnType<
     typeof Router.useRoute<
       | "Home"
+      | "Classes"
+      | "Gradebooks"
+      | "Students"
+      | "Schedule"
       | "Class"
       | "Plan"
       | "Student"
@@ -61,7 +73,15 @@ type AppRoute = NonNullable<
 function Routes({ route }: { route: AppRoute }) {
   switch (route.name) {
     case "Home":
-      return <DashboardPage />;
+      return <TodayPage />;
+    case "Classes":
+      return <ClassesPage />;
+    case "Gradebooks":
+      return <GradebooksPage />;
+    case "Students":
+      return <StudentsPage />;
+    case "Schedule":
+      return <SchedulePage />;
     case "Class":
       return <ClassPage classId={route.params.classId} />;
     case "Plan":

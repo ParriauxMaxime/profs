@@ -5,6 +5,10 @@ const basePath = __BASE_PATH__ === "/" ? "" : __BASE_PATH__.replace(/\/$/, "");
 export const Router = createRouter(
   {
     Home: "/",
+    Classes: "/classes",
+    Gradebooks: "/gradebooks",
+    Students: "/students",
+    Schedule: "/schedule",
     Class: "/classes/:classId",
     Plan: "/classes/:classId/plan",
     Student: "/students/:studentId",

@@ -5,7 +5,15 @@
   },
   "nav": {
     "dashboard": "Accueil",
-    "settings": "Réglages"
+    "settings": "Réglages",
+    "today": "Aujourd'hui",
+    "classes": "Classes",
+    "gradebooks": "Carnets",
+    "students": "Élèves",
+    "schedule": "Emploi du temps",
+    "menu": "Menu",
+    "openMenu": "Ouvrir le menu",
+    "closeMenu": "Fermer"
   },
   "common": {
     "save": "Enregistrer",
@@ -280,5 +288,56 @@
     "previousCriterion": "Critère précédent",
     "nextCriterion": "Critère suivant",
     "editCriteria": "Modifier les critères"
+  },
+  "today": {
+    "title": "Aujourd'hui",
+    "underway": "en cours",
+    "unscheduled": "Hors emploi du temps",
+    "noSchedule": "Aucun cours dans votre emploi du temps. Commencez par le déclarer :",
+    "nothingToday": "Rien de prévu aujourd'hui.",
+    "needsTermStart": "Les cours en semaine A ou B ont besoin d'une date de début d'année :"
+  },
+  "students": {
+    "searchPlaceholder": "Rechercher un élève",
+    "none": "Aucun élève pour l'instant.",
+    "noMatch": "Aucun élève ne correspond à « {{query}} »."
+  },
+  "schedule": {
+    "title": "Emploi du temps",
+    "addEntry": "Ajouter un cours",
+    "empty": "Aucun cours déclaré. Ajoutez-en un pour que la page Aujourd'hui sache quoi afficher.",
+    "dayEmpty": "—",
+    "class": "Classe",
+    "subject": "Matière",
+    "noSubject": "Aucune matière",
+    "gradebook": "Carnet",
+    "noGradebook": "Aucun carnet",
+    "weekday": "Jour",
+    "start": "Début",
+    "end": "Fin",
+    "cycle": "Semaine",
+    "room": "Salle",
+    "roomPlaceholder": "B12",
+    "endBeforeStart": "La fin doit être après le début.",
+    "badTime": "Heure invalide.",
+    "badWeekday": "Jour invalide.",
+    "overlapWarning": "Chevauche : {{lessons}}. Vous pouvez enregistrer quand même.",
+    "confirmDelete": "Supprimer ce cours de l'emploi du temps ?",
+    "needsTermStart": "Les semaines A et B ont besoin d'une date de début d'année :",
+    "needsClass": "Créez d'abord une classe :",
+    "day": {
+      "1": "Lundi",
+      "2": "Mardi",
+      "3": "Mercredi",
+      "4": "Jeudi",
+      "5": "Vendredi",
+      "6": "Samedi",
+      "7": "Dimanche"
+    },
+    "cycleLabel": {
+      "all": "Toutes",
+      "A": "Semaine A",
+      "B": "Semaine B"
+    }
   }
 }

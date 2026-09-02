@@ -5,7 +5,15 @@
   },
   "nav": {
     "dashboard": "Home",
-    "settings": "Settings"
+    "settings": "Settings",
+    "today": "Today",
+    "classes": "Classes",
+    "gradebooks": "Gradebooks",
+    "students": "Students",
+    "schedule": "Timetable",
+    "menu": "Menu",
+    "openMenu": "Open menu",
+    "closeMenu": "Close"
   },
   "common": {
     "save": "Save",
@@ -280,5 +288,56 @@
     "previousCriterion": "Previous criterion",
     "nextCriterion": "Next criterion",
     "editCriteria": "Edit criteria"
+  },
+  "today": {
+    "title": "Today",
+    "underway": "under way",
+    "unscheduled": "Not on the timetable",
+    "noSchedule": "No lessons on your timetable. Start by declaring it:",
+    "nothingToday": "Nothing scheduled today.",
+    "needsTermStart": "Lessons in week A or B need a start-of-year date:"
+  },
+  "students": {
+    "searchPlaceholder": "Search for a student",
+    "none": "No students yet.",
+    "noMatch": "No student matches “{{query}}”."
+  },
+  "schedule": {
+    "title": "Timetable",
+    "addEntry": "Add a lesson",
+    "empty": "No lessons declared. Add one so Today knows what to show.",
+    "dayEmpty": "—",
+    "class": "Class",
+    "subject": "Subject",
+    "noSubject": "No subject",
+    "gradebook": "Gradebook",
+    "noGradebook": "No gradebook",
+    "weekday": "Day",
+    "start": "Start",
+    "end": "End",
+    "cycle": "Week",
+    "room": "Room",
+    "roomPlaceholder": "B12",
+    "endBeforeStart": "The end must be after the start.",
+    "badTime": "Invalid time.",
+    "badWeekday": "Invalid day.",
+    "overlapWarning": "Clashes with: {{lessons}}. You can save anyway.",
+    "confirmDelete": "Remove this lesson from the timetable?",
+    "needsTermStart": "A and B weeks need a start-of-year date:",
+    "needsClass": "Create a class first:",
+    "day": {
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday",
+      "7": "Sunday"
+    },
+    "cycleLabel": {
+      "all": "Every week",
+      "A": "Week A",
+      "B": "Week B"
+    }
   }
 }
