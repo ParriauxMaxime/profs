@@ -90,6 +90,7 @@ export function AppDrawer({
     { key: "gradebooks", to: Router.Gradebooks(), label: t("nav.gradebooks") },
     { key: "students", to: Router.Students(), label: t("nav.students") },
     { key: "schedule", to: Router.Schedule(), label: t("nav.schedule") },
+    { key: "diary", to: Router.Diary(), label: t("nav.diary") },
     { key: "settings", to: Router.Settings(), label: t("nav.settings") },
   ];
 

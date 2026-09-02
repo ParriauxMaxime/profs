@@ -13,7 +13,8 @@
     "schedule": "Timetable",
     "menu": "Menu",
     "openMenu": "Open menu",
-    "closeMenu": "Close"
+    "closeMenu": "Close",
+    "diary": "Journal"
   },
   "common": {
     "save": "Save",
@@ -338,6 +339,30 @@
       "all": "Every week",
       "A": "Week A",
       "B": "Week B"
+    }
+  },
+  "diary": {
+    "title": "Journal",
+    "view": "View",
+    "allClasses": "All classes",
+    "filterByClass": "Filter by class",
+    "searchPlaceholder": "Search the journal",
+    "today": "Today",
+    "previous": "Previous",
+    "next": "Next",
+    "placeholder": "What we did, what to change next time…",
+    "entryLabel": "Note for the day",
+    "noLesson": "No lesson scheduled",
+    "hasEntry": "Has a note",
+    "empty": "Nothing written for this period. Pick a day and note what you did.",
+    "noMatch": "No note matches.",
+    "needsClass": "Create a class first:",
+    "needsTermStart": "Lessons in week A or B need a start-of-year date:",
+    "notOfficial": "A private journal, on this device only. It does not replace the official cahier de textes in your ENT.",
+    "viewLabel": {
+      "agenda": "Agenda",
+      "week": "Week",
+      "month": "Month"
     }
   }
 }

@@ -1,6 +1,7 @@
 import { ClassPage } from "./modules/class/page";
 import { ClassesPage } from "./modules/classes/page";
 import { DesignPage } from "./modules/design-system/page";
+import { DiaryPage } from "./modules/diary/page";
 import { EntryPage } from "./modules/entry/page";
 import { GradebookPage } from "./modules/gradebook/page";
 import { GradebooksPage } from "./modules/gradebooks/page";
@@ -26,6 +27,7 @@ export function App() {
     "Gradebooks",
     "Students",
     "Schedule",
+    "Diary",
     "Class",
     "Plan",
     "Student",
@@ -57,6 +59,7 @@ type AppRoute = NonNullable<
       | "Gradebooks"
       | "Students"
       | "Schedule"
+      | "Diary"
       | "Class"
       | "Plan"
       | "Student"
@@ -82,6 +85,8 @@ function Routes({ route }: { route: AppRoute }) {
       return <StudentsPage />;
     case "Schedule":
       return <SchedulePage />;
+    case "Diary":
+      return <DiaryPage />;
     case "Class":
       return <ClassPage classId={route.params.classId} />;
     case "Plan":

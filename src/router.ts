@@ -9,6 +9,7 @@ export const Router = createRouter(
     Gradebooks: "/gradebooks",
     Students: "/students",
     Schedule: "/schedule",
+    Diary: "/diary",
     Class: "/classes/:classId",
     Plan: "/classes/:classId/plan",
     Student: "/students/:studentId",

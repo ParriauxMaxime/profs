@@ -13,7 +13,8 @@
     "schedule": "Emploi du temps",
     "menu": "Menu",
     "openMenu": "Ouvrir le menu",
-    "closeMenu": "Fermer"
+    "closeMenu": "Fermer",
+    "diary": "Journal"
   },
   "common": {
     "save": "Enregistrer",
@@ -338,6 +339,30 @@
       "all": "Toutes",
       "A": "Semaine A",
       "B": "Semaine B"
+    }
+  },
+  "diary": {
+    "title": "Journal",
+    "view": "Affichage",
+    "allClasses": "Toutes les classes",
+    "filterByClass": "Filtrer par classe",
+    "searchPlaceholder": "Rechercher dans le journal",
+    "today": "Aujourd'hui",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "placeholder": "Ce qu'on a fait, ce qu'il faudra changer…",
+    "entryLabel": "Note du jour",
+    "noLesson": "Pas de cours prévu",
+    "hasEntry": "Contient une note",
+    "empty": "Rien d'écrit sur cette période. Choisissez un jour et notez ce que vous avez fait.",
+    "noMatch": "Aucune note ne correspond.",
+    "needsClass": "Créez d'abord une classe :",
+    "needsTermStart": "Les cours en semaine A ou B ont besoin d'une date de début d'année :",
+    "notOfficial": "Journal privé, sur cet appareil uniquement. Il ne remplace pas le cahier de textes officiel de l'ENT.",
+    "viewLabel": {
+      "agenda": "Agenda",
+      "week": "Semaine",
+      "month": "Mois"
     }
   }
 }
