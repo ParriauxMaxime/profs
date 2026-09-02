@@ -4,6 +4,7 @@ import { clearSeat, makeGap, makeSeat, moveSeat } from "@db/seating";
 import { SUBJECT_COLORS } from "@domain/subject";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { PupilName } from "../../design-system/components/pupil-name";
 
 /** A stable colour for a pupil with no photo, picked from the id — not random. */
 function colorFor(studentId: string): string {
@@ -127,12 +128,12 @@ export function SeatGrid({
 
           if (!seat) {
             // Outside layout-edit mode a gap is just empty floor, not a control.
-            if (!editing) return <div key={coord} className="h-14 w-16" />;
+            if (!editing) return <div key={coord} className="h-14 w-20" />;
             return (
               <button
                 key={coord}
                 type="button"
-                className="flex h-14 w-16 flex-col items-center justify-center rounded-md border border-border border-dashed text-[10px] text-text-faint hover:bg-bg-hover"
+                className="flex h-14 w-20 flex-col items-center justify-center rounded-md border border-border border-dashed text-[10px] text-text-faint hover:bg-bg-hover"
                 onClick={() => void onMakeSeat(row, col)}
               >
                 {t("plan.makeSeat")}
@@ -147,7 +148,7 @@ export function SeatGrid({
                 <button
                   type="button"
                   aria-pressed={armed}
-                  className={`flex h-14 w-16 flex-col items-center justify-center rounded-md border text-[11px] text-text-muted hover:bg-bg-hover ${
+                  className={`flex h-14 w-20 flex-col items-center justify-center rounded-md border text-[11px] text-text-muted hover:bg-bg-hover ${
                     armed ? "border-accent ring-2 ring-accent" : "border-border"
                   }`}
                   onClick={() => onArmSeat(armed ? null : coord)}
@@ -180,7 +181,7 @@ export function SeatGrid({
               <button
                 key={coord}
                 type="button"
-                className="flex h-14 w-16 flex-col items-center justify-center rounded-md border border-border text-[11px] text-text-muted hover:bg-bg-hover"
+                className="flex h-14 w-20 flex-col items-center justify-center rounded-md border border-border text-[11px] text-text-muted hover:bg-bg-hover"
                 onClick={() => void onClearSeat(row, col)}
               >
                 {t("plan.emptySeat")}
@@ -193,7 +194,7 @@ export function SeatGrid({
               <button
                 type="button"
                 title={armedSeat ? t("plan.moveHere") : undefined}
-                className={`flex h-14 w-16 flex-col items-center justify-center gap-0.5 rounded-md border p-1 hover:bg-bg-hover ${
+                className={`flex h-14 w-20 flex-col items-center justify-center gap-0.5 rounded-md border p-1 hover:bg-bg-hover ${
                   armedSeat ? "border-accent border-dashed" : "border-border"
                 }`}
                 onClick={() => {
@@ -204,7 +205,9 @@ export function SeatGrid({
                 }}
               >
                 <PupilDisc student={student} />
-                <span className="w-full truncate text-[10px] text-text">{student.lastName}</span>
+                <span className="w-full truncate text-[10px] text-text">
+                  <PupilName student={student} format="surname" />
+                </span>
               </button>
               {editing && (
                 <button

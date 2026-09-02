@@ -11,6 +11,7 @@ import { Router } from "../../router";
 import { ConfirmButton } from "../design-system/components/confirm-button";
 import { DataTable } from "../design-system/components/data-table";
 import { Chip } from "../design-system/components/primitives";
+import { PupilName } from "../design-system/components/pupil-name";
 import { ClassForm } from "./components/class-form";
 import { CsvImport } from "./components/csv-import";
 import { GroupFilter } from "./components/group-filter";
@@ -54,7 +55,14 @@ export function ClassPage({ classId }: { classId: string }) {
 
   const columns = useMemo(
     () => [
-      helper.accessor("lastName", { header: () => t("student.lastName") }),
+      helper.accessor("lastName", {
+        header: () => t("student.lastName"),
+        // Through PupilName like every other surname in the app, rather than
+        // repeating the styling here. The accessor keeps returning the raw
+        // value, so sorting and the global search still work on what the
+        // teacher typed.
+        cell: (info) => <PupilName student={info.row.original} format="surname" />,
+      }),
       helper.accessor("firstName", { header: () => t("student.firstName") }),
       helper.display({
         id: "groups",

@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { ConfirmButton } from "../design-system/components/confirm-button";
+import { PupilName } from "../design-system/components/pupil-name";
 
 export function StudentPage({ studentId }: { studentId: string }) {
   const { t, i18n } = useTranslation();
@@ -75,7 +76,7 @@ export function StudentPage({ studentId }: { studentId: string }) {
         )}
         <div className="flex flex-col">
           <span className="font-semibold text-lg">
-            {student.lastName} {student.firstName}
+            <PupilName student={student} />
           </span>
           {schoolClass && (
             <Link to={Router.Class({ classId: schoolClass.id })} className="text-accent text-sm">

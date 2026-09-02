@@ -1,5 +1,6 @@
 import type { Student } from "@db";
 import { useTranslation } from "react-i18next";
+import { PupilName } from "../../design-system/components/pupil-name";
 
 /**
  * The pool of pupils holding no seat. Tap-only: arm a seat in the grid first,
@@ -34,7 +35,7 @@ export function UnseatedPool({
               className="btn flex min-h-11 items-center gap-1.5 text-sm disabled:cursor-not-allowed"
               onClick={() => onAssign(student.id)}
             >
-              {student.lastName} {student.firstName}
+              <PupilName student={student} />
             </button>
           ))}
         </div>

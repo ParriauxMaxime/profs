@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 import { Router } from "../../../router";
 import { ConfirmButton } from "../../design-system/components/confirm-button";
 import { PhotoInput } from "../../design-system/components/photo-input";
+import { PupilName } from "../../design-system/components/pupil-name";
 
 /**
  * The live-entry surface: opened from a seat, closed by the teacher, one
@@ -88,7 +89,7 @@ export function StudentCard({
           />
           <div className="flex flex-col">
             <span className="font-semibold text-lg">
-              {student.lastName} {student.firstName}
+              <PupilName student={student} />
             </span>
             <Link to={Router.Student({ studentId: student.id })} className="text-accent text-sm">
               {t("student.timeline")}

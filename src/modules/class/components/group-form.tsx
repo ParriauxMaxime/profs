@@ -5,6 +5,7 @@ import { normaliseGroupName } from "@domain/group";
 import { DEFAULT_SUBJECT_COLOR, SUBJECT_COLORS } from "@domain/subject";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { PupilName } from "../../design-system/components/pupil-name";
 import { useEscape } from "../../shared/use-escape";
 
 /**
@@ -121,7 +122,7 @@ export function GroupForm({
                   checked={selected.has(student.id)}
                   onChange={() => toggleMember(student.id)}
                 />
-                {student.lastName} {student.firstName}
+                <PupilName student={student} />
               </label>
             ))}
           </div>

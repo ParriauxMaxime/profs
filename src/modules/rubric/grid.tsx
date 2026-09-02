@@ -11,6 +11,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Chip } from "../design-system/components/primitives";
+import { PupilName } from "../design-system/components/pupil-name";
 import { LevelButtons } from "./components/level-buttons";
 
 function cellKey(criterionId: string, studentId: string): string {
@@ -107,7 +108,7 @@ export function RubricGrid({
           {students.map((student) => (
             <li key={student.id} className="flex flex-col gap-2 rounded border border-border p-3">
               <span className="font-medium">
-                {student.lastName} {student.firstName}
+                <PupilName student={student} />
               </span>
               <LevelButtons
                 value={scoreMap.get(cellKey(activeCriterion.id, student.id)) ?? null}
@@ -135,7 +136,7 @@ export function RubricGrid({
             {students.map((student) => (
               <tr key={student.id} className="border-border/50 border-b">
                 <td className="sticky left-0 z-10 whitespace-nowrap bg-bg px-3 py-2">
-                  {student.lastName} {student.firstName}
+                  <PupilName student={student} />
                 </td>
                 {criteria.map((criterion) => (
                   <td key={criterion.id} className="px-2 py-2">
@@ -164,7 +165,7 @@ export function RubricGrid({
               return (
                 <li key={student.id}>
                   <Chip color={mean === null ? undefined : meanColor(mean)}>
-                    {student.lastName} {student.firstName}
+                    <PupilName student={student} />
                     {": "}
                     {mean === null ? "—" : mean}
                   </Chip>

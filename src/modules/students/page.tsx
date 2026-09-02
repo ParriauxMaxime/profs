@@ -5,6 +5,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
+import { PupilName } from "../design-system/components/pupil-name";
 
 /**
  * Every pupil in the workspace, searchable.
@@ -60,7 +61,7 @@ export function StudentsPage() {
                 className="block rounded border border-border p-3 hover:bg-bg-hover"
               >
                 <span className="font-medium">
-                  {student.lastName} {student.firstName}
+                  <PupilName student={student} />
                 </span>
                 <span className="ml-2 text-sm text-text-muted">{className(student.classId)}</span>
               </Link>

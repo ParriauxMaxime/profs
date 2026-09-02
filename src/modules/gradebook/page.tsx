@@ -20,6 +20,7 @@ import { GroupFilter } from "../class/components/group-filter";
 import { ColumnTypeIcon } from "../design-system/components/column-type-icon";
 import { ConfirmButton } from "../design-system/components/confirm-button";
 import { EditableCell } from "../design-system/components/editable-cell";
+import { PupilName } from "../design-system/components/pupil-name";
 import { ColumnForm } from "./components/column-form";
 import { PeriodBar } from "./components/period-bar";
 
@@ -295,7 +296,7 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
             {visibleStudents.map((student) => (
               <tr key={student.id} className="border-border/50 border-b">
                 <td className="sticky left-0 z-10 whitespace-nowrap bg-bg px-3 py-2">
-                  {student.lastName} {student.firstName}
+                  <PupilName student={student} />
                 </td>
                 {columns.map((column) =>
                   column.type === "calculation" ? (

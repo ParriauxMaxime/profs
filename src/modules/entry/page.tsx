@@ -9,6 +9,7 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { NumberPad } from "../design-system/components/number-pad";
+import { PupilName } from "../design-system/components/pupil-name";
 
 export function EntryPage({ gradebookId, columnId }: { gradebookId: string; columnId: string }) {
   const { t, i18n } = useTranslation();
@@ -177,7 +178,7 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
             <>
               <div className="rounded border border-border p-4 text-center">
                 <p className="font-semibold text-lg">
-                  {current.lastName} {current.firstName}
+                  <PupilName student={current} />
                 </p>
                 <p className="mt-2 font-bold text-3xl tabular-nums">
                   {shown === "" ? <span className="text-text-faint">—</span> : shown}
@@ -243,7 +244,7 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
                   onClick={() => void jumpTo(i)}
                 >
                   <span>
-                    {student.lastName} {student.firstName}
+                    <PupilName student={student} />
                   </span>
                   <span className="tabular-nums text-text-muted">
                     {(() => {
