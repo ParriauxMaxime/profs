@@ -1,7 +1,7 @@
 import type { SchoolClass, Subject } from "@db";
+import { createGradebookWithPeriods } from "@db/gradebooks";
 import { useDb } from "@db/provider";
 import { defaultGradebookName } from "@domain/gradebook/naming";
-import { DEFAULT_PERIOD_NAMES } from "@domain/gradebook/period";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEscape } from "../../shared/use-escape";
@@ -40,30 +40,11 @@ export function GradebookForm({
   useEscape(onDone);
 
   async function save(): Promise<void> {
-    const now = Date.now();
-    const gradebookId = crypto.randomUUID();
     const trimmed = name.trim();
-
-    // The gradebook and its three trimesters are written together: a gradebook
-    // with no period renders an empty grid with nowhere to put a column, so it
-    // must never exist, not even between two awaits.
-    await db.transaction("rw", [db.gradebooks, db.periods], async () => {
-      await db.gradebooks.add({
-        id: gradebookId,
-        classId,
-        subjectId,
-        name: trimmed.length > 0 ? trimmed : suggestedName,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await db.periods.bulkAdd(
-        DEFAULT_PERIOD_NAMES.map((periodName, order) => ({
-          id: crypto.randomUUID(),
-          gradebookId,
-          name: periodName,
-          order,
-        })),
-      );
+    await createGradebookWithPeriods(db, {
+      classId,
+      subjectId,
+      name: trimmed.length > 0 ? trimmed : suggestedName,
     });
     onDone();
   }

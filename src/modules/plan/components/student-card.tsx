@@ -1,7 +1,10 @@
-import type { BehaviourEvent, Session, Student } from "@db";
+import type { Session, Student } from "@db";
 import { attendanceKey } from "@db";
+import { toggleAttendance } from "@db/attendance";
+import { logBehaviour } from "@db/behaviour";
 import { deleteBehaviourEvent } from "@db/cascade";
 import { useDb } from "@db/provider";
+import { setStudentNotes, setStudentPhoto } from "@db/students";
 import { ATTENDANCE_VALUES, type AttendanceValue } from "@domain/attendance";
 import {
   BEHAVIOUR_COLORS,
@@ -59,31 +62,19 @@ export function StudentCard({
     [db, session.id, student.id],
   );
 
-  const setAttendance = async (value: AttendanceValue): Promise<void> => {
-    if (attendance?.value === value) {
-      await db.attendance.delete(attendanceKey(session.id, student.id));
-      return;
-    }
-    await db.attendance.put({
-      sessionId: session.id,
-      studentId: student.id,
-      value,
-      updatedAt: Date.now(),
-    });
-  };
+  // Tapping the value already recorded clears it. `toggleAttendance` re-reads
+  // inside its transaction rather than trusting `attendance` from this render.
+  const setAttendance = (value: AttendanceValue): Promise<void> =>
+    toggleAttendance(db, session.id, student.id, value);
 
   const addBehaviour = async (type: BehaviourType): Promise<void> => {
-    const trimmed = comment.trim();
-    const event: BehaviourEvent = {
-      id: crypto.randomUUID(),
+    await logBehaviour(db, {
       sessionId: session.id,
       studentId: student.id,
       classId: student.classId,
       type,
-      ...(trimmed ? { comment: trimmed } : {}),
-      createdAt: Date.now(),
-    };
-    await db.behaviourEvents.add(event);
+      comment,
+    });
     setComment("");
   };
 
@@ -93,12 +84,7 @@ export function StudentCard({
         <div className="flex items-center gap-3">
           <PhotoInput
             value={student.photo}
-            onChange={(photo) =>
-              void db.students.update(student.id, {
-                photo: photo ?? undefined,
-                updatedAt: Date.now(),
-              })
-            }
+            onChange={(photo) => void setStudentPhoto(db, student.id, photo ?? null)}
           />
           <div className="flex flex-col">
             <span className="font-semibold text-lg">
@@ -202,7 +188,7 @@ export function StudentCard({
           onBlur={() => {
             notesFocused.current = false;
             if (notes !== (student.notes ?? "")) {
-              void db.students.update(student.id, { notes, updatedAt: Date.now() });
+              void setStudentNotes(db, student.id, notes);
             }
           }}
         />

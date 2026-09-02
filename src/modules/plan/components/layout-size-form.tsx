@@ -1,5 +1,6 @@
 import type { Seat, SeatingLayout } from "@db";
 import { useDb } from "@db/provider";
+import { resizeLayout } from "@db/seating";
 import { MAX_COLS, MAX_ROWS, resizeSeats } from "@domain/seating";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -33,24 +34,7 @@ export function LayoutSizeForm({
   const apply = async (): Promise<void> => {
     setSaving(true);
     try {
-      const { seats: nextSeats } = resizeSeats(
-        seats,
-        layout.id,
-        rows,
-        cols,
-        layout.rows,
-        layout.cols,
-      );
-      const keep = new Set(nextSeats.map((s) => `${s.row}:${s.col}`));
-      const toDelete = seats
-        .filter((s) => !keep.has(`${s.row}:${s.col}`))
-        .map((s): [string, number, number] => [s.layoutId, s.row, s.col]);
-
-      await db.transaction("rw", [db.seatingLayouts, db.seats], async () => {
-        await db.seatingLayouts.update(layout.id, { rows, cols, updatedAt: Date.now() });
-        if (toDelete.length > 0) await db.seats.bulkDelete(toDelete);
-        await db.seats.bulkPut(nextSeats);
-      });
+      await resizeLayout(db, layout, rows, cols);
       onDone();
     } finally {
       setSaving(false);

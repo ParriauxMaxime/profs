@@ -251,32 +251,29 @@ What the brainstorm has to settle, rather than just adding menu items:
 Related: item 7 (timetable/diary/planner), which would generate the sessions a
 "today" view would show.
 
-## Technical debt — phase 2A inline writes (recorded 2026-09-02)
+## Technical debt — phase 2A inline writes (recorded and discharged 2026-09-02)
 
-Phases 2B and 3 were built to the rule that **components hold no database write
-logic**: every write is a named, unit-tested function in `src/db/`. Phase 2A
-predates that rule and was never retrofitted.
+**Status: done.** Every write named below now lives in `src/db/` as a named,
+unit-tested function: `seating.ts` (`getOrCreateLayout`, `seatStudent`,
+`moveSeat`, `clearSeat`, `makeSeat`, `makeGap`, `resizeLayout`),
+`attendance.ts` (`setAttendance`, `clearAttendance`, `toggleAttendance`),
+`behaviour.ts` (`logBehaviour`), `students.ts` (`setStudentPhoto`,
+`setStudentNotes`), `gradebooks.ts` (`createGradebookWithPeriods`) and
+`workspace.ts` (`wipeWorkspace`). 28 new tests.
 
-Still inline, at the time of writing:
+The extraction paid for itself immediately. `onWipe` in Réglages cleared a
+hand-written list of **seven** tables — the seven that existed in v1 — so the
+ten added since survived "Supprimer toutes les données": sessions, attendance,
+behaviour events (including their free-text comments about named children),
+the seating plan, all three rubric tables, groups and their memberships.
+`PRIVACY.md` states the erase takes the whole workspace, so this was a broken
+written promise, not a rough edge. `wipeWorkspace` reads the list off
+`db.tables`, which covers the next `db.version(...)` the day it is declared.
 
-- `src/modules/plan/page.tsx` — the seating-layout get-or-create, and the
-  seat-assignment transaction
-- `src/modules/plan/components/seat-grid.tsx` — the move-pupil transaction
-- `src/modules/plan/components/student-card.tsx` — attendance put/delete,
-  behaviour event add, two `students.update` calls for photo and notes
-- `src/modules/plan/components/layout-size-form.tsx` — the resize transaction
-- `src/modules/dashboard/components/gradebook-form.tsx` — gradebook + periods
-- `src/modules/settings/page.tsx` — the wipe transaction
+Still inline, and deliberately left: five single-table v1-era writes in
+`class/components/csv-import.tsx`, `class/components/student-form.tsx` and
+`gradebook/components/period-bar.tsx`. They predate phase 2A, are each one
+`add`/`update` with no transaction and no invariant spanning tables, and were
+not in the recorded scope. Worth folding in the next time one of those forms
+is touched.
 
-Why it matters, concretely: every defect that escaped phase 2A review was a
-database fact reachable without a browser — a pupil seated in two chairs, a
-second tap failing to clear a mark, a session created twice. They needed a
-browser only because the writes were buried in components where the existing
-test posture cannot reach them. Extracting them turns that whole class of bug
-into ordinary `fake-indexeddb` tests.
-
-Suggested operations: `seatStudent`, `movePupil`, `resizeLayout`,
-`setAttendance`, `clearAttendance`, `logBehaviour`, `setStudentPhoto`,
-`setStudentNotes`, `createGradebookWithPeriods`, `wipeWorkspace`.
-
-Do this before the next feature phase adds more surfaces in the old shape.

@@ -1,6 +1,6 @@
 import type { Seat, SeatingLayout, Student } from "@db";
-import { seatKey } from "@db";
 import { useDb } from "@db/provider";
+import { clearSeat, makeGap, makeSeat, moveSeat } from "@db/seating";
 import { SUBJECT_COLORS } from "@domain/subject";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -92,38 +92,26 @@ export function SeatGrid({
     }
   }
 
-  const makeSeat = async (row: number, col: number): Promise<void> => {
-    await db.seats.put({ layoutId: layout.id, row, col, studentId: null });
-  };
+  const onMakeSeat = (row: number, col: number): Promise<void> => makeSeat(db, layout.id, row, col);
 
-  const makeGap = async (row: number, col: number): Promise<void> => {
-    await db.seats.delete(seatKey(layout.id, row, col));
+  const onMakeGap = async (row: number, col: number): Promise<void> => {
+    await makeGap(db, layout.id, row, col);
+    // A gap cannot be armed: the cell the arming pointed at no longer exists.
     if (armedSeat === `${row}:${col}`) onArmSeat(null);
   };
 
-  const clearSeat = async (row: number, col: number): Promise<void> => {
-    await db.seats.put({ layoutId: layout.id, row, col, studentId: null });
-  };
+  const onClearSeat = (row: number, col: number): Promise<void> =>
+    clearSeat(db, layout.id, row, col);
 
   /**
    * Move a seated pupil into the armed seat.
    *
    * Without this the only way to rearrange a room is to empty a chair and
    * re-assign from the pool, and rearranging is what a seating plan is for.
-   * Both writes go in one transaction so a pupil is never briefly in two
-   * chairs or in none.
    */
   const movePupil = async (from: Seat, toCoord: string): Promise<void> => {
     const [row, col] = toCoord.split(":").map(Number);
-    await db.transaction("rw", db.seats, async () => {
-      await db.seats.put({ layoutId: layout.id, row, col, studentId: from.studentId });
-      await db.seats.put({
-        layoutId: layout.id,
-        row: from.row,
-        col: from.col,
-        studentId: null,
-      });
-    });
+    await moveSeat(db, layout.id, { row: from.row, col: from.col }, { row, col });
     onArmSeat(null);
   };
 
@@ -145,7 +133,7 @@ export function SeatGrid({
                 key={coord}
                 type="button"
                 className="flex h-14 w-16 flex-col items-center justify-center rounded-md border border-border border-dashed text-[10px] text-text-faint hover:bg-bg-hover"
-                onClick={() => void makeSeat(row, col)}
+                onClick={() => void onMakeSeat(row, col)}
               >
                 {t("plan.makeSeat")}
               </button>
@@ -174,7 +162,7 @@ export function SeatGrid({
                     className="-right-2 -top-2 absolute flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg text-sm text-text-muted leading-none hover:text-danger"
                     onClick={(e) => {
                       e.stopPropagation();
-                      void makeGap(row, col);
+                      void onMakeGap(row, col);
                     }}
                   >
                     ×
@@ -193,7 +181,7 @@ export function SeatGrid({
                 key={coord}
                 type="button"
                 className="flex h-14 w-16 flex-col items-center justify-center rounded-md border border-border text-[11px] text-text-muted hover:bg-bg-hover"
-                onClick={() => void clearSeat(row, col)}
+                onClick={() => void onClearSeat(row, col)}
               >
                 {t("plan.emptySeat")}
               </button>
@@ -226,7 +214,7 @@ export function SeatGrid({
                   className="-right-2 -top-2 absolute flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg text-sm text-text-muted leading-none hover:text-danger"
                   onClick={(e) => {
                     e.stopPropagation();
-                    void clearSeat(row, col);
+                    void onClearSeat(row, col);
                   }}
                 >
                   ×

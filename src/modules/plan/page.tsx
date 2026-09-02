@@ -1,7 +1,8 @@
 import { useDb } from "@db/provider";
+import { getOrCreateLayout, seatStudent } from "@db/seating";
 import { createSession, getOrCreateTodaySession, sessionsForClass, startOfDay } from "@db/sessions";
 import { filterByGroup } from "@domain/group";
-import { buildSeats, DEFAULT_COLS, DEFAULT_ROWS, unseatedStudentIds } from "@domain/seating";
+import { unseatedStudentIds } from "@domain/seating";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -111,25 +112,12 @@ export function PlanPage({ classId }: { classId: string }) {
   }, [db, groups]);
 
   // A class gets its room the first time someone looks at it. Creating it in
-  // an effect rather than in the live query keeps the query a pure read. The
-  // re-check inside the transaction keeps this idempotent under StrictMode's
-  // double-invoked effects — two layouts for one class would silently split a
-  // teacher's seating in half.
+  // an effect rather than in the live query keeps the query a pure read;
+  // `getOrCreateLayout` re-checks inside its transaction, so StrictMode's
+  // double-invoked effect cannot produce two rooms for one class.
   useEffect(() => {
     if (layout !== null) return;
-    const id = crypto.randomUUID();
-    void db.transaction("rw", [db.seatingLayouts, db.seats], async () => {
-      const existing = await db.seatingLayouts.where("classId").equals(classId).first();
-      if (existing) return;
-      await db.seatingLayouts.add({
-        id,
-        classId,
-        rows: DEFAULT_ROWS,
-        cols: DEFAULT_COLS,
-        updatedAt: Date.now(),
-      });
-      await db.seats.bulkPut(buildSeats(id, DEFAULT_ROWS, DEFAULT_COLS));
-    });
+    void getOrCreateLayout(db, classId);
   }, [db, classId, layout]);
 
   if (
@@ -237,16 +225,7 @@ export function PlanPage({ classId }: { classId: string }) {
         onAssign={async (studentId) => {
           if (!armedSeat) return;
           const [row, col] = armedSeat.split(":").map(Number);
-          // Seating a pupil who already holds another seat must clear that
-          // seat in the same transaction, or one pupil occupies two chairs.
-          await db.transaction("rw", db.seats, async () => {
-            const layoutSeats = await db.seats.where("layoutId").equals(layout.id).toArray();
-            const previous = layoutSeats.find((s) => s.studentId === studentId);
-            if (previous && (previous.row !== row || previous.col !== col)) {
-              await db.seats.put({ ...previous, studentId: null });
-            }
-            await db.seats.put({ layoutId: layout.id, row, col, studentId });
-          });
+          await seatStudent(db, layout.id, row, col, studentId);
           setArmedSeat(null);
         }}
       />

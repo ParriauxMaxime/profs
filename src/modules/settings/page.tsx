@@ -2,6 +2,7 @@ import type { RubricTemplate, Subject } from "@db";
 import { exportWorkspace, importWorkspace, parseBackup, type WorkspaceBackup } from "@db/backup";
 import { deleteRubricTemplate, deleteSubject } from "@db/cascade";
 import { useDb } from "@db/provider";
+import { wipeWorkspace } from "@db/workspace";
 import { THEME_CHOICES } from "@domain/theme";
 import { LOCALES, type Locale, loadLocale, saveLocale } from "@i18n";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -90,23 +91,7 @@ export function SettingsPage() {
   }
 
   async function onWipe(): Promise<void> {
-    await db.transaction(
-      "rw",
-      [db.classes, db.students, db.subjects, db.gradebooks, db.periods, db.columns, db.grades],
-      async () => {
-        for (const table of [
-          db.classes,
-          db.students,
-          db.subjects,
-          db.gradebooks,
-          db.periods,
-          db.columns,
-          db.grades,
-        ]) {
-          await table.clear();
-        }
-      },
-    );
+    await wipeWorkspace(db);
   }
 
   return (
