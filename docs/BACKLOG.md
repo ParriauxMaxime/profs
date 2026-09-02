@@ -222,6 +222,24 @@ it against the no-network, small-bundle posture).
   calculation column reference another calculation column? Allowing it requires
   cycle detection; forbidding it keeps the first version simple.
 
+## The journal and the calendar — delivered, phase 4b (2026-09-02)
+
+**Status: done.** One free-text entry per class per day (`diaryEntries`, keyed
+`[classId+date]`), read through `/diary` in agenda, week and month views, with
+a class filter and search across the period.
+
+Deliberately **not** a cahier de textes: that record is legally mandated in
+France and must be consultable by pupils, parents and the chef
+d'établissement, which an app with no network cannot be. The product says so
+in as many words on the page itself.
+
+**4c is folded in, not dropped.** "Cross-class week view" is this page with the
+class filter off and the week view on. A separate planner would have been a
+second calendar rendering the same tables.
+
+What remains unbuilt from the original item 7: nothing. Attachments were never
+part of it — see #6, still parked.
+
 ## Navigation — delivered, phase 4a (2026-09-02)
 
 **Status: done.** The top bar is gone. A floating hamburger at the top left
@@ -234,7 +252,8 @@ Today.
 The recurring timetable shipped with it (`scheduleEntries`, A/B weeks derived
 from a term-start anchor). What remains of the original "timetable, diary,
 planner" request is **4b — the diary** (what happened, objectives, homework)
-and **4c — the planner** (a cross-class week view). Neither is specced.
+and **4c — the planner** (a cross-class week view). Both were delivered by
+phase 4b, which folded 4c into the same calendar — see the entry above.
 
 The brainstorm that produced this, kept for its reasoning:
 

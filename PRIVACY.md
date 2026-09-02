@@ -44,6 +44,14 @@ with the current version before moving data between devices.
   **les annotations sont incluses dans l'export JSON** — c'est l'export de
   l'enseignant, et ce point est précisé ici pour la même raison.
 
+- **Le journal** (`journal de bord`) est du texte libre, saisi par l'enseignant,
+  qui peut mentionner des élèves nommément. Comme `Student.notes` et les
+  annotations de cellule, **il est inclus dans l'export JSON** — c'est l'export
+  de l'enseignant. Il ne quitte jamais l'appareil autrement, n'est consultable
+  par personne d'autre, et **ne remplace pas le cahier de textes officiel** de
+  l'ENT : ce dernier doit rester rempli dans Pronote ou l'espace numérique de
+  l'établissement.
+
 ## Deleting data
 
 Réglages → Zone dangereuse → "Supprimer toutes les données" erases the whole

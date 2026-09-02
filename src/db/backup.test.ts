@@ -535,7 +535,7 @@ describe("export completeness", () => {
     await seedIfEmpty(db, `backup-restore-${crypto.randomUUID()}`);
     await db.diaryEntries.put({
       classId: (await db.classes.toArray())[0].id,
-      date: new Date(2026, 8, 1).getTime(),
+      date: new Date(2030, 0, 15).getTime(),
       text: "on a fait les fractions",
       createdAt: 1,
       updatedAt: 1,
@@ -570,9 +570,11 @@ describe("importing twice", () => {
     // schema version is covered the day it is declared.
     const db = openWorkspaceDb(`backup-double-${crypto.randomUUID()}`);
     await seedIfEmpty(db, `backup-double-${crypto.randomUUID()}`);
-    await db.diaryEntries.add({
+    await db.diaryEntries.put({
       classId: (await db.classes.toArray())[0].id,
-      date: new Date(2026, 8, 1).getTime(),
+      // A date far from anything the demo seed places, so this setup can
+      // never collide with seeded content on the compound key.
+      date: new Date(2030, 0, 15).getTime(),
       text: "on a fait les fractions",
       createdAt: 1,
       updatedAt: 1,

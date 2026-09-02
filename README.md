@@ -22,6 +22,10 @@ and no subscription.
   date you set in Réglages. Overlapping lessons are flagged, never refused.
   The timetable predicts; it never creates a lesson that did not happen, so a
   holiday leaves no empty session in anybody's attendance.
+- **Journal** — one free-text note per class per day, read through a calendar
+  with agenda, week and month views, searchable across the year. Write about a
+  lesson before or after it happens. It is a **private** log on your device: it
+  is not the official cahier de textes and does not replace Pronote or your ENT.
 - **Students** — add, edit, and delete students within a class, plus CSV
   import (semicolon, comma, or tab) for a whole roster at once
 - **Gradebooks** — one per class and subject, split into terms, with columns
