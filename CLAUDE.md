@@ -131,6 +131,43 @@ body scroll is locked, and the panel carries `inert` when closed so a
 translated-off drawer is not silently in the tab order. Anything added to it
 keeps all of that.
 
+Above the destinations sits `WorkspaceSwitcher`, which changes which
+établissement is open. It is not a destination, and it is deliberately not
+inside the `<nav>`; its buttons are still trapped, because the trap queries the
+panel rather than the nav. With one école it collapses to a line of text — a
+switcher with nothing to switch to is a control that does nothing, sitting
+above the navigation used every lesson.
+
+### One workspace per school, and switching between them
+
+A `Workspace` (`src/domain/workspaces.ts`) is one school-year: a name, a year,
+and its own database. The registry lives in `localStorage` because
+`DbProvider` must know which database to open before any database is open.
+Switching writes the active id and nothing else — the provider re-opens on it
+through `useSyncExternalStore`, and **every** `useLiveQuery` in the app takes
+`db` in its dependency array, which is what makes a switch re-read the whole
+app without a reload. A live query that forgets `db` keeps rendering the
+previous school's pupils; that is the failure mode to watch for when adding one.
+
+Création goes through `createWorkspace`, never `addWorkspace`: it marks the new
+workspace **seeded** immediately. `initWorkspace` runs `seedIfEmpty` on the
+active workspace at every boot, so a school a teacher created would otherwise
+be handed the demo school's classes and pupils on the next reload. Only
+`ensureDefaultWorkspace` leaves the marker unset, because the demo data
+introduces an empty app rather than filling in a real school.
+
+Deleting takes both halves, and both are required: `removeWorkspace` drops the
+registry entry, and `deleteWorkspaceDb` deletes `profs-<id>`. The entry alone
+is not the deletion `PRIVACY.md` promises — the pupils' names would still be in
+IndexedDB, invisible and unreachable. Deleting the last workspace is allowed;
+the replacement is created **before** the removal, never after, because for the
+instant in between `activeWorkspaceId()` would be null and the provider has
+nothing to open. Boot's `ensureDefaultWorkspace` cannot cover that gap.
+
+Management (create, rename, delete) lives in Réglages rather than the drawer: a
+teacher changes school far more often than they create one, and a destructive
+delete does not belong in the navigation.
+
 ### Invariants worth knowing before you touch anything
 
 - **Grades use the compound primary key `[gradebookId+columnId+studentId]`.** That is the whole point of the schema: editing one cell is a single-row `put`, and clearing it is a single-row `delete`. Never read-modify-write a collection of grades. Build the key with `gradeKey()` — it is the only constructor.

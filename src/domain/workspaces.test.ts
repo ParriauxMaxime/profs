@@ -33,10 +33,14 @@ if (!("localStorage" in globalThis)) {
 import {
   activeWorkspaceId,
   addWorkspace,
+  createWorkspace,
   ensureDefaultWorkspace,
   hasBeenSeeded,
   listWorkspaces,
   markSeeded,
+  removeWorkspace,
+  renameWorkspace,
+  setActiveWorkspaceId,
 } from "./workspaces";
 
 describe("workspaces registry", () => {
@@ -100,5 +104,96 @@ describe("workspaces registry", () => {
     expect(all).toHaveLength(2);
     expect(all[0]).toEqual(first);
     expect(all[1]).toEqual(second);
+  });
+});
+
+describe("workspace management", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("createWorkspace marks the workspace seeded, so a new school never gets the demo data", () => {
+    const workspace = createWorkspace("Collège A", "2025-2026");
+
+    expect(listWorkspaces()).toHaveLength(1);
+    expect(hasBeenSeeded(workspace.id)).toBe(true);
+  });
+
+  it("ensureDefaultWorkspace leaves the first-run workspace unseeded, so the demo school still appears", () => {
+    const workspace = ensureDefaultWorkspace();
+
+    expect(hasBeenSeeded(workspace.id)).toBe(false);
+  });
+
+  it("renameWorkspace rewrites name and year in place", () => {
+    const first = createWorkspace("Collège A", "2025-2026");
+    const second = createWorkspace("Lycée B", "2025-2026");
+
+    renameWorkspace(first.id, "Collège Voltaire", "2026-2027");
+
+    const all = listWorkspaces();
+    expect(all[0]).toEqual({ id: first.id, name: "Collège Voltaire", year: "2026-2027" });
+    expect(all[1]).toEqual(second);
+  });
+
+  it("renameWorkspace ignores an unknown id", () => {
+    const first = createWorkspace("Collège A", "2025-2026");
+
+    renameWorkspace("ghost-id", "Nope", "1900-1901");
+
+    expect(listWorkspaces()).toEqual([first]);
+  });
+
+  it("removeWorkspace drops the entry and its seeded marker", () => {
+    const first = createWorkspace("Collège A", "2025-2026");
+    const second = createWorkspace("Lycée B", "2025-2026");
+    setActiveWorkspaceId(second.id);
+
+    removeWorkspace(first.id);
+
+    expect(listWorkspaces()).toEqual([second]);
+    expect(hasBeenSeeded(first.id)).toBe(false);
+  });
+
+  it("removeWorkspace re-points the active workspace when the active one goes", () => {
+    const first = createWorkspace("Collège A", "2025-2026");
+    const second = createWorkspace("Lycée B", "2025-2026");
+    setActiveWorkspaceId(first.id);
+
+    removeWorkspace(first.id);
+
+    expect(activeWorkspaceId()).toBe(second.id);
+  });
+
+  it("removeWorkspace leaves no active workspace when the last one goes", () => {
+    const only = createWorkspace("Collège A", "2025-2026");
+    setActiveWorkspaceId(only.id);
+
+    removeWorkspace(only.id);
+
+    expect(listWorkspaces()).toEqual([]);
+    expect(activeWorkspaceId()).toBeNull();
+  });
+
+  it("ensureDefaultWorkspace creates a fresh workspace after the last one is removed", () => {
+    const only = createWorkspace("Collège A", "2025-2026");
+    setActiveWorkspaceId(only.id);
+    removeWorkspace(only.id);
+
+    const recreated = ensureDefaultWorkspace();
+
+    expect(recreated.id).not.toBe(only.id);
+    expect(recreated.name).toBe("Mon établissement");
+    expect(activeWorkspaceId()).toBe(recreated.id);
+  });
+
+  it("removeWorkspace ignores an unknown id", () => {
+    const first = createWorkspace("Collège A", "2025-2026");
+    setActiveWorkspaceId(first.id);
+
+    removeWorkspace("ghost-id");
+
+    expect(listWorkspaces()).toEqual([first]);
+    expect(activeWorkspaceId()).toBe(first.id);
   });
 });

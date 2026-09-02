@@ -3,6 +3,18 @@
     "name": "profs",
     "tagline": "The gradebook that stays on your device"
   },
+  "workspace": {
+    "title": "Schools",
+    "help": "Each school has its own classes, pupils and gradebooks. Switch schools from the menu.",
+    "add": "New school",
+    "name": "School name",
+    "namePlaceholder": "Voltaire secondary school",
+    "nameRequired": "The school name is required",
+    "year": "School year",
+    "active": "Active",
+    "switch": "Switch school",
+    "confirmDelete": "Yes, delete this school and all its data"
+  },
   "nav": {
     "dashboard": "Home",
     "settings": "Settings",

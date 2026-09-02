@@ -3,6 +3,18 @@
     "name": "profs",
     "tagline": "Le carnet de notes qui reste sur votre appareil"
   },
+  "workspace": {
+    "title": "Établissements",
+    "help": "Chaque établissement a ses propres classes, élèves et carnets. Changez d'établissement depuis le menu.",
+    "add": "Nouvel établissement",
+    "name": "Nom de l'établissement",
+    "namePlaceholder": "Collège Voltaire",
+    "nameRequired": "Le nom de l'établissement est obligatoire",
+    "year": "Année scolaire",
+    "active": "Actif",
+    "switch": "Changer d'établissement",
+    "confirmDelete": "Oui, supprimer cet établissement et toutes ses données"
+  },
   "nav": {
     "dashboard": "Accueil",
     "settings": "Réglages",

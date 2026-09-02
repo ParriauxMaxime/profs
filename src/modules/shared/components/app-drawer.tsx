@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../../router";
 import { useEscape } from "../use-escape";
+import { WorkspaceSwitcher } from "./workspace-switcher";
 
 interface Destination {
   key: string;
@@ -125,6 +126,12 @@ export function AppDrawer({
             {t("nav.closeMenu")}
           </button>
         </div>
+
+        {/* Above the destinations, not inside the <nav>: which école is open
+            changes what every destination below shows, and it is not itself
+            a destination. Its buttons join the focus trap by being in the
+            panel — the trap queries the panel, not the nav. */}
+        <WorkspaceSwitcher onSwitch={onClose} />
 
         <nav className="flex flex-col gap-1" aria-label={t("nav.menu")}>
           {destinations.map((destination, index) => (

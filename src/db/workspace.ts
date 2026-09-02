@@ -1,3 +1,4 @@
+import Dexie from "dexie";
 import type { AppDatabase } from ".";
 
 /**
@@ -15,6 +16,22 @@ import type { AppDatabase } from ".";
  * Reading the list off the database means the next `db.version(...)` is
  * covered the day it is declared, with nothing to remember.
  */
+/**
+ * Delete a workspace's database outright.
+ *
+ * `wipeWorkspace` empties the tables of the workspace a teacher is standing
+ * in; this destroys one they are removing from the list, so the database name
+ * is the argument rather than an open handle — the workspace being deleted is
+ * usually not the open one, and opening it just to erase it would be absurd.
+ *
+ * `PRIVACY.md` promises deletion is real and permanent, so the registry entry
+ * going away is not enough on its own: the pupils' names would still be in
+ * IndexedDB under `profs-<id>`, invisible and unreachable.
+ */
+export async function deleteWorkspaceDb(workspaceId: string): Promise<void> {
+  await Dexie.delete(`profs-${workspaceId}`);
+}
+
 export async function wipeWorkspace(db: AppDatabase): Promise<void> {
   const tables = db.tables;
   await db.transaction("rw", tables, async () => {

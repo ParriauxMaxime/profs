@@ -14,6 +14,7 @@ import { ToggleOption } from "../design-system/components/primitives";
 import { useTheme } from "../shared/use-theme";
 import { RubricTemplateForm } from "./components/rubric-template-form";
 import { SubjectForm } from "./components/subject-form";
+import { WorkspaceSection } from "./components/workspace-section";
 
 /** A subject a gradebook still points at: deleting it was refused. */
 interface SubjectRefusal {
@@ -100,6 +101,11 @@ export function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-8">
+      {/* First on the page: every section below it — subjects, backup, the
+          wipe — acts on the active établissement, so which one that is has to
+          be readable before any of them. */}
+      <WorkspaceSection />
+
       <section className="flex flex-col gap-2">
         <h2 className="font-semibold text-lg">{t("settings.theme")}</h2>
         <p className="text-sm text-text-muted">{t("settings.themeHint")}</p>
