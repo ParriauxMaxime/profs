@@ -128,7 +128,7 @@ export function SeatGrid({
   };
 
   return (
-    <div className="overflow-x-auto rounded-md border border-border">
+    <div className="paper overflow-x-auto rounded-md border border-border">
       <div
         className="grid w-max gap-1.5 p-2"
         style={{ gridTemplateColumns: `repeat(${layout.cols}, minmax(0, 1fr))` }}

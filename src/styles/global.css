@@ -109,8 +109,14 @@ body {
   --color-danger: #c62828;
   --color-success: #2e7d4f;
 
-  --paper-rule: #dbe4f5;
-  --paper-margin: #e3a0a0;
+  /*
+   * Ruling removed deliberately. At low contrast it was invisible; at high
+   * contrast it competed with the content it sat behind. The marge is the
+   * device that says "French school" on its own, so it is the only one kept
+   * — one memorable thing, everything else quiet.
+   */
+  --paper-rule: transparent;
+  --paper-margin: #cf6b6b;
 }
 
 /* --- Encre: quiet, carried by type -------------------------------------- */
@@ -130,6 +136,8 @@ body {
   --paper-margin: transparent;
 }
 
+:root[data-design="copie"] h2,
+:root[data-design="copie"] h3,
 :root[data-design="encre"] h2,
 :root[data-design="encre"] h3 {
   font-family: Georgia, "Noto Serif", "Times New Roman", serif;
@@ -168,7 +176,7 @@ body {
     var(--paper-rule, transparent) 1.74rem,
     var(--paper-rule, transparent) calc(1.74rem + 1px)
   );
-  border-left: 2px solid var(--paper-margin, transparent);
+  border-left: 3px solid var(--paper-margin, transparent);
 }
 
 /* Numbers in a grid are compared down a column, so they line up. */

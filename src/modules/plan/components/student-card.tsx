@@ -83,7 +83,7 @@ export function StudentCard({
   };
 
   return (
-    <div className="flex flex-col gap-4 rounded-md border border-border bg-bg p-4">
+    <div className="paper flex flex-col gap-4 rounded-md border border-border p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <PhotoInput

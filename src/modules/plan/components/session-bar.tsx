@@ -25,10 +25,11 @@ export function SessionBar({
 }) {
   const { t, i18n } = useTranslation();
   const db = useDb();
-  const formatter = new Intl.DateTimeFormat(i18n.language, {
-    dateStyle: "long",
-    timeStyle: "short",
-  });
+  // Date only. A session is stamped with `startOfDay`, so its time is always
+  // midnight — rendering it showed every lesson as "à 00:00" and implied a
+  // precision the data does not carry. Two lessons on one day are told apart
+  // by their order in the list, not by a clock.
+  const formatter = new Intl.DateTimeFormat(i18n.language, { dateStyle: "long" });
 
   const selected = sessions.find((session) => session.id === selectedSessionId);
 
