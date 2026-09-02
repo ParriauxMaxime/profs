@@ -86,7 +86,7 @@ describe("workspace backup", () => {
 
     await expect(
       importWorkspace(db, {
-        version: 4,
+        version: 5,
         exportedAt: 0,
         classes: [],
         students: [],
@@ -103,6 +103,8 @@ describe("workspace backup", () => {
         rubricTemplates: [],
         rubricAssessments: [],
         rubricScores: [],
+        studentGroups: [],
+        groupMembers: [],
       }),
     ).rejects.toThrow();
 
@@ -112,8 +114,34 @@ describe("workspace backup", () => {
     db.close();
   });
 
-  it("exports version 3 with the classroom and rubric tables", async () => {
-    const db = openWorkspaceDb("backup-export-v3");
+  it("rejects a version 3 backup rather than half-importing it", async () => {
+    const db = openWorkspaceDb("backup-import-v3");
+    expect(() =>
+      parseBackup({
+        version: 3,
+        exportedAt: 1,
+        classes: [],
+        students: [],
+        subjects: [],
+        gradebooks: [],
+        periods: [],
+        columns: [],
+        grades: [],
+        sessions: [],
+        attendance: [],
+        behaviourEvents: [],
+        seatingLayouts: [],
+        seats: [],
+        rubricTemplates: [],
+        rubricAssessments: [],
+        rubricScores: [],
+      }),
+    ).toThrow();
+    db.close();
+  });
+
+  it("exports version 4 with the group tables", async () => {
+    const db = openWorkspaceDb("backup-export-v4");
     await db.sessions.add({ id: "s1", classId: "c1", date: 1, createdAt: 1 });
     await db.attendance.put({ sessionId: "s1", studentId: "p1", value: "late", updatedAt: 1 });
     await db.rubricTemplates.add({
@@ -123,11 +151,22 @@ describe("workspace backup", () => {
       createdAt: 1,
       updatedAt: 1,
     });
+    await db.studentGroups.add({
+      id: "g1",
+      classId: "c1",
+      name: "Groupe A",
+      color: "#2563eb",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await db.groupMembers.put({ groupId: "g1", studentId: "p1" });
     const backup = await exportWorkspace(db);
-    expect(backup.version).toBe(3);
+    expect(backup.version).toBe(4);
     expect(backup.sessions).toHaveLength(1);
     expect(backup.attendance).toHaveLength(1);
     expect(backup.rubricTemplates).toHaveLength(1);
+    expect(backup.studentGroups).toHaveLength(1);
+    expect(backup.groupMembers).toHaveLength(1);
     db.close();
   });
 
@@ -277,7 +316,11 @@ describe("workspace backup", () => {
       rubricTemplates: await db.rubricTemplates.count(),
       rubricAssessments: await db.rubricAssessments.count(),
       rubricScores: await db.rubricScores.count(),
+      studentGroups: await db.studentGroups.count(),
+      groupMembers: await db.groupMembers.count(),
     };
+    expect(firstImportCounts.studentGroups).toBeGreaterThan(0);
+    expect(firstImportCounts.groupMembers).toBeGreaterThan(0);
 
     await importWorkspace(db, JSON.parse(JSON.stringify(backup)));
     const secondImportCounts = {
@@ -292,6 +335,8 @@ describe("workspace backup", () => {
       rubricTemplates: await db.rubricTemplates.count(),
       rubricAssessments: await db.rubricAssessments.count(),
       rubricScores: await db.rubricScores.count(),
+      studentGroups: await db.studentGroups.count(),
+      groupMembers: await db.groupMembers.count(),
     };
 
     expect(secondImportCounts).toEqual(firstImportCounts);

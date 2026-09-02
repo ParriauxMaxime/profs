@@ -14,6 +14,7 @@ import type {
   Grade,
   Gradebook,
   GradeColumn,
+  GroupMember,
   Period,
   RubricAssessment,
   RubricScore,
@@ -22,6 +23,7 @@ import type {
   SeatingLayout,
   Session,
   Student,
+  StudentGroup,
 } from "./types";
 
 /**
@@ -349,6 +351,38 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     }
   }
 
+  // Two working groups on one class, splitting its roster in half, so the
+  // feature is visible in the demo without touching every class.
+  const groupClass = classes[0];
+  const groupClassStudents = students.filter((s) => s.classId === groupClass.id);
+  const half = Math.ceil(groupClassStudents.length / 2);
+  const studentGroups: StudentGroup[] = [
+    {
+      id: id(),
+      classId: groupClass.id,
+      name: "Groupe A",
+      color: SUBJECT_COLORS[2],
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: id(),
+      classId: groupClass.id,
+      name: "Groupe B",
+      color: SUBJECT_COLORS[3],
+      createdAt: now,
+      updatedAt: now,
+    },
+  ];
+  const groupMembers: GroupMember[] = [
+    ...groupClassStudents
+      .slice(0, half)
+      .map((student) => ({ groupId: studentGroups[0].id, studentId: student.id })),
+    ...groupClassStudents
+      .slice(half)
+      .map((student) => ({ groupId: studentGroups[1].id, studentId: student.id })),
+  ];
+
   await db.transaction(
     "rw",
     [
@@ -367,6 +401,8 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       db.rubricTemplates,
       db.rubricAssessments,
       db.rubricScores,
+      db.studentGroups,
+      db.groupMembers,
     ],
     async () => {
       await db.classes.bulkAdd(classes);
@@ -384,6 +420,8 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       await db.rubricTemplates.add(rubricTemplate);
       await db.rubricAssessments.bulkAdd(rubricAssessments);
       await db.rubricScores.bulkPut(rubricScores);
+      await db.studentGroups.bulkAdd(studentGroups);
+      await db.groupMembers.bulkPut(groupMembers);
     },
   );
 

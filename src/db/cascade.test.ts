@@ -4,6 +4,7 @@ import {
   deleteClass,
   deleteColumn,
   deleteGradebook,
+  deleteGroup,
   deletePeriod,
   deleteRubricAssessment,
   deleteRubricTemplate,
@@ -75,6 +76,66 @@ describe("cascading deletes", () => {
 
     expect(await db.students.count()).toBe(students);
     expect(await db.grades.count()).toBe(grades);
+    db.close();
+  });
+
+  it("removes the student's group memberships without touching the group or its other members", async () => {
+    const db = openWorkspaceDb("cascade-student-groups");
+    await seedIfEmpty(db, "cascade-student-groups");
+
+    const group = (await db.studentGroups.toArray())[0];
+    const members = await db.groupMembers.where("groupId").equals(group.id).toArray();
+    expect(members.length).toBeGreaterThan(1);
+    const [doomed, survivor] = members;
+
+    await deleteStudent(db, doomed.studentId);
+
+    expect(await db.groupMembers.get([group.id, doomed.studentId])).toBeUndefined();
+    expect(await db.studentGroups.get(group.id)).toBeDefined();
+    expect(await db.groupMembers.get([group.id, survivor.studentId])).toBeDefined();
+    db.close();
+  });
+});
+
+describe("deleteGroup", () => {
+  it("removes the group and its memberships, leaving the pupils untouched", async () => {
+    const db = openWorkspaceDb("cascade-group");
+    await seedIfEmpty(db, "cascade-group");
+
+    const [group, survivorGroup] = await db.studentGroups.toArray();
+    const memberIds = (await db.groupMembers.where("groupId").equals(group.id).toArray()).map(
+      (m) => m.studentId,
+    );
+    expect(memberIds.length).toBeGreaterThan(0);
+    const studentsBefore = await db.students.count();
+
+    await deleteGroup(db, group.id);
+
+    expect(await db.studentGroups.get(group.id)).toBeUndefined();
+    expect(await db.groupMembers.where("groupId").equals(group.id).count()).toBe(0);
+    // The pupils themselves survive — deleting a grouping must never delete a person.
+    expect(await db.students.count()).toBe(studentsBefore);
+    for (const studentId of memberIds) {
+      expect(await db.students.get(studentId)).toBeDefined();
+    }
+    // The sibling group is untouched.
+    expect(await db.studentGroups.get(survivorGroup.id)).toBeDefined();
+    expect(await db.groupMembers.where("groupId").equals(survivorGroup.id).count()).toBeGreaterThan(
+      0,
+    );
+    db.close();
+  });
+
+  it("on an unknown id is a no-op", async () => {
+    const db = openWorkspaceDb("cascade-group-missing");
+    await seedIfEmpty(db, "cascade-group-missing");
+    const groups = await db.studentGroups.count();
+    const members = await db.groupMembers.count();
+
+    await deleteGroup(db, "no-such-group");
+
+    expect(await db.studentGroups.count()).toBe(groups);
+    expect(await db.groupMembers.count()).toBe(members);
     db.close();
   });
 });
@@ -545,6 +606,15 @@ describe("deleteClass — phase 2 rows", () => {
     });
     await db.seatingLayouts.add({ id: "l1", classId: "c1", rows: 1, cols: 1, updatedAt: 1 });
     await db.seats.put({ layoutId: "l1", row: 0, col: 0, studentId: "p1" });
+    await db.studentGroups.add({
+      id: "g1",
+      classId: "c1",
+      name: "Groupe A",
+      color: "#2563eb",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await db.groupMembers.put({ groupId: "g1", studentId: "p1" });
 
     await deleteClass(db, "c1");
 
@@ -556,6 +626,8 @@ describe("deleteClass — phase 2 rows", () => {
       db.behaviourEvents,
       db.seatingLayouts,
       db.seats,
+      db.studentGroups,
+      db.groupMembers,
     ]) {
       expect(await table.count()).toBe(0);
     }

@@ -10,6 +10,18 @@ import type { AppDatabase } from ".";
  * a failure cannot leave the pair half-applied.
  */
 
+/**
+ * A group and its memberships only. The pupils it named are untouched: a
+ * group is a way of selecting and viewing them, never a thing that holds a
+ * grade, so deleting one must never delete — or otherwise change — a person.
+ */
+export async function deleteGroup(db: AppDatabase, groupId: string): Promise<void> {
+  await db.transaction("rw", [db.studentGroups, db.groupMembers], async () => {
+    await db.groupMembers.where("groupId").equals(groupId).delete();
+    await db.studentGroups.delete(groupId);
+  });
+}
+
 export async function deleteColumn(db: AppDatabase, columnId: string): Promise<void> {
   await db.transaction("rw", [db.columns, db.grades], async () => {
     await db.grades.where("columnId").equals(columnId).delete();
@@ -25,13 +37,22 @@ export async function deleteColumn(db: AppDatabase, columnId: string): Promise<v
 export async function deleteStudent(db: AppDatabase, studentId: string): Promise<void> {
   await db.transaction(
     "rw",
-    [db.students, db.grades, db.attendance, db.behaviourEvents, db.seats, db.rubricScores],
+    [
+      db.students,
+      db.grades,
+      db.attendance,
+      db.behaviourEvents,
+      db.seats,
+      db.rubricScores,
+      db.groupMembers,
+    ],
     async () => {
       await db.grades.where("studentId").equals(studentId).delete();
       await db.attendance.where("studentId").equals(studentId).delete();
       await db.behaviourEvents.where("studentId").equals(studentId).delete();
       await db.seats.where("studentId").equals(studentId).modify({ studentId: null });
       await db.rubricScores.where("studentId").equals(studentId).delete();
+      await db.groupMembers.where("studentId").equals(studentId).delete();
       await db.students.delete(studentId);
     },
   );
@@ -113,6 +134,8 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
       db.seats,
       db.rubricAssessments,
       db.rubricScores,
+      db.studentGroups,
+      db.groupMembers,
     ],
     async () => {
       const gradebookIds = await db.gradebooks.where("classId").equals(classId).primaryKeys();
@@ -156,6 +179,12 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
       if (layoutIds.length > 0) {
         await db.seats.where("layoutId").anyOf(layoutIds).delete();
         await db.seatingLayouts.bulkDelete(layoutIds);
+      }
+
+      const groupIds = await db.studentGroups.where("classId").equals(classId).primaryKeys();
+      if (groupIds.length > 0) {
+        await db.groupMembers.where("groupId").anyOf(groupIds).delete();
+        await db.studentGroups.bulkDelete(groupIds);
       }
 
       await db.classes.delete(classId);
