@@ -136,7 +136,7 @@ export function SeatGrid({
                 <button
                   type="button"
                   disabled={held === null}
-                  className={`flex h-14 w-16 flex-col items-center justify-center rounded-md border text-[11px] text-text-muted disabled:cursor-default ${
+                  className={`flex h-14 w-20 flex-col items-center justify-center rounded-md border text-[11px] text-text-muted disabled:cursor-default ${
                     held !== null
                       ? "border-accent border-dashed bg-accent/10 hover:bg-bg-hover"
                       : "border-border"
@@ -186,7 +186,7 @@ export function SeatGrid({
               <button
                 type="button"
                 title={held ? t("plan.moveHere") : undefined}
-                className={`flex h-14 w-16 flex-col items-center justify-center gap-0.5 rounded-md border p-1 hover:bg-bg-hover ${
+                className={`flex h-14 w-20 flex-col items-center justify-center gap-0.5 rounded-md border p-1 hover:bg-bg-hover ${
                   isHeldSeat
                     ? "border-accent ring-2 ring-accent"
                     : held

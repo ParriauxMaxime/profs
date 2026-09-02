@@ -4,7 +4,7 @@ import { createSession, getOrCreateTodaySession, sessionsForClass, startOfDay } 
 import { filterByGroup } from "@domain/group";
 import { type Held, resolveDrop, unseatedStudentIds } from "@domain/seating";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GroupFilter } from "../class/components/group-filter";
 import { useEscape } from "../shared/use-escape";
@@ -40,6 +40,9 @@ export function PlanPage({ classId }: { classId: string }) {
 
   const releaseHeld = useCallback(() => setHeld(null), []);
   useEscape(releaseHeld);
+  // True while a drop is being written. A ref, not state: it must be readable
+  // by the very next click handler, before any re-render.
+  const dropping = useRef(false);
 
   const sessions = useLiveQuery(() => sessionsForClass(db, classId), [db, classId]);
 
@@ -144,14 +147,25 @@ export function PlanPage({ classId }: { classId: string }) {
 
   const onDrop = async (row: number, col: number): Promise<void> => {
     if (held === null) return;
-    const target = seats.find((s) => s.row === row && s.col === col);
-    const action = resolveDrop(held, target, { row, col });
-    if (action.kind === "seat") {
-      await seatStudent(db, layout.id, action.row, action.col, action.studentId);
-    } else if (action.kind === "swap") {
-      await swapSeats(db, layout.id, action.from, action.to);
+    // One drop per hold. `setHeld(null)` only lands after the await, and a
+    // second tap runs a closure that already captured the old `held` — so
+    // holding seat A and tapping B then C would write swap(A,B) AND swap(A,C),
+    // moving a pupil the teacher never touched. Clearing the state earlier
+    // cannot fix that; only a ref read at call time can.
+    if (dropping.current) return;
+    dropping.current = true;
+    try {
+      const target = seats.find((s) => s.row === row && s.col === col);
+      const action = resolveDrop(held, target, { row, col });
+      if (action.kind === "seat") {
+        await seatStudent(db, layout.id, action.row, action.col, action.studentId);
+      } else if (action.kind === "swap") {
+        await swapSeats(db, layout.id, action.from, action.to);
+      }
+      setHeld(null);
+    } finally {
+      dropping.current = false;
     }
-    setHeld(null);
   };
 
   return (
@@ -198,7 +212,14 @@ export function PlanPage({ classId }: { classId: string }) {
           key={layout.id}
           layout={layout}
           seats={seats}
-          onDone={() => setResizing(false)}
+          onDone={() => {
+            // Save, Cancel and the form's own Escape all leave layout-edit
+            // mode through here. Leaving must release the held pupil on EVERY
+            // exit path, not only the toolbar button — and a resize can move
+            // or unseat the very seat being held.
+            setHeld(null);
+            setResizing(false);
+          }}
         />
       )}
 

@@ -45,6 +45,13 @@ export async function getOrCreateLayout(db: AppDatabase, classId: string): Promi
  * Both writes are in one transaction: a pupil briefly occupying two seats is
  * a state the grid renders, and a crash between the writes would make it
  * permanent.
+ *
+ * A gap at the target is refused rather than filled, exactly as `swapSeats`
+ * refuses one: the caller classifies the target from the grid it last
+ * rendered, so a cell another tab has just carved into an aisle still looks
+ * like a seat from here. Re-reading inside the transaction is the only place
+ * that can tell, and putting a chair back where the teacher carved a doorway
+ * is not a write this app may make.
  */
 export async function seatStudent(
   db: AppDatabase,
@@ -55,6 +62,8 @@ export async function seatStudent(
 ): Promise<void> {
   await db.transaction("rw", db.seats, async () => {
     const layoutSeats = await db.seats.where("layoutId").equals(layoutId).toArray();
+    const target = layoutSeats.find((seat) => seat.row === row && seat.col === col);
+    if (!target) return;
     const previous = layoutSeats.find((seat) => seat.studentId === studentId);
     if (previous && (previous.row !== row || previous.col !== col)) {
       await db.seats.put({ ...previous, studentId: null });

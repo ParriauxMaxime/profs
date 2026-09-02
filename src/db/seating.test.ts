@@ -73,6 +73,24 @@ describe("seatStudent", () => {
     expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBe("s1");
     db.close();
   });
+
+  // The caller classifies the target from the grid it last rendered, so a cell
+  // another tab has just carved into an aisle still looks like a seat from
+  // there. Refusing here is the only place that can tell.
+  it("refuses a gap: writes nothing and leaves the cell a gap", async () => {
+    const db = freshDb("seat-gap");
+    const layout = await getOrCreateLayout(db, "c1");
+    await seatStudent(db, layout.id, 0, 0, "s1");
+    await makeGap(db, layout.id, 2, 2);
+
+    await seatStudent(db, layout.id, 2, 2, "s1");
+
+    // Still a gap — no row, not an empty seat.
+    expect(await db.seats.get(seatKey(layout.id, 2, 2))).toBeUndefined();
+    // And the pupil was not lifted out of the chair they already held.
+    expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBe("s1");
+    db.close();
+  });
 });
 
 describe("moveSeat", () => {

@@ -57,7 +57,10 @@ export function StudentRail({
             />
           )}
 
-          <div className="flex flex-wrap gap-2 lg:max-h-[28rem] lg:flex-col lg:overflow-y-auto">
+          {/* `flex-wrap` must be turned off at lg: with `flex-col` and a max
+              height it wraps into a SECOND COLUMN past 28rem, so the rail
+              scrolls sideways and clips the names it exists to show. */}
+          <div className="flex flex-wrap gap-2 lg:max-h-[28rem] lg:flex-col lg:flex-nowrap lg:overflow-y-auto">
             {visible.map((student) => {
               const isHeld = held?.kind === "pool" && held.studentId === student.id;
               return (
