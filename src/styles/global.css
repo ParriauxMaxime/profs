@@ -150,16 +150,15 @@ body {
   --paper-margin: #cf6b6b;
 
   /*
-   * Séyès ruling, for the one surface a teacher writes prose on.
+   * The squared grid, for the one surface a teacher writes prose on.
    *
-   * It was tried across the whole app in an earlier pass and cut: invisible
-   * when faint, fighting the content when not. The cause was that it sat
-   * BEHIND text whose line-height did not match the ruling pitch, so the two
-   * rhythms beat against each other. Scoped to the journal and pitch-locked,
-   * it stops being a texture and becomes what ruling is for.
+   * Ruling was tried across the whole app in an earlier pass and cut:
+   * invisible when faint, fighting the content when not. Scoped to the
+   * journal, pitch-locked and baseline-seated, it stops being a texture and
+   * becomes what ruling is for. One colour, one width — petits carreaux is
+   * uniform, and a second tone was where the earlier Séyès noise lived.
    */
-  --seyes-line: #9db4d8;
-  --seyes-subline: #dbe4f2;
+  --grid-line: #ccd9ec;
 
   /*
    * Semantic colours live here rather than as hex in the domain, because the
@@ -207,9 +206,8 @@ body {
   /* Chalk, not blood: the marge stays a quiet edge rather than a stripe. */
   --paper-margin: #7e4a52;
 
-  /* Ruling scratched into slate: present, but never brighter than the text. */
-  --seyes-line: #33455c;
-  --seyes-subline: #222d3c;
+  /* Scratched into slate: present, but never brighter than the text. */
+  --grid-line: #2b3949;
 
   /* Desaturated and lifted, so a filled cell reads without glaring. */
   --behaviour-green: #4cb782;
@@ -272,49 +270,46 @@ h3 {
 }
 
 /*
- * A Séyès-ruled writing surface.
+ * A petits-carreaux writing surface — the 5mm grid a French pupil uses from
+ * collège onward, which is this app's audience. Séyès was tried first and is
+ * primary-school handwriting paper; it also could not be made to render
+ * cleanly, for a reason worth writing down.
  *
- * Grands carreaux: an 8mm horizontal pitch subdivided into four 2mm bands,
- * and 8mm verticals. Sizes are in `mm` rather than pixels because the ruling
- * is a physical standard — a French pupil's cahier is 8mm whatever the screen.
+ * Séyès geometry is 8mm bands subdivided into four 2mm lines. In CSS pixels
+ * that is a 30.234px band and a 7.547px subdivision, so consecutive lines land
+ * at fractional offsets of 0, .547, .094, .641, .188 — every line antialiases
+ * differently, some as one dark row and some as two grey ones, and the ruling
+ * shimmers. The 0.2mm rule is 0.75px wide and can never be crisp at all. No
+ * amount of colour tuning fixes a geometry that does not land on pixels.
  *
- * Three things make this work where the earlier attempt failed:
+ * So the grid is sized in `rem`, not `mm`. One square is exactly 1rem, so at
+ * any integer root size every line falls on a whole pixel and every line has
+ * the same phase. It is no longer millimetre-accurate to a real cahier, and
+ * that is the trade: a grid that renders correctly beats one that is
+ * dimensionally faithful and looks broken.
  *
- *  - `line-height` equals the pitch, so consecutive baselines are exactly one
- *    rule apart. This is the whole fix.
- *  - `padding-top` is a pitch MINUS the baseline offset, so the first baseline
- *    lands on the first rule rather than 19px below it. Matching the pitch
- *    alone is not enough: text centres itself in its line box, so it floats
- *    mid-band and the ruling reads as texture — measured at 63% down the band
- *    before this correction. The offset is 1.1875em for Luciole at the 1rem
- *    this field uses; it is expressed in `em` so browser text zoom keeps it
- *    proportional, and it is only knowable because the font is bundled rather
- *    than whatever the system happened to supply.
- *  - `background-attachment: local`, so the ruling scrolls WITH the text. Left
- *    to the default the paper stays still while the writing slides over it,
- *    which looks broken the moment an entry is longer than the box.
+ * Text sits on every SECOND horizontal, which is how anyone actually writes
+ * prose on petits carreaux. As before, `line-height` alone is not enough —
+ * text centres itself in its line box, so `padding-top` subtracts the baseline
+ * offset to seat the first baseline on a line rather than floating above one.
+ * `background-attachment: local` keeps the paper moving with the writing.
  */
-.seyes {
-  line-height: 8mm;
-  padding-top: calc(8mm - 1.1875em);
-  padding-left: 3mm;
+.carreaux {
+  line-height: 2rem;
+  padding-top: calc(2rem - 1.2425em);
+  padding-left: 0.75rem;
   background-attachment: local;
   background-image:
-    /* the 8mm verticals */
-    repeating-linear-gradient(to right, var(--seyes-subline) 0 0.25mm, transparent 0.25mm 8mm),
-    /* the strong 8mm horizontals */
-    repeating-linear-gradient(to bottom, var(--seyes-line) 0 0.25mm, transparent 0.25mm 8mm),
-    /* the fine 2mm subdivisions */
-    repeating-linear-gradient(to bottom, var(--seyes-subline) 0 0.2mm, transparent 0.2mm 2mm);
+    repeating-linear-gradient(to right, var(--grid-line) 0 1px, transparent 1px 1rem),
+    repeating-linear-gradient(to bottom, var(--grid-line) 0 1px, transparent 1px 1rem);
 }
 
 /*
- * Ruling is a writing aid, not information. Anyone who has asked for less
- * motion has usually also asked for less visual noise, and a teacher who
- * turns up contrast needs the text to win outright.
+ * Ruling is a writing aid, not information. Anyone who has turned contrast up
+ * needs the text to win outright.
  */
 @media (prefers-contrast: more) {
-  .seyes {
+  .carreaux {
     background-image: none;
   }
 }

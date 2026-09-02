@@ -43,9 +43,9 @@ export function DayEntry({
   return (
     <textarea
       // The one surface in the app a teacher writes prose on, and so the only
-      // one that is ruled. `.seyes` locks line-height to the 8mm pitch, so
+      // one that is ruled. `.carreaux` locks line-height to the grid pitch, so
       // `rows` counts real ruled lines rather than arbitrary ones.
-      className="field seyes min-h-24 w-full"
+      className="field carreaux min-h-24 w-full"
       rows={3}
       value={text}
       placeholder={placeholder ?? t("diary.placeholder")}
