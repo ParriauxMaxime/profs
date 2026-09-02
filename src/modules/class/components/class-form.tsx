@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import { useEscape } from "../../shared/use-escape";
 
 const schema = z.object({
   name: z.string().trim().min(1),
@@ -37,6 +38,8 @@ export function ClassForm({
     defaultValues: { name: schoolClass?.name ?? "", level: schoolClass?.level ?? "" },
   });
 
+  useEscape(onDone);
+
   const onSubmit = handleSubmit(async (values) => {
     const now = Date.now();
     // An empty level is dropped rather than stored as "": the field is
@@ -62,8 +65,19 @@ export function ClassForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1">
           <span className="text-sm text-text-muted">{t("class.name")}</span>
-          <input className="field" placeholder={t("class.namePlaceholder")} {...register("name")} />
-          {errors.name && <span className="text-danger text-sm">{t("class.nameRequired")}</span>}
+          <input
+            className="field"
+            placeholder={t("class.namePlaceholder")}
+            // biome-ignore lint/a11y/noAutofocus: opens ready to type — one-handed, mid-lesson, no spare tap to reach the field.
+            autoFocus
+            aria-invalid={errors.name ? true : undefined}
+            {...register("name")}
+          />
+          {errors.name && (
+            <span role="alert" className="text-danger text-sm">
+              {t("class.nameRequired")}
+            </span>
+          )}
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-sm text-text-muted">{t("class.level")}</span>

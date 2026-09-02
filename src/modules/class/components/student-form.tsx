@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import { useEscape } from "../../shared/use-escape";
 
 const schema = z.object({
   lastName: z.string().trim().min(1),
@@ -37,6 +38,8 @@ export function StudentForm({
     },
   });
 
+  useEscape(onDone);
+
   const onSubmit = handleSubmit(async (values) => {
     const now = Date.now();
     if (student) {
@@ -60,9 +63,17 @@ export function StudentForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1">
           <span className="text-sm text-text-muted">{t("student.lastName")}</span>
-          <input className="field" {...register("lastName")} />
+          <input
+            className="field"
+            // biome-ignore lint/a11y/noAutofocus: opens ready to type — one-handed, mid-lesson, no spare tap to reach the field.
+            autoFocus
+            aria-invalid={errors.lastName ? true : undefined}
+            {...register("lastName")}
+          />
           {errors.lastName && (
-            <span className="text-danger text-sm">{t("student.lastNameRequired")}</span>
+            <span role="alert" className="text-danger text-sm">
+              {t("student.lastNameRequired")}
+            </span>
           )}
         </label>
         <label className="flex flex-col gap-1">
