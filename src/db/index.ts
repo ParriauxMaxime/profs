@@ -10,6 +10,7 @@ import type {
   RubricAssessment,
   RubricScore,
   RubricTemplate,
+  ScheduleEntry,
   SchoolClass,
   Seat,
   SeatingLayout,
@@ -30,6 +31,7 @@ export type {
   RubricAssessment,
   RubricScore,
   RubricTemplate,
+  ScheduleEntry,
   SchoolClass,
   Seat,
   SeatingLayout,
@@ -57,6 +59,7 @@ export type AppDatabase = Dexie & {
   rubricScores: Table<RubricScore, [string, string, string]>;
   studentGroups: EntityTable<StudentGroup, "id">;
   groupMembers: Table<GroupMember, [string, string]>;
+  scheduleEntries: EntityTable<ScheduleEntry, "id">;
 };
 
 /** The compound primary key of a cell. */
@@ -123,6 +126,11 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
   db.version(4).stores({
     studentGroups: "id, classId",
     groupMembers: "[groupId+studentId], groupId, studentId",
+  });
+  // v5 adds the recurring timetable. Existing data is disposable — there is no
+  // upgrade callback, so only the new store is listed here.
+  db.version(5).stores({
+    scheduleEntries: "id, classId, weekday, gradebookId",
   });
   return db;
 }

@@ -179,7 +179,11 @@
       "system": "Suit l'appareil",
       "copie": "Clair, papier et encre",
       "ardoise": "Sombre, salle dans la pénombre"
-    }
+    },
+    "termStart": "Début de l'année",
+    "termStartHint": "Sert à calculer les semaines A et B. Sans cette date, les cours en semaine A ou B ne s'affichent pas.",
+    "termStartUnset": "Aucune date définie",
+    "termStartClear": "Effacer"
   },
   "csv": {
     "title": "Importer une liste d'élèves",

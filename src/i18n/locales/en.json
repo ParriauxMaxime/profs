@@ -179,7 +179,11 @@
       "system": "Follows the device",
       "copie": "Light, paper and ink",
       "ardoise": "Dark, for a dimmed room"
-    }
+    },
+    "termStart": "Start of the year",
+    "termStartHint": "Used to work out A and B weeks. Without this date, lessons in week A or B are not shown.",
+    "termStartUnset": "No date set",
+    "termStartClear": "Clear"
   },
   "csv": {
     "title": "Import a student list",

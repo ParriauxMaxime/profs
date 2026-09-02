@@ -4,6 +4,7 @@ import type { CalculationSpec } from "@domain/gradebook/calculation";
 import type { ColumnType } from "@domain/gradebook/column";
 import type { GradeValue } from "@domain/gradebook/grade";
 import type { RubricCriterion, RubricLevel } from "@domain/rubric";
+import type { WeekCycle } from "@domain/schedule";
 
 /** A teaching group: "3°B". `class` is reserved, hence SchoolClass. */
 export interface SchoolClass {
@@ -199,4 +200,32 @@ export interface StudentGroup {
 export interface GroupMember {
   groupId: string;
   studentId: string;
+}
+
+/**
+ * One recurring lesson in the weekly timetable.
+ *
+ * A PREDICTION, never a record that a lesson happened — that stays a
+ * `Session`, created lazily when a teacher starts recording. Keeping the two
+ * apart is what stops every holiday and cancellation leaving an empty lesson
+ * in a pupil's timeline.
+ *
+ * `gradebookId` is optional: a lesson usually maps to one, and Today can then
+ * offer the grid directly, but a class with no gradebook yet must still be
+ * schedulable.
+ */
+export interface ScheduleEntry {
+  id: string;
+  classId: string;
+  subjectId?: string;
+  gradebookId?: string;
+  /** ISO weekday, 1 = Monday through 7 = Sunday. */
+  weekday: number;
+  /** Minutes from midnight. A time is arithmetic, so it is stored as such. */
+  startMinute: number;
+  endMinute: number;
+  weekCycle: WeekCycle;
+  room?: string;
+  createdAt: number;
+  updatedAt: number;
 }

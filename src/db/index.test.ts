@@ -10,8 +10,8 @@ describe("schema v2", () => {
     expect(seatKey("l1", 2, 3)).toEqual(["l1", 2, 3]);
   });
 
-  it("opens with every phase 2 table", async () => {
-    const db = openWorkspaceDb("schema-v2");
+  it("opens with every table the schema declares", async () => {
+    const db = openWorkspaceDb("schema-v5");
     await db.open();
     const names = db.tables.map((t) => t.name).sort();
     expect(names).toEqual(
@@ -27,6 +27,7 @@ describe("schema v2", () => {
         "rubricAssessments",
         "rubricScores",
         "rubricTemplates",
+        "scheduleEntries",
         "seatingLayouts",
         "seats",
         "sessions",

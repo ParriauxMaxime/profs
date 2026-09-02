@@ -3,6 +3,7 @@ import { exportWorkspace, importWorkspace, parseBackup, type WorkspaceBackup } f
 import { deleteRubricTemplate, deleteSubject } from "@db/cascade";
 import { useDb } from "@db/provider";
 import { wipeWorkspace } from "@db/workspace";
+import { fromDateInputValue, readTermStart, toDateInputValue, writeTermStart } from "@domain/term";
 import { THEME_CHOICES } from "@domain/theme";
 import { LOCALES, type Locale, loadLocale, saveLocale } from "@i18n";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -37,6 +38,9 @@ export function SettingsPage() {
   const [editingSubject, setEditingSubject] = useState<Subject | "new" | null>(null);
   const [subjectRefusal, setSubjectRefusal] = useState<SubjectRefusal | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<RubricTemplate | "new" | null>(null);
+  // Held in state as well as localStorage so the field re-renders when it
+  // changes; localStorage is not reactive and Today reads it on mount.
+  const [termStart, setTermStart] = useState<number | null>(() => readTermStart());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const subjects = useLiveQuery(() => db.subjects.toArray(), [db]);
@@ -114,6 +118,41 @@ export function SettingsPage() {
               </span>
             </ToggleOption>
           ))}
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h2 className="font-semibold text-lg">{t("settings.termStart")}</h2>
+        <p className="text-sm text-text-muted">{t("settings.termStartHint")}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="date"
+            className="field max-w-xs"
+            aria-label={t("settings.termStart")}
+            value={termStart === null ? "" : toDateInputValue(termStart)}
+            onChange={(e) => {
+              // The empty string is a cleared field, not a bad date: clearing
+              // the anchor is how a teacher turns A/B weeks off.
+              const next = e.target.value === "" ? null : fromDateInputValue(e.target.value);
+              if (e.target.value !== "" && next === null) return;
+              writeTermStart(next);
+              setTermStart(next);
+            }}
+          />
+          {termStart === null ? (
+            <span className="text-sm text-text-faint">{t("settings.termStartUnset")}</span>
+          ) : (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                writeTermStart(null);
+                setTermStart(null);
+              }}
+            >
+              {t("settings.termStartClear")}
+            </button>
+          )}
         </div>
       </section>
 

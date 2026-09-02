@@ -103,6 +103,16 @@ describe("wipeWorkspace", () => {
       updatedAt: 1,
     });
     await db.groupMembers.add({ groupId: "grp1", studentId: "s1" });
+    await db.scheduleEntries.add({
+      id: "sch1",
+      classId: "c1",
+      weekday: 1,
+      startMinute: 600,
+      endMinute: 660,
+      weekCycle: "all",
+      createdAt: 1,
+      updatedAt: 1,
+    });
 
     // Every table really was seeded — a wipe over empty tables proves nothing.
     for (const table of db.tables) {
