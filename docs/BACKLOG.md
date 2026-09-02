@@ -207,3 +207,32 @@ it against the no-network, small-bundle posture).
 - **Open question for #2, defaulting to "no" unless overridden:** may a
   calculation column reference another calculation column? Allowing it requires
   cycle detection; forbidding it keeps the first version simple.
+
+## Navigation — needs its own brainstorm (Maxime, 2026-09-02)
+
+The top bar carries **Accueil** and **Réglages** and nothing else. Everything a
+teacher does daily is reached by navigating down from the dashboard: a class,
+then its plan; or a class, then a gradebook, then a column. Reaching today's
+lesson from a cold start is three navigations, and it is the single most
+frequent thing the app is opened for.
+
+What the brainstorm has to settle, rather than just adding menu items:
+
+- **Is the primary object a class, a gradebook, or a session?** The answer
+  decides the shape. Phase 2 made a session a first-class row, which makes
+  "today" addressable for the first time — a nav could open straight into the
+  current lesson.
+- **What does the app open on?** A dashboard listing everything is the current
+  answer and it is the wrong one for a teacher walking into a room. "Your next
+  lesson" or "the class you were last in" are both defensible.
+- **Direct access to classes and gradebooks** — a switcher in the bar, a
+  command palette, or a persistent sidebar. A phone held one-handed rules out
+  some of these.
+- **Mobile shape.** The current bar is desktop-first. A bottom tab bar is the
+  native phone idiom and reaches the thumb; a hamburger does not.
+- **Does the timetable (backlog item 7) subsume this?** A timetable knows which
+  lesson is now. If it is coming, navigation should be designed to receive it
+  rather than be rebuilt around it.
+
+Related: item 7 (timetable/diary/planner), which would generate the sessions a
+"today" view would show.
