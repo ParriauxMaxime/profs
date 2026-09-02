@@ -1,6 +1,7 @@
 import type { Grade, GradeColumn, Student } from "@db";
 import { gradeKey } from "@db";
 import { deleteColumn, deleteGradebook } from "@db/cascade";
+import { setGradeNote } from "@db/grades";
 import { useDb } from "@db/provider";
 import type { AverageColumn, AverageGrade } from "@domain/gradebook/average";
 import { classStats, studentAverage } from "@domain/gradebook/average";
@@ -83,11 +84,22 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
     student: Student,
     next: GradeValue | null,
   ): Promise<void> {
+    // A note is independent of the mark: clearing the value must never take
+    // an existing note down with it (put replaces the whole row, so the note
+    // has to be carried forward explicitly), and if there is no note either,
+    // the row is deleted outright rather than left as an empty husk.
+    const existing = gradeMap.get(`${column.id}|${student.id}`);
     if (next === null) {
-      await db.grades.delete(gradeKey(gradebookId, column.id, student.id));
+      if (existing?.note !== undefined) {
+        const { value: _dropped, ...rest } = existing;
+        await db.grades.put({ ...rest, updatedAt: Date.now() });
+      } else {
+        await db.grades.delete(gradeKey(gradebookId, column.id, student.id));
+      }
       return;
     }
     await db.grades.put({
+      ...existing,
       gradebookId,
       columnId: column.id,
       studentId: student.id,
@@ -238,7 +250,11 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
                       type={column.type}
                       max={column.max}
                       value={gradeMap.get(`${column.id}|${student.id}`)?.value}
-                      onChange={(next) => void writeGrade(column, student, next)}
+                      note={gradeMap.get(`${column.id}|${student.id}`)?.note}
+                      onChange={(next) => writeGrade(column, student, next)}
+                      onNoteChange={(next) =>
+                        setGradeNote(db, gradebookId, column.id, student.id, next)
+                      }
                     />
                   </td>
                 ))}

@@ -1,10 +1,11 @@
 import type { Grade } from "@db";
 import { gradeKey } from "@db";
+import { setGradeNote } from "@db/grades";
 import { useDb } from "@db/provider";
 import { formatGradeValue, isBlankInput, parseGradeValue } from "@domain/gradebook/grade";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { NumberPad } from "../design-system/components/number-pad";
@@ -14,6 +15,17 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
   const db = useDb();
   const [index, setIndex] = useState(0);
   const [draft, setDraft] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState<string | null>(null);
+  // Started by the note field's blur, so a Suivant tap (which blurs the note
+  // field a beat before its own click fires) can await the write already in
+  // flight instead of racing it: the note and the mark are two independent
+  // rows-worth of `put`, and the value commit must never land first and wipe
+  // a note that was typed but hasn't reached IndexedDB yet.
+  const pendingNoteWrite = useRef<Promise<void> | null>(null);
+  // Escape reverts the note draft, which fires a native blur in the same
+  // gesture — set before the state flip so the blur handler skips its
+  // commit instead of writing the value Escape just discarded.
+  const skipNoteBlurRef = useRef(false);
   // True for the duration of an in-flight commit's IndexedDB write. While
   // true, Suivant, the roster rows and the keypad are all disabled so a
   // second tap cannot advance `index` again before the first commit's
@@ -57,7 +69,18 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
   // untouched — and the draft stays on screen for the teacher to fix.
   // Blank input always means "clear this cell" and always succeeds.
   async function commit(): Promise<boolean> {
-    if (!current || draft === null) return true;
+    if (!current) return true;
+    // Flush the note draft unconditionally — relying on the note field's own
+    // blur to have already done it would leave a typed-but-never-blurred
+    // note stuck in state and bleeding into the next student once `index`
+    // changes, since this component instance is never remounted between
+    // pupils.
+    commitNote();
+    if (pendingNoteWrite.current) {
+      await pendingNoteWrite.current;
+      pendingNoteWrite.current = null;
+    }
+    if (draft === null) return true;
     const blank = isBlankInput(draft);
     const parsed = blank
       ? null
@@ -65,10 +88,20 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
     if (!blank && parsed === null) return false;
     setIsCommitting(true);
     try {
+      // Re-read rather than trust the render-time snapshot: the note flush
+      // just above may have just written a note-only row into existence, and
+      // a `put` here must carry it forward, never clobber it.
+      const existing = await db.grades.get(gradeKey(gradebookId, columnId, current.id));
       if (parsed === null) {
-        await db.grades.delete(gradeKey(gradebookId, columnId, current.id));
+        if (existing?.note !== undefined) {
+          const { value: _dropped, ...rest } = existing;
+          await db.grades.put({ ...rest, updatedAt: Date.now() });
+        } else {
+          await db.grades.delete(gradeKey(gradebookId, columnId, current.id));
+        }
       } else {
         await db.grades.put({
+          ...existing,
           gradebookId,
           columnId,
           studentId: current.id,
@@ -81,6 +114,18 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
     } finally {
       setIsCommitting(false);
     }
+  }
+
+  // Fires on the note field's blur. Kept separate from `commit()` (the mark)
+  // so typing a note never competes with the digit-tap loop: nothing here
+  // blocks NumberPad, and `commit()` above only waits for this write when a
+  // student change is about to touch the same row.
+  function commitNote(): void {
+    if (!current || noteDraft === null) return;
+    const value = noteDraft;
+    const studentId = current.id;
+    setNoteDraft(null);
+    pendingNoteWrite.current = setGradeNote(db, gradebookId, columnId, studentId, value);
   }
 
   async function next(): Promise<void> {
@@ -104,6 +149,9 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
       : stored === undefined
         ? ""
         : formatGradeValue(stored, isNumeric ? column.max : undefined, i18n.language);
+
+  const storedNote = current ? byStudent.get(current.id)?.note : undefined;
+  const shownNote = noteDraft !== null ? noteDraft : (storedNote ?? "");
 
   return (
     <div className="mx-auto flex max-w-sm flex-col gap-4">
@@ -152,6 +200,33 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
                 }}
                 onNext={() => void next()}
               />
+
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-text-muted">{t("gradebook.note")}</span>
+                <input
+                  className="field"
+                  placeholder={t("gradebook.notePlaceholder")}
+                  value={shownNote}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  onBlur={() => {
+                    if (skipNoteBlurRef.current) {
+                      skipNoteBlurRef.current = false;
+                      return;
+                    }
+                    commitNote();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.currentTarget.blur();
+                    }
+                    if (e.key === "Escape") {
+                      skipNoteBlurRef.current = true;
+                      setNoteDraft(null);
+                      e.currentTarget.blur();
+                    }
+                  }}
+                />
+              </label>
             </>
           ) : null}
 

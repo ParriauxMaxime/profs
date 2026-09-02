@@ -103,7 +103,10 @@
     "periodName": "Period name",
     "periodNamePlaceholder": "Term 1",
     "periodNameRequired": "The period name is required",
-    "noPeriods": "This gradebook has no period left. Add one before you can create columns in it."
+    "noPeriods": "This gradebook has no period left. Add one before you can create columns in it.",
+    "note": "Note",
+    "notePlaceholder": "Add a note…",
+    "hasNote": "Note: {{note}}"
   },
   "entry": {
     "next": "Next",

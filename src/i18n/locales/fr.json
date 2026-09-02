@@ -103,7 +103,10 @@
     "periodName": "Nom de la période",
     "periodNamePlaceholder": "Trimestre 1",
     "periodNameRequired": "Le nom de la période est obligatoire",
-    "noPeriods": "Ce carnet n'a plus aucune période. Ajoutez-en une pour pouvoir y créer des colonnes."
+    "noPeriods": "Ce carnet n'a plus aucune période. Ajoutez-en une pour pouvoir y créer des colonnes.",
+    "note": "Note",
+    "notePlaceholder": "Ajouter une note…",
+    "hasNote": "Note : {{note}}"
   },
   "entry": {
     "next": "Suivant",
