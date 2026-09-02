@@ -1,8 +1,15 @@
 import type { RubricTemplate, Subject } from "@db";
-import { exportWorkspace, importWorkspace, parseBackup, type WorkspaceBackup } from "@db/backup";
+import {
+  BackupOverCapacityError,
+  exportWorkspace,
+  importWorkspace,
+  parseBackup,
+  type WorkspaceBackup,
+} from "@db/backup";
 import { deleteRubricTemplate, deleteSubject } from "@db/cascade";
 import { useDb } from "@db/provider";
 import { wipeWorkspace } from "@db/workspace";
+import { MAX_STUDENTS_PER_CLASS } from "@domain/class-size";
 import { fromDateInputValue, readTermStart, toDateInputValue, writeTermStart } from "@domain/term";
 import { THEME_CHOICES } from "@domain/theme";
 import { LOCALES, type Locale, loadLocale, saveLocale } from "@i18n";
@@ -71,8 +78,12 @@ export function SettingsPage() {
     try {
       const backup = parseBackup(JSON.parse(await file.text()));
       setPendingImport({ fileName: file.name, backup });
-    } catch {
-      setError(t("settings.importFailed"));
+    } catch (error) {
+      setError(
+        error instanceof BackupOverCapacityError
+          ? t("settings.importOverCapacity", { max: MAX_STUDENTS_PER_CLASS })
+          : t("settings.importFailed"),
+      );
       resetFileInput();
     }
   }
@@ -82,8 +93,12 @@ export function SettingsPage() {
     try {
       await importWorkspace(db, pendingImport.backup);
       setSuccess(true);
-    } catch {
-      setError(t("settings.importFailed"));
+    } catch (error) {
+      setError(
+        error instanceof BackupOverCapacityError
+          ? t("settings.importOverCapacity", { max: MAX_STUDENTS_PER_CLASS })
+          : t("settings.importFailed"),
+      );
     } finally {
       setPendingImport(null);
       resetFileInput();

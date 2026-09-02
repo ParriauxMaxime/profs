@@ -83,7 +83,8 @@
     "levelPlaceholder": "Year 10",
     "rename": "Rename class",
     "deleteClass": "Delete class",
-    "confirmDeleteClass": "Delete this class, its students and all their grades?"
+    "confirmDeleteClass": "Delete this class, its students and all their grades?",
+    "rosterFull": "This class has reached {{max}} pupils: no more can be added."
   },
   "group": {
     "title": "Groups",
@@ -171,6 +172,7 @@
     "backupHelp": "Export your data as JSON to move it to another device. Student photos are not included.",
     "export": "Export",
     "importFailed": "Invalid backup file",
+    "importOverCapacity": "Import refused: this file contains a class of more than {{max}} pupils.",
     "importConfirmMessage": "This will replace all current data with the contents of \"{{fileName}}\", exported on {{date}}. This action cannot be undone.",
     "importConfirm": "Import and replace",
     "importSuccess": "Import successful",
@@ -221,7 +223,9 @@
     "duplicate": "Duplicate",
     "new": "New",
     "summary": "{{total}} student(s) to import, {{duplicates}} duplicate(s) found",
-    "import": "Import"
+    "import": "Import",
+    "capacity": "{{remaining}} place(s) left in the class",
+    "overCapacity": "Untick {{excess}} row(s): the class would exceed {{max}} pupils."
   },
   "attendance": {
     "present": "Present",
@@ -238,7 +242,12 @@
     "confirmDeleteSession": "Delete the session of {{date}}? Its attendance and behaviour go with it.",
     "unseated": "Students without a seat",
     "allSeated": "All students are seated",
-    "tapSeatThenStudent": "Tap a seat, then a student",
+    "hintPick": "Tap a pupil, then a seat.",
+    "hintPlaceFromRail": "Drop them on a seat. If it is taken, whoever is sitting there goes back to the list.",
+    "hintPlaceFromSeat": "Drop them on a seat. If it is taken, the two pupils swap.",
+    "searchPupil": "Search for a pupil",
+    "movePupil": "Move",
+    "putDown": "Put down",
     "emptySeat": "Empty seat",
     "makeGap": "Remove seat",
     "makeSeat": "Add seat",

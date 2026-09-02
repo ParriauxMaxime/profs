@@ -83,7 +83,8 @@
     "levelPlaceholder": "3e",
     "rename": "Renommer la classe",
     "deleteClass": "Supprimer la classe",
-    "confirmDeleteClass": "Supprimer la classe, ses élèves et toutes leurs notes ?"
+    "confirmDeleteClass": "Supprimer la classe, ses élèves et toutes leurs notes ?",
+    "rosterFull": "Cette classe a atteint {{max}} élèves : impossible d'en ajouter un autre."
   },
   "group": {
     "title": "Groupes",
@@ -171,6 +172,7 @@
     "backupHelp": "Exportez vos données en JSON pour les transférer sur un autre appareil. Les photos des élèves ne sont pas incluses.",
     "export": "Exporter",
     "importFailed": "Fichier de sauvegarde invalide",
+    "importOverCapacity": "Import refusé : ce fichier contient une classe de plus de {{max}} élèves.",
     "importConfirmMessage": "Ceci remplacera toutes les données actuelles par le contenu de « {{fileName}} », exporté le {{date}}. Cette action est irréversible.",
     "importConfirm": "Importer et remplacer",
     "importSuccess": "Import réussi",
@@ -221,7 +223,9 @@
     "duplicate": "Doublon",
     "new": "Nouveau",
     "summary": "{{total}} élève(s) à importer, {{duplicates}} doublon(s) détecté(s)",
-    "import": "Importer"
+    "import": "Importer",
+    "capacity": "{{remaining}} place(s) restante(s) dans la classe",
+    "overCapacity": "Décochez {{excess}} ligne(s) : la classe dépasserait {{max}} élèves."
   },
   "attendance": {
     "present": "Présent",
@@ -238,7 +242,12 @@
     "confirmDeleteSession": "Supprimer la séance du {{date}} ? Sa présence et son comportement partent avec elle.",
     "unseated": "Élèves sans place",
     "allSeated": "Tous les élèves sont placés",
-    "tapSeatThenStudent": "Touchez une place, puis un élève",
+    "hintPick": "Touchez un élève, puis une place.",
+    "hintPlaceFromRail": "Posez-le sur une place. Occupée, l'élève qui s'y trouve retourne dans la liste.",
+    "hintPlaceFromSeat": "Posez-le sur une place. Occupée, les deux élèves échangent.",
+    "searchPupil": "Rechercher un élève",
+    "movePupil": "Déplacer",
+    "putDown": "Reposer",
     "emptySeat": "Place libre",
     "makeGap": "Retirer la place",
     "makeSeat": "Ajouter une place",

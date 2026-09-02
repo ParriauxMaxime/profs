@@ -31,10 +31,12 @@ export function StudentCard({
   student,
   session,
   onClose,
+  onMove,
 }: {
   student: Student;
   session: Session;
   onClose: () => void;
+  onMove: () => void;
 }) {
   const { t } = useTranslation();
   const db = useDb();
@@ -96,9 +98,14 @@ export function StudentCard({
             </Link>
           </div>
         </div>
-        <button type="button" className="btn" onClick={onClose}>
-          {t("common.close")}
-        </button>
+        <div className="flex gap-2">
+          <button type="button" className="btn" onClick={onMove}>
+            {t("plan.movePupil")}
+          </button>
+          <button type="button" className="btn" onClick={onClose}>
+            {t("common.close")}
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-2">

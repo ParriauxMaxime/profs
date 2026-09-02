@@ -45,6 +45,13 @@ export async function getOrCreateLayout(db: AppDatabase, classId: string): Promi
  * Both writes are in one transaction: a pupil briefly occupying two seats is
  * a state the grid renders, and a crash between the writes would make it
  * permanent.
+ *
+ * A gap at the target is refused rather than filled, exactly as `swapSeats`
+ * refuses one: the caller classifies the target from the grid it last
+ * rendered, so a cell another tab has just carved into an aisle still looks
+ * like a seat from here. Re-reading inside the transaction is the only place
+ * that can tell, and putting a chair back where the teacher carved a doorway
+ * is not a write this app may make.
  */
 export async function seatStudent(
   db: AppDatabase,
@@ -55,6 +62,8 @@ export async function seatStudent(
 ): Promise<void> {
   await db.transaction("rw", db.seats, async () => {
     const layoutSeats = await db.seats.where("layoutId").equals(layoutId).toArray();
+    const target = layoutSeats.find((seat) => seat.row === row && seat.col === col);
+    if (!target) return;
     const previous = layoutSeats.find((seat) => seat.studentId === studentId);
     if (previous && (previous.row !== row || previous.col !== col)) {
       await db.seats.put({ ...previous, studentId: null });
@@ -64,24 +73,47 @@ export async function seatStudent(
 }
 
 /**
- * Move a seated pupil into another seat.
+ * Exchange the occupants of two cells.
  *
- * The source becomes an empty seat, never a gap — the chair is still there,
- * nobody is on it. Passing the same coordinates twice is a no-op rather than
- * a way to erase a pupil.
+ * The whole point of the seating plan is rearranging, and rearranging is
+ * mostly swapping: before this, exchanging two pupils meant clearing one seat,
+ * moving, re-arming and moving back — four writes, through a state that is not
+ * the room.
+ *
+ * A swap with an empty seat degrades to a move: the source becomes an empty
+ * seat, never a gap — the chair is still there, nobody is on it. Passing the
+ * same cell twice is a no-op rather than a way to erase a pupil.
+ *
+ * Both seats are read INSIDE the transaction rather than taken from what the
+ * caller last rendered, for the same reason `resizeLayout` does it: a swap
+ * submitted from a stale grid must not write back a pupil another tab has
+ * already moved.
+ *
+ * `expectedStudentId` is the pupil the caller believes is sitting at `a`, and
+ * it is what makes that guarantee complete. A held seat is coordinates only,
+ * so a hold on (0,0) survives another tab moving that pupil away and seating
+ * somebody else there — dropping would then move a pupil the teacher never
+ * touched. If the source no longer holds who the caller thinks it does, this
+ * writes nothing.
+ *
+ * A gap at either end is refused rather than filled: no row means the teacher
+ * carved that cell out of the room, and a swap must not put a chair back.
  */
-export async function moveSeat(
+export async function swapSeats(
   db: AppDatabase,
   layoutId: string,
-  from: { row: number; col: number },
-  to: { row: number; col: number },
+  a: { row: number; col: number },
+  b: { row: number; col: number },
+  expectedStudentId: string,
 ): Promise<void> {
-  if (from.row === to.row && from.col === to.col) return;
+  if (a.row === b.row && a.col === b.col) return;
   await db.transaction("rw", db.seats, async () => {
-    const source = await db.seats.get(seatKey(layoutId, from.row, from.col));
-    if (!source || source.studentId === null) return;
-    await db.seats.put({ layoutId, row: to.row, col: to.col, studentId: source.studentId });
-    await db.seats.put({ layoutId, row: from.row, col: from.col, studentId: null });
+    const source = await db.seats.get(seatKey(layoutId, a.row, a.col));
+    const target = await db.seats.get(seatKey(layoutId, b.row, b.col));
+    if (!source || !target || source.studentId === null) return;
+    if (source.studentId !== expectedStudentId) return;
+    await db.seats.put({ layoutId, row: a.row, col: a.col, studentId: target.studentId });
+    await db.seats.put({ layoutId, row: b.row, col: b.col, studentId: source.studentId });
   });
 }
 

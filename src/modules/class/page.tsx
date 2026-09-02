@@ -159,13 +159,19 @@ export function ClassPage({ classId }: { classId: string }) {
       )}
 
       {editing === "new" && (
-        <StudentForm key="new" classId={classId} onDone={() => setEditing(null)} />
+        <StudentForm
+          key="new"
+          classId={classId}
+          studentCount={students.length}
+          onDone={() => setEditing(null)}
+        />
       )}
       {editing && editing !== "new" && (
         <StudentForm
           key={editing.id}
           classId={classId}
           student={editing}
+          studentCount={students.length}
           onDone={() => setEditing(null)}
         />
       )}
@@ -174,6 +180,7 @@ export function ClassPage({ classId }: { classId: string }) {
         <CsvImport
           classId={classId}
           existing={students.map((s) => ({ lastName: s.lastName, firstName: s.firstName }))}
+          studentCount={students.length}
           onDone={() => setImporting(false)}
         />
       )}

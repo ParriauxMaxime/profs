@@ -1,6 +1,7 @@
 import type { Seat, SeatingLayout, Student } from "@db";
 import { useDb } from "@db/provider";
-import { clearSeat, makeGap, makeSeat, moveSeat } from "@db/seating";
+import { clearSeat, makeGap, makeSeat } from "@db/seating";
+import type { Held } from "@domain/seating";
 import { SUBJECT_COLORS } from "@domain/subject";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -61,17 +62,21 @@ export function SeatGrid({
   layout,
   seats,
   studentsById,
-  armedSeat,
-  onArmSeat,
+  held,
+  onHoldSeat,
+  onDrop,
   onSelectStudent,
   editing,
 }: {
   layout: SeatingLayout;
   seats: Seat[];
   studentsById: Map<string, Student>;
-  /** "row:col" of the armed seat, or null — anchored to the cell's coordinates. */
-  armedSeat: string | null;
-  onArmSeat: (armedSeat: string | null) => void;
+  /** Who is held, or null. A seat is a target only while something is held. */
+  held: Held | null;
+  /** Pick up the occupant of a seat. Only reachable in layout-edit mode. */
+  onHoldSeat: (row: number, col: number) => void;
+  /** Drop whoever is held onto this cell. */
+  onDrop: (row: number, col: number) => void;
   onSelectStudent: (studentId: string) => void;
   /**
    * Layout-edit mode. The controls that carve gaps and empty chairs are
@@ -95,26 +100,10 @@ export function SeatGrid({
 
   const onMakeSeat = (row: number, col: number): Promise<void> => makeSeat(db, layout.id, row, col);
 
-  const onMakeGap = async (row: number, col: number): Promise<void> => {
-    await makeGap(db, layout.id, row, col);
-    // A gap cannot be armed: the cell the arming pointed at no longer exists.
-    if (armedSeat === `${row}:${col}`) onArmSeat(null);
-  };
+  const onMakeGap = (row: number, col: number): Promise<void> => makeGap(db, layout.id, row, col);
 
   const onClearSeat = (row: number, col: number): Promise<void> =>
     clearSeat(db, layout.id, row, col);
-
-  /**
-   * Move a seated pupil into the armed seat.
-   *
-   * Without this the only way to rearrange a room is to empty a chair and
-   * re-assign from the pool, and rearranging is what a seating plan is for.
-   */
-  const movePupil = async (from: Seat, toCoord: string): Promise<void> => {
-    const [row, col] = toCoord.split(":").map(Number);
-    await moveSeat(db, layout.id, { row: from.row, col: from.col }, { row, col });
-    onArmSeat(null);
-  };
 
   return (
     <div className="paper overflow-x-auto rounded-md border border-border">
@@ -142,16 +131,18 @@ export function SeatGrid({
           }
 
           if (seat.studentId === null) {
-            const armed = armedSeat === coord;
             return (
               <div key={coord} className="relative">
                 <button
                   type="button"
-                  aria-pressed={armed}
-                  className={`flex h-14 w-20 flex-col items-center justify-center rounded-md border text-[11px] text-text-muted hover:bg-bg-hover ${
-                    armed ? "border-accent ring-2 ring-accent" : "border-border"
+                  disabled={held === null}
+                  title={held ? t("plan.moveHere") : undefined}
+                  className={`flex h-14 w-20 flex-col items-center justify-center rounded-md border text-[11px] text-text-muted disabled:cursor-default ${
+                    held !== null
+                      ? "border-accent border-dashed bg-accent/10 hover:bg-bg-hover"
+                      : "border-border"
                   }`}
-                  onClick={() => onArmSeat(armed ? null : coord)}
+                  onClick={() => onDrop(row, col)}
                 >
                   {t("plan.emptySeat")}
                 </button>
@@ -176,31 +167,52 @@ export function SeatGrid({
           const student = studentsById.get(seat.studentId);
           if (!student) {
             // The pupil was deleted elsewhere; the seat row is stale until the
-            // teacher clears it. Render it as empty rather than crashing.
+            // teacher clears it. Render it as empty rather than crashing —
+            // and while something is held it is a target like every other
+            // cell, not a clear button that would swallow the gesture.
             return (
               <button
                 key={coord}
                 type="button"
-                className="flex h-14 w-20 flex-col items-center justify-center rounded-md border border-border text-[11px] text-text-muted hover:bg-bg-hover"
-                onClick={() => void onClearSeat(row, col)}
+                title={held ? t("plan.moveHere") : undefined}
+                className={`flex h-14 w-20 flex-col items-center justify-center rounded-md border text-[11px] text-text-muted hover:bg-bg-hover ${
+                  held !== null ? "border-accent border-dashed bg-accent/10" : "border-border"
+                }`}
+                onClick={() => {
+                  if (held) onDrop(row, col);
+                  else void onClearSeat(row, col);
+                }}
               >
                 {t("plan.emptySeat")}
               </button>
             );
           }
 
+          const isHeldSeat = held?.kind === "seat" && held.row === row && held.col === col;
+
           return (
             <div key={coord} className="relative">
               <button
                 type="button"
-                title={armedSeat ? t("plan.moveHere") : undefined}
+                title={held ? t("plan.moveHere") : undefined}
+                // Only the seat in hand is announced as pressed; the others
+                // are targets, not toggles, so they carry no state at all.
+                aria-pressed={isHeldSeat || undefined}
                 className={`flex h-14 w-20 flex-col items-center justify-center gap-0.5 rounded-md border p-1 hover:bg-bg-hover ${
-                  armedSeat ? "border-accent border-dashed" : "border-border"
+                  isHeldSeat
+                    ? "border-accent ring-2 ring-accent"
+                    : held
+                      ? "border-accent border-dashed"
+                      : "border-border"
                 }`}
                 onClick={() => {
-                  // With a seat armed, tapping an occupant moves them into it.
-                  // With nothing armed, it opens their card.
-                  if (armedSeat) void movePupil(seat, armedSeat);
+                  // Something held: this seat is a target.
+                  // Nothing held, layout-edit mode: pick this pupil up.
+                  // Nothing held, normal mode: open their card. That last
+                  // branch is the gesture of the lesson itself — attendance
+                  // and behaviour — and it stays the bare tap.
+                  if (held) onDrop(row, col);
+                  else if (editing) onHoldSeat(row, col);
                   else onSelectStudent(student.id);
                 }}
               >

@@ -1,4 +1,11 @@
-import { buildSeats, DEFAULT_COLS, DEFAULT_ROWS, resizeSeats, unseatedStudentIds } from "./seating";
+import {
+  buildSeats,
+  DEFAULT_COLS,
+  DEFAULT_ROWS,
+  resizeSeats,
+  resolveDrop,
+  unseatedStudentIds,
+} from "./seating";
 
 describe("buildSeats", () => {
   it("fills the whole grid with empty seats", () => {
@@ -91,5 +98,62 @@ describe("unseatedStudentIds", () => {
       { layoutId: "l1", row: 0, col: 1, studentId: null },
     ];
     expect(unseatedStudentIds(students, seats)).toEqual(["a", "c"]);
+  });
+});
+
+describe("resolveDrop", () => {
+  const seat = (studentId: string | null) => ({ layoutId: "l1", row: 9, col: 9, studentId });
+
+  it("seats a pupil held from the rail on an empty seat", () => {
+    expect(resolveDrop({ kind: "pool", studentId: "s1" }, seat(null), { row: 1, col: 2 })).toEqual({
+      kind: "seat",
+      studentId: "s1",
+      row: 1,
+      col: 2,
+    });
+  });
+
+  it("seats a pupil held from the rail on an occupied seat, displacing its occupant", () => {
+    // seatStudent overwrites the occupant, who returns to the rail. The
+    // gesture always completes; a refusal would put back the round trip this
+    // whole change removes.
+    expect(resolveDrop({ kind: "pool", studentId: "s1" }, seat("s2"), { row: 1, col: 2 })).toEqual({
+      kind: "seat",
+      studentId: "s1",
+      row: 1,
+      col: 2,
+    });
+  });
+
+  it("swaps two seated pupils", () => {
+    expect(resolveDrop({ kind: "seat", row: 0, col: 0 }, seat("s2"), { row: 3, col: 4 })).toEqual({
+      kind: "swap",
+      from: { row: 0, col: 0 },
+      to: { row: 3, col: 4 },
+    });
+  });
+
+  it("moves a seated pupil onto an empty seat, as a swap with nobody", () => {
+    expect(resolveDrop({ kind: "seat", row: 0, col: 0 }, seat(null), { row: 3, col: 4 })).toEqual({
+      kind: "swap",
+      from: { row: 0, col: 0 },
+      to: { row: 3, col: 4 },
+    });
+  });
+
+  it("does nothing when a seated pupil is dropped back on their own chair", () => {
+    expect(resolveDrop({ kind: "seat", row: 2, col: 2 }, seat("s1"), { row: 2, col: 2 })).toEqual({
+      kind: "none",
+    });
+  });
+
+  it("does nothing over a gap, whoever is held", () => {
+    // No seat row means no chair. Neither branch may invent one.
+    expect(resolveDrop({ kind: "pool", studentId: "s1" }, undefined, { row: 1, col: 1 })).toEqual({
+      kind: "none",
+    });
+    expect(resolveDrop({ kind: "seat", row: 0, col: 0 }, undefined, { row: 1, col: 1 })).toEqual({
+      kind: "none",
+    });
   });
 });

@@ -1,5 +1,6 @@
 import type { Student } from "@db";
 import { useDb } from "@db/provider";
+import { MAX_STUDENTS_PER_CLASS, remainingCapacity } from "@domain/class-size";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -17,10 +18,12 @@ type FormValues = z.infer<typeof schema>;
 export function StudentForm({
   classId,
   student,
+  studentCount,
   onDone,
 }: {
   classId: string;
   student?: Student;
+  studentCount: number;
   onDone: () => void;
 }) {
   const { t } = useTranslation();
@@ -40,7 +43,13 @@ export function StudentForm({
 
   useEscape(onDone);
 
+  // Only an ADD can breach the ceiling. Editing an existing pupil must stay
+  // possible in a class that is already at or over it — otherwise a teacher
+  // who imported an over-sized roster could no longer correct a name in it.
+  const full = student === undefined && remainingCapacity(studentCount) === 0;
+
   const onSubmit = handleSubmit(async (values) => {
+    if (full) return;
     const now = Date.now();
     if (student) {
       await db.students.update(student.id, { ...values, updatedAt: now });
@@ -85,8 +94,13 @@ export function StudentForm({
         <span className="text-sm text-text-muted">{t("student.notes")}</span>
         <textarea className="field" rows={2} {...register("notes")} />
       </label>
+      {full && (
+        <p role="alert" className="text-danger text-sm">
+          {t("class.rosterFull", { max: MAX_STUDENTS_PER_CLASS })}
+        </p>
+      )}
       <div className="flex gap-2">
-        <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+        <button type="submit" className="btn btn-primary" disabled={isSubmitting || full}>
           {t("common.save")}
         </button>
         <button type="button" className="btn" onClick={onDone}>

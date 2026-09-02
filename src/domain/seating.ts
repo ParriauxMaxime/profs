@@ -80,3 +80,41 @@ export function unseatedStudentIds(students: { id: string }[], seats: Seat[]): s
   const seated = new Set(seats.map((s) => s.studentId).filter((id): id is string => id !== null));
   return students.filter((s) => !seated.has(s.id)).map((s) => s.id);
 }
+
+/**
+ * Who is currently in the teacher's hand.
+ *
+ * Anchored to a pupil's id or to a cell's coordinates, never to a position in
+ * the rail: the rail reorders every time somebody is seated, and an
+ * index-held selection would retarget onto whoever slid into that slot. This
+ * codebase has produced that bug three times already.
+ */
+export type Held = { kind: "pool"; studentId: string } | { kind: "seat"; row: number; col: number };
+
+/** What a drop resolves to. The caller turns it into exactly one write. */
+export type DropAction =
+  | { kind: "none" }
+  | { kind: "seat"; studentId: string; row: number; col: number }
+  | { kind: "swap"; from: { row: number; col: number }; to: { row: number; col: number } };
+
+/**
+ * Decide what dropping `held` on the cell at `at` means.
+ *
+ * Pure, and tested, because this is the rule the whole interaction rests on
+ * and it is far too easy to read wrong off a click handler: a pupil from the
+ * rail always *seats* (displacing whoever was there, which `seatStudent`
+ * already does in one transaction), a pupil from a seat always *swaps* (which
+ * degrades to a move when the target is empty), and a gap is never a target.
+ */
+export function resolveDrop(
+  held: Held,
+  target: Seat | undefined,
+  at: { row: number; col: number },
+): DropAction {
+  if (target === undefined) return { kind: "none" };
+  if (held.kind === "pool") {
+    return { kind: "seat", studentId: held.studentId, row: at.row, col: at.col };
+  }
+  if (held.row === at.row && held.col === at.col) return { kind: "none" };
+  return { kind: "swap", from: { row: held.row, col: held.col }, to: { row: at.row, col: at.col } };
+}
