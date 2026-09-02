@@ -32,7 +32,7 @@ export interface ScheduleEntryLike {
 const MS_PER_DAY = 86_400_000;
 
 /** Local midnight of the Monday on or before `ms`. */
-function startOfIsoWeek(ms: number): number {
+export function startOfIsoWeek(ms: number): number {
   const d = new Date(ms);
   d.setHours(0, 0, 0, 0);
   // getDay() is 0 for Sunday; ISO wants Monday first.
