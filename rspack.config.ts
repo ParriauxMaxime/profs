@@ -40,6 +40,16 @@ export default defineConfig((_env, argv) => {
           },
         },
         {
+          // Fonts are bundled, never fetched: PRIVACY.md promises no network
+          // request of any kind, which rules out Google Fonts and every CDN.
+          // Hashed so a future version cannot be served from a stale cache.
+          test: /\.woff2$/,
+          type: "asset/resource",
+          generator: {
+            filename: isDev ? "assets/[name][ext]" : "assets/[name].[contenthash:8][ext]",
+          },
+        },
+        {
           test: /\.css$/,
           use: ["postcss-loader"],
           type: "css/auto",

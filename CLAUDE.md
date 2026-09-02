@@ -144,6 +144,10 @@ keeps all of that.
 ### Conventions that will trip you up
 
 - **Never `window.confirm`, `alert`, or any blocking browser dialog.** They freeze the browser automation used to verify these pages. Destructive actions use a two-step in-place confirm: first click arms, second click acts, with a cancel beside it.
+- **Typography and the ruled surface.** The app is set in **Luciole** (CC BY 4.0), bundled under `src/assets/fonts/` and emitted as a hashed asset — never fetched, because a font CDN would break the no-network promise as surely as an analytics call. It is sans-only, so heading hierarchy comes from weight and size, not from a serif switch; do not reintroduce Georgia. Attribution lives in `README.md` and the licence travels with the files.
+
+  `.seyes` in `global.css` is the Séyès-ruled writing surface, and it is applied to **exactly one element**: the journal textarea. Ruling was tried app-wide in an earlier pass and cut for good reason — it read as texture. Two things make it work here and both must survive any edit: `line-height` equals the 8mm pitch, and `padding-top` is `calc(8mm - 1.1875em)` so the first baseline lands *on* a rule rather than 19px below it. Matching the pitch alone is not enough. Measured: text is 16:1 against its ground, the rules 2:1 — visible, never competing. Do not extend `.seyes` to another surface without redoing that measurement.
+
 - **i18n:** `fr` is both the default and the fallback, `en` alongside. Every user-visible string goes through `t()`, and every key must exist in BOTH `src/i18n/locales/fr.json` and `en.json` — a parity test fails the build otherwise. Plurals use i18next v4 suffixes (`_one` / `_other`). Never pass an interpolation variable named `count` unless you actually want plural resolution.
 - **Naming:** identifiers are English; only translation values are French. `class` is reserved, so the row type is `SchoolClass` while the table stays `classes`. The column row type is `GradeColumn`, never `Column` — that collides with TanStack Table's export.
 - **Navigation** uses Chicane `<Link to={Router.X({...})}>`. A raw `<a href>` causes a full page reload.

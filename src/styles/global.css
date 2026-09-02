@@ -1,5 +1,41 @@
 @import "tailwindcss";
 
+/*
+ * Luciole — designed in France by Laurent Bourcellier and Jonathan Perez for
+ * the CTRDV, specifically for low-vision readers. CC BY 4.0; the licence
+ * travels with the files in src/assets/fonts/.
+ *
+ * Bundled, never fetched. PRIVACY.md promises no network request of any kind,
+ * so Google Fonts and every CDN are out — the 132KB of woff2 is the price of
+ * that promise, paid once and then served from the service worker cache.
+ *
+ * `swap` rather than `block`: a teacher opening this mid-lesson reads the
+ * fallback for one frame rather than staring at nothing.
+ */
+@font-face {
+  font-family: "Luciole";
+  src: url("../assets/fonts/Luciole-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Luciole";
+  src: url("../assets/fonts/Luciole-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Luciole";
+  src: url("../assets/fonts/Luciole-Italic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
 @theme {
   --color-bg: #ffffff;
   --color-bg-subtle: #f8fafc;
@@ -37,7 +73,7 @@ button:not(:disabled) {
 body {
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: "Luciole", system-ui, -apple-system, "Segoe UI", sans-serif;
   margin: 0;
 }
 
@@ -114,6 +150,18 @@ body {
   --paper-margin: #cf6b6b;
 
   /*
+   * Séyès ruling, for the one surface a teacher writes prose on.
+   *
+   * It was tried across the whole app in an earlier pass and cut: invisible
+   * when faint, fighting the content when not. The cause was that it sat
+   * BEHIND text whose line-height did not match the ruling pitch, so the two
+   * rhythms beat against each other. Scoped to the journal and pitch-locked,
+   * it stops being a texture and becomes what ruling is for.
+   */
+  --seyes-line: #9db4d8;
+  --seyes-subline: #dbe4f2;
+
+  /*
    * Semantic colours live here rather than as hex in the domain, because the
    * same meaning needs a different value on each ground: a red that reads as
    * serious on paper glares on a dark screen.
@@ -159,6 +207,10 @@ body {
   /* Chalk, not blood: the marge stays a quiet edge rather than a stripe. */
   --paper-margin: #7e4a52;
 
+  /* Ruling scratched into slate: present, but never brighter than the text. */
+  --seyes-line: #33455c;
+  --seyes-subline: #222d3c;
+
   /* Desaturated and lifted, so a filled cell reads without glaring. */
   --behaviour-green: #4cb782;
   --behaviour-yellow: #d3a53a;
@@ -182,10 +234,27 @@ body {
   --on-level-4: #10151c;
 }
 
+/*
+ * Luciole is sans-only, so the serif/sans switch that used to carry hierarchy
+ * is gone. Weight and size carry it instead: 700 against the body's 400, and
+ * a size step, with tracking tightened slightly because Luciole is generously
+ * spaced by design — that spacing helps a paragraph and works against a short
+ * heading.
+ */
 h2,
 h3 {
-  font-family: Georgia, "Noto Serif", "Times New Roman", serif;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+h2 {
+  font-size: 1.375rem;
+  line-height: 1.25;
+}
+
+h3 {
+  font-size: 1.0625rem;
+  line-height: 1.3;
 }
 
 /*
@@ -200,4 +269,52 @@ h3 {
 /* Numbers in a grid are compared down a column, so they line up. */
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * A Séyès-ruled writing surface.
+ *
+ * Grands carreaux: an 8mm horizontal pitch subdivided into four 2mm bands,
+ * and 8mm verticals. Sizes are in `mm` rather than pixels because the ruling
+ * is a physical standard — a French pupil's cahier is 8mm whatever the screen.
+ *
+ * Three things make this work where the earlier attempt failed:
+ *
+ *  - `line-height` equals the pitch, so consecutive baselines are exactly one
+ *    rule apart. This is the whole fix.
+ *  - `padding-top` is a pitch MINUS the baseline offset, so the first baseline
+ *    lands on the first rule rather than 19px below it. Matching the pitch
+ *    alone is not enough: text centres itself in its line box, so it floats
+ *    mid-band and the ruling reads as texture — measured at 63% down the band
+ *    before this correction. The offset is 1.1875em for Luciole at the 1rem
+ *    this field uses; it is expressed in `em` so browser text zoom keeps it
+ *    proportional, and it is only knowable because the font is bundled rather
+ *    than whatever the system happened to supply.
+ *  - `background-attachment: local`, so the ruling scrolls WITH the text. Left
+ *    to the default the paper stays still while the writing slides over it,
+ *    which looks broken the moment an entry is longer than the box.
+ */
+.seyes {
+  line-height: 8mm;
+  padding-top: calc(8mm - 1.1875em);
+  padding-left: 3mm;
+  background-attachment: local;
+  background-image:
+    /* the 8mm verticals */
+    repeating-linear-gradient(to right, var(--seyes-subline) 0 0.25mm, transparent 0.25mm 8mm),
+    /* the strong 8mm horizontals */
+    repeating-linear-gradient(to bottom, var(--seyes-line) 0 0.25mm, transparent 0.25mm 8mm),
+    /* the fine 2mm subdivisions */
+    repeating-linear-gradient(to bottom, var(--seyes-subline) 0 0.2mm, transparent 0.2mm 2mm);
+}
+
+/*
+ * Ruling is a writing aid, not information. Anyone who has asked for less
+ * motion has usually also asked for less visual noise, and a teacher who
+ * turns up contrast needs the text to win outright.
+ */
+@media (prefers-contrast: more) {
+  .seyes {
+    background-image: none;
+  }
 }

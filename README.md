@@ -59,6 +59,17 @@ and no subscription.
   distributions. Deliberately never feeds the gradebook average.
 - **Offline** — installable PWA, works with no network at all
 
+## Typeface
+
+The interface is set in **Luciole**, designed by Laurent Bourcellier and
+Jonathan Perez for the CTRDV — a typeface drawn specifically for low-vision
+readers. It is bundled with the app rather than fetched from a font CDN,
+because `profs` makes no network request of any kind.
+
+Luciole © Laurent Bourcellier & Jonathan Perez, distributed under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The licence travels
+with the files in `src/assets/fonts/`.
+
 ## Privacy
 
 Your data never leaves your device. See [PRIVACY.md](PRIVACY.md).
