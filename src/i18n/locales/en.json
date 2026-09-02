@@ -71,7 +71,8 @@
     "levelPlaceholder": "Year 10",
     "rename": "Rename class",
     "deleteClass": "Delete class",
-    "confirmDeleteClass": "Delete this class, its students and all their grades?"
+    "confirmDeleteClass": "Delete this class, its students and all their grades?",
+    "rosterFull": "This class has reached {{max}} pupils: no more can be added."
   },
   "group": {
     "title": "Groups",
@@ -210,7 +211,9 @@
     "duplicate": "Duplicate",
     "new": "New",
     "summary": "{{total}} student(s) to import, {{duplicates}} duplicate(s) found",
-    "import": "Import"
+    "import": "Import",
+    "capacity": "{{remaining}} place(s) left in the class",
+    "overCapacity": "Untick {{excess}} row(s): the class would exceed {{max}} pupils."
   },
   "attendance": {
     "present": "Present",

@@ -71,7 +71,8 @@
     "levelPlaceholder": "3e",
     "rename": "Renommer la classe",
     "deleteClass": "Supprimer la classe",
-    "confirmDeleteClass": "Supprimer la classe, ses élèves et toutes leurs notes ?"
+    "confirmDeleteClass": "Supprimer la classe, ses élèves et toutes leurs notes ?",
+    "rosterFull": "Cette classe a atteint {{max}} élèves : impossible d'en ajouter un autre."
   },
   "group": {
     "title": "Groupes",
@@ -210,7 +211,9 @@
     "duplicate": "Doublon",
     "new": "Nouveau",
     "summary": "{{total}} élève(s) à importer, {{duplicates}} doublon(s) détecté(s)",
-    "import": "Importer"
+    "import": "Importer",
+    "capacity": "{{remaining}} place(s) restante(s) dans la classe",
+    "overCapacity": "Décochez {{excess}} ligne(s) : la classe dépasserait {{max}} élèves."
   },
   "attendance": {
     "present": "Présent",

@@ -1,4 +1,5 @@
 import { useDb } from "@db/provider";
+import { MAX_STUDENTS_PER_CLASS, remainingCapacity } from "@domain/class-size";
 import {
   type Delimiter,
   extractRoster,
@@ -14,10 +15,12 @@ import { useEscape } from "../../shared/use-escape";
 export function CsvImport({
   classId,
   existing,
+  studentCount,
   onDone,
 }: {
   classId: string;
   existing: RosterRow[];
+  studentCount: number;
   onDone: () => void;
 }) {
   const { t } = useTranslation();
@@ -52,6 +55,10 @@ export function CsvImport({
   );
 
   const duplicates = useMemo(() => new Set(findDuplicates(roster, existing)), [roster, existing]);
+
+  const remaining = remainingCapacity(studentCount);
+  const selectedCount = roster.length - excluded.size;
+  const excess = Math.max(0, selectedCount - remaining);
 
   // Row indices only make sense relative to the current roster: clear the
   // exclusion set whenever roster recomputes (delimiter, mapping, header
@@ -220,10 +227,18 @@ export function CsvImport({
 
           <p className="text-sm text-text-muted">
             {t("csv.summary", {
-              total: roster.length - excluded.size,
+              total: selectedCount,
               duplicates: duplicates.size,
             })}
+            {" — "}
+            {t("csv.capacity", { remaining })}
           </p>
+
+          {excess > 0 && (
+            <p role="alert" className="text-danger text-sm">
+              {t("csv.overCapacity", { excess, max: MAX_STUDENTS_PER_CLASS })}
+            </p>
+          )}
         </>
       )}
 
@@ -231,7 +246,7 @@ export function CsvImport({
         <button
           type="button"
           className="btn btn-primary"
-          disabled={roster.length === 0 || roster.length === excluded.size}
+          disabled={roster.length === 0 || roster.length === excluded.size || excess > 0}
           onClick={() => void onImport()}
         >
           {t("csv.import")}
