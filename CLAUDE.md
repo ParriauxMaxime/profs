@@ -38,7 +38,7 @@ Three layers, and the boundaries are enforced by review:
 
 Two decimal formatters, and picking the wrong one is a data bug: `formatDecimal` rounds to two decimals and is for **display**; `formatDecimalExact` preserves full stored precision and is for **seeding an editor**, so that opening a cell and committing it unchanged cannot silently rewrite the value. Both take the app's locale, never the browser's.
 
-**`src/db/`** — Dexie. `openWorkspaceDb(workspaceId)` opens `profs-<id>`; each workspace is its own database. Seventeen tables across three `db.version(...).stores({...})` calls: `version(2)` declares the original seven (`classes`, `students`, `subjects`, `gradebooks`, `periods`, `columns`, `grades`) together with five added in phase 2A for the classroom features — `sessions` (one row per lesson), `attendance` (keyed `[sessionId+studentId]`), `behaviourEvents` (append-only observations, `classId` denormalised for a one-index class timeline), `seatingLayouts` (one room per class), and `seats` (keyed `[layoutId+row+col]`); `version(3)` adds three more for phase 2B's rubrics: `rubricTemplates` (a reusable named list of criteria), `rubricAssessments` (one graded instance, owning a copy of its criteria — see below), and `rubricScores` (one 1–4 level per criterion per pupil, keyed `[assessmentId+criterionId+studentId]`); `version(4)` adds phase 3's two group tables — `studentGroups` (a named subset of a class) and `groupMembers` (keyed `[groupId+studentId]`), a way of selecting and viewing pupils for filtering and seating, never a thing that holds a grade. `provider.tsx` exposes `useDb()`; `init.ts` runs once before first render; `seed.ts` creates the demo school; `backup.ts` does JSON export/import; `cascade.ts` owns every multi-table delete (see below).
+**`src/db/`** — Dexie. `openWorkspaceDb(workspaceId)` opens `profs-<id>`; each workspace is its own database. Eighteen tables across four `db.version(...).stores({...})` calls: `version(2)` declares the original seven (`classes`, `students`, `subjects`, `gradebooks`, `periods`, `columns`, `grades`) together with five added in phase 2A for the classroom features — `sessions` (one row per lesson), `attendance` (keyed `[sessionId+studentId]`), `behaviourEvents` (append-only observations, `classId` denormalised for a one-index class timeline), `seatingLayouts` (one room per class), and `seats` (keyed `[layoutId+row+col]`); `version(3)` adds three more for phase 2B's rubrics: `rubricTemplates` (a reusable named list of criteria), `rubricAssessments` (one graded instance, owning a copy of its criteria — see below), and `rubricScores` (one 1–4 level per criterion per pupil, keyed `[assessmentId+criterionId+studentId]`); `version(4)` adds phase 3's two group tables — `studentGroups` (a named subset of a class) and `groupMembers` (keyed `[groupId+studentId]`), a way of selecting and viewing pupils for filtering and seating, never a thing that holds a grade; `version(5)` adds phase 4a's `scheduleEntries` — the recurring weekly timetable. `provider.tsx` exposes `useDb()`; `init.ts` runs once before first render; `seed.ts` creates the demo school; `backup.ts` does JSON export/import; `cascade.ts` owns every multi-table delete (see below).
 
 Rubric criteria are embedded in `RubricAssessment.criteria` (an array of `{ id, label }`), but a score is its own table row. A criterion has no independent existence worth tracking outside the assessment it belongs to — it is never queried, listed, or deleted except through its assessment — so embedding it avoids a join for something that is always read as a whole. A score, by contrast, is written and cleared one cell at a time from the live grid, which is exactly what a compound-key table is for. `createAssessmentFromTemplate` copies a template's criteria with **fresh** `crypto.randomUUID()` ids rather than reusing the template's: two assessments built from the same template must not share criterion ids, or a score written against one would be silently readable from the other, and improving the template later would have no way to reach a grid already graded.
 
@@ -46,7 +46,50 @@ A `Seat` row encodes three states, and they must stay distinct: no row at all fo
 
 **`src/modules/<name>/page.tsx`** — one page per route, with module-local `components/`. `design-system/` holds shared UI, `shared/` the layout. There is no `src/routes/` folder — each module owns its page. Components read the database through `useLiveQuery` and hold UI state only.
 
-Routes (`src/router.ts`, Chicane): `/`, `/classes/:classId`, `/classes/:classId/plan`, `/students/:studentId`, `/gradebooks/:gradebookId`, `/gradebooks/:gradebookId/entry/:columnId`, `/gradebooks/:gradebookId/rubrics`, `/gradebooks/:gradebookId/rubrics/:assessmentId`, `/settings`.
+Routes (`src/router.ts`, Chicane): `/` (**Today**), `/classes`, `/gradebooks`, `/students`, `/schedule`, `/classes/:classId`, `/classes/:classId/plan`, `/students/:studentId`, `/gradebooks/:gradebookId`, `/gradebooks/:gradebookId/entry/:columnId`, `/gradebooks/:gradebookId/rubrics`, `/gradebooks/:gradebookId/rubrics/:assessmentId`, `/settings`.
+
+### The schedule predicts; it never pre-creates
+
+A `ScheduleEntry` is a recurring **intention** — "3°B Maths, Monday 10h, week
+A". A `Session` is a record that a lesson actually happened, and it carries the
+attendance and behaviour. Today lists scheduled lessons; opening one calls the
+existing `getOrCreateTodaySession`, so a session row appears only when the
+teacher starts recording.
+
+Materialising a session per scheduled lesson was rejected and must stay
+rejected: every holiday, strike, cancellation and sick day would leave an empty
+session in a pupil's timeline, and attendance history would fill with lessons
+that never occurred. The consequence is that Today merges two lists —
+scheduled-but-not-started and started-but-unscheduled — and a lesson that is
+both must render **once**.
+
+A/B week parity is **derived** from a term-start date, never stored, so there
+is no calendar of weeks to drift. The anchor lives in `localStorage`
+(`src/domain/term.ts`, key `profs-term-start`) beside the theme rather than in
+a table: it describes this device's workspace, has no relations, and Today must
+know which week it is before the database opens.
+
+`weekParity` in `src/domain/schedule.ts` is the most dangerous function in the
+app. Wrong by one, it shows the wrong lessons for a whole week, silently and
+plausibly enough that a teacher blames themselves. It counts whole ISO weeks
+with both ends normalised to local midnight — raw timestamp arithmetic drifts
+an hour at each DST change and eventually flips a week. Beyond the DST and
+year-boundary spot checks, a test walks 400 days and asserts parity flips only
+on Mondays, 57 times; a one-day slip leaves the spot checks passing. Times are
+minutes from midnight, never `"10:05"`. Overlap is a warning the editor shows,
+never a refusal — a teacher may legitimately have two things at once.
+
+### Navigation
+
+There is no top bar. `AdminLayout` renders one floating hamburger fixed at the
+top left (44px, safe-area inset) and `AppDrawer`, which holds every
+destination: Aujourd'hui, Classes, Carnets, Élèves, Emploi du temps, Réglages.
+The drawer is not a `<dialog>` — blocking dialogs are banned here — so it
+implements the discipline by hand: Escape closes, focus moves in on open and
+returns to the button on close, Tab is trapped, the backdrop closes on click,
+body scroll is locked, and the panel carries `inert` when closed so a
+translated-off drawer is not silently in the tab order. Anything added to it
+keeps all of that.
 
 ### Invariants worth knowing before you touch anything
 
@@ -81,6 +124,8 @@ Routes (`src/router.ts`, Chicane): `/`, `/classes/:classId`, `/classes/:classId/
 
 The Dexie schema is declared as a single `db.version(2).stores({...})` with no upgrade callback. Phase 2A's five new tables did not get a migration from phase 1 data: there is nothing to migrate, since attendance and behaviour didn't exist before, and any stray v1 test data is treated as garbage the "supprimer toutes les données" wipe in Réglages already handles. `backup.ts` follows the same posture — a v1 backup file is rejected outright by `WorkspaceBackup`'s schema check, not upgraded, since importing it half-populated (gradebooks but no sessions) would be worse than refusing it. The rule for the next schema change: add a table or a field, bump the version, do not write an upgrade function — a stale workspace gets wiped, not migrated.
 
+You do **not** need to touch `wipeWorkspace` or the backup's clear list when adding a table: both read `db.tables`. You do need to add a row for it to the wipe test and to the schema table-list test, and both will fail until you do — that is the guard, not an oversight. `onWipe` once cleared a hand-written list of seven tables, so the ten added after v1 survived "supprimer toutes les données" while `PRIVACY.md` promised the erase took the whole workspace.
+
 ### The demo school seeds exactly once
 
 `seedIfEmpty(db, workspaceId)` gates on a marker in `localStorage` (`profs-seeded-workspaces`), not on the tables being empty. That is deliberate: wiping all data in Réglages must stay wiped, because `PRIVACY.md` promises the erase is permanent, and gating on emptiness resurrected the demo school on the next reload.
@@ -97,6 +142,11 @@ When you change UI, prove the flow rather than asserting it. If you cannot drive
 
 Every multi-table delete lives in `src/db/cascade.ts` (`deleteStudent`, `deleteColumn`, `deletePeriod`, `deleteGradebook`, `deleteClass`, phase 2A's `deleteSession` and `deleteSeatingLayout`, and phase 2B's `deleteRubricAssessment` and `deleteRubricTemplate`), each one a single `rw` transaction covering every table it touches. `deleteBehaviourEvent` is single-table but lives here too, so every delete is in one place. `setCriteria` in `src/db/rubrics.ts` is the same pattern at a finer grain: replacing an assessment's criteria list drops the `rubricScores` of any criterion that didn't survive, in one transaction, beside the write rather than as an inline component delete. If you find yourself writing a multi-table delete inline in a component, stop and add it there with tests instead — an orphaned grade row is invisible in the UI, never averaged, and survives export/import.
 
+`deleteGradebook` is the exception that **unlinks** rather than cascades: it
+clears `gradebookId` on every schedule entry pointing at it and leaves the
+entry standing. The lesson still happens; it just no longer opens onto a grid.
+Deleting a gradebook must never delete part of a teacher's timetable.
+
 `deleteSubject` is the exception that **refuses** rather than cascades: it returns `{ deleted: false, reason: "in-use", gradebookCount }` and writes nothing when a gradebook still references the subject. Destroying gradebooks as a side effect of removing a subject is too much to do implicitly.
 
 Destructive actions in the UI go through `ConfirmButton` (two-step, in place). Its confirm label should say what else goes — the column delete names its grades, the class delete names its students and their grades, the period delete names the period.
@@ -107,11 +157,14 @@ Destructive actions in the UI go through `ConfirmButton` (two-step, in place). I
 - Behaviour counts on the pupil page are over all events, with no period filter (`docs/BACKLOG.md` #5) — a deliberate phase 2A scope cut, not an oversight.
 - Only one seating layout per class (`docs/BACKLOG.md` #4) — the schema supports several, the UI to switch between them doesn't exist yet.
 - A gradebook cannot be renamed after creation, and periods cannot be reordered.
-- `src/modules/dashboard/page.tsx` imports `ClassForm` from the class module. That crosses the module boundary this file otherwise describes; it is an accepted exception rather than an oversight, since both screens create classes.
+- `src/modules/classes/page.tsx` imports `ClassForm` from the class module. That crosses the module boundary this file otherwise describes; it is an accepted exception rather than an oversight, since both screens create classes. It moved here when the dashboard split into `/classes` and `/gradebooks`.
+- The timetable is weekly with A/B alternation only — no arbitrary n-day rotation. French secondary runs weekly, and a day-1-to-day-10 cycle would cost every teacher complexity in the editor for a case this audience rarely has.
+- Lesson content — objectives, homework, what actually happened — is phase 4b (the diary), and a cross-class week view is 4c. Neither exists. Attachments are further out still: they are the resources manager, parked with its storage-budget question unanswered, and adding files through the diary's back door would smuggle in a decision that was deliberately deferred.
 
 ## Reference
 
 - `docs/superpowers/specs/2026-09-01-profs-gradebook-design.md` — the v1 design and its rationale
 - `docs/superpowers/plans/2026-09-01-profs-gradebook-v1.md` — the implementation plan it was built from
+- `docs/superpowers/specs/2026-09-02-profs-phase4a-schedule-navigation.md` — the schedule and navigation design, and the two rulings behind it
 - `docs/BACKLOG.md` — post-v1 features requested by a practising teacher, with the privacy questions each one raises
 - `../open-setlist/` — the sibling project this stack was copied from; when a pattern here is unclear, its equivalent file is usually the answer

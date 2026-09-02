@@ -13,6 +13,15 @@ and no subscription.
   gradebook each, and grades. The demo data is offered once per workspace: if
   you delete everything, it stays deleted. There is no UI yet to create a new
   class, subject, or gradebook; you work within the seeded structure.
+- **Today** — the app opens on the day's lessons rather than on a list of
+  what exists: the ones your timetable predicts, plus any you have already
+  started, in time order. A lesson that is both appears once, marked as under
+  way. Tapping one opens the class and starts recording.
+- **Timetable** — declare your recurring week once (day, time, class, subject,
+  room), with **A/B alternating weeks** worked out from a single start-of-year
+  date you set in Réglages. Overlapping lessons are flagged, never refused.
+  The timetable predicts; it never creates a lesson that did not happen, so a
+  holiday leaves no empty session in anybody's attendance.
 - **Students** — add, edit, and delete students within a class, plus CSV
   import (semicolon, comma, or tab) for a whole roster at once
 - **Gradebooks** — one per class and subject, split into terms, with columns

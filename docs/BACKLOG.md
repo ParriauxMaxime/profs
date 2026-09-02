@@ -222,7 +222,23 @@ it against the no-network, small-bundle posture).
   calculation column reference another calculation column? Allowing it requires
   cycle detection; forbidding it keeps the first version simple.
 
-## Navigation — needs its own brainstorm (Maxime, 2026-09-02)
+## Navigation — delivered, phase 4a (2026-09-02)
+
+**Status: done.** The top bar is gone. A floating hamburger at the top left
+opens a drawer holding six destinations — Aujourd'hui, Classes, Carnets,
+Élèves, Emploi du temps, Réglages — and the old dashboard split into
+`/classes` and `/gradebooks`, with `/students` added for cross-class pupil
+search. Reaching the current lesson is now one gesture from anywhere: `/` is
+Today.
+
+The recurring timetable shipped with it (`scheduleEntries`, A/B weeks derived
+from a term-start anchor). What remains of the original "timetable, diary,
+planner" request is **4b — the diary** (what happened, objectives, homework)
+and **4c — the planner** (a cross-class week view). Neither is specced.
+
+The brainstorm that produced this, kept for its reasoning:
+
+## Navigation — the original brainstorm (Maxime, 2026-09-02)
 
 The top bar carries **Accueil** and **Réglages** and nothing else. Everything a
 teacher does daily is reached by navigating down from the dashboard: a class,
