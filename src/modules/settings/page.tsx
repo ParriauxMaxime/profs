@@ -2,11 +2,14 @@ import type { RubricTemplate, Subject } from "@db";
 import { exportWorkspace, importWorkspace, parseBackup, type WorkspaceBackup } from "@db/backup";
 import { deleteRubricTemplate, deleteSubject } from "@db/cascade";
 import { useDb } from "@db/provider";
+import { THEME_CHOICES } from "@domain/theme";
 import { LOCALES, type Locale, loadLocale, saveLocale } from "@i18n";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ConfirmButton } from "../design-system/components/confirm-button";
+import { ToggleOption } from "../design-system/components/primitives";
+import { useTheme } from "../shared/use-theme";
 import { RubricTemplateForm } from "./components/rubric-template-form";
 import { SubjectForm } from "./components/subject-form";
 
@@ -24,6 +27,7 @@ interface PendingImport {
 }
 
 export function SettingsPage() {
+  const { choice, setChoice } = useTheme();
   const { t } = useTranslation();
   const db = useDb();
   const [error, setError] = useState<string | null>(null);
@@ -107,6 +111,27 @@ export function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-8">
+      <section className="flex flex-col gap-2">
+        <h2 className="font-semibold text-lg">{t("settings.theme")}</h2>
+        <p className="text-sm text-text-muted">{t("settings.themeHint")}</p>
+        <div className="flex flex-wrap gap-2">
+          {THEME_CHOICES.map((option) => (
+            <ToggleOption
+              key={option}
+              selected={choice === option}
+              onSelect={() => setChoice(option)}
+            >
+              <span className="flex flex-col items-start">
+                <span>{t(`settings.themeChoice.${option}`)}</span>
+                <span className="font-normal text-xs opacity-70">
+                  {t(`settings.themeNote.${option}`)}
+                </span>
+              </span>
+            </ToggleOption>
+          ))}
+        </div>
+      </section>
+
       <section className="flex flex-col gap-2">
         <h2 className="font-semibold text-lg">{t("settings.language")}</h2>
         <select

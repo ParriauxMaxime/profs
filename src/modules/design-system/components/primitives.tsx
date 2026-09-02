@@ -70,6 +70,7 @@ export function ToggleOption({
   selected,
   onSelect,
   color,
+  textColor,
   ariaLabel,
   title,
 }: {
@@ -78,6 +79,11 @@ export function ToggleOption({
   onSelect: () => void;
   /** Fills the control when selected. Never the sole indicator of state. */
   color?: string;
+  /**
+   * The ink that goes on `color`. Required alongside it: white is not a safe
+   * default — on a mid-tone fill it measures around 2.3:1, well under AA.
+   */
+  textColor?: string;
   /**
    * The accessible name, when the visible content is abbreviated. A dense
    * matrix shows the level number alone to stay scannable; the full label
@@ -90,7 +96,7 @@ export function ToggleOption({
     "flex min-h-(--control-min) min-w-(--control-min) flex-1 items-center justify-center rounded-(--control-radius) border px-3 py-2 font-medium text-sm";
   const state = selected
     ? color
-      ? "border-transparent text-white"
+      ? "border-transparent"
       : "border-accent bg-accent text-white"
     : "border-border bg-bg text-text hover:bg-bg-hover";
   return (
@@ -100,7 +106,7 @@ export function ToggleOption({
       aria-label={ariaLabel}
       title={title}
       className={`${base} ${state}`}
-      style={selected && color ? { background: color } : undefined}
+      style={selected && color ? { background: color, color: textColor ?? "#ffffff" } : undefined}
       onClick={onSelect}
     >
       {children}

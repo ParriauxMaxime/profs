@@ -7,10 +7,15 @@ import { PlanPage } from "./modules/plan/page";
 import { RubricAssessmentPage, RubricsPage } from "./modules/rubric/page";
 import { SettingsPage } from "./modules/settings/page";
 import { AdminLayout } from "./modules/shared/components/admin-layout";
+import { useTheme } from "./modules/shared/use-theme";
 import { StudentPage } from "./modules/student/page";
 import { Router } from "./router";
 
 export function App() {
+  // Applied here so every route is themed, including the ones that render
+  // before Réglages has ever been opened.
+  useTheme();
+
   const route = Router.useRoute([
     "Home",
     "Class",

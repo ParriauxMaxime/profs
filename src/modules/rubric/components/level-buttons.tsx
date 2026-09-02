@@ -1,4 +1,9 @@
-import { RUBRIC_LEVEL_COLORS, RUBRIC_LEVELS, type RubricLevel } from "@domain/rubric";
+import {
+  RUBRIC_LEVEL_COLORS,
+  RUBRIC_LEVEL_TEXT_COLORS,
+  RUBRIC_LEVELS,
+  type RubricLevel,
+} from "@domain/rubric";
 import { useTranslation } from "react-i18next";
 import { ToggleGroup, ToggleOption } from "../../design-system/components/primitives";
 
@@ -37,6 +42,7 @@ export function LevelButtons({
           key={level}
           selected={value === level}
           color={RUBRIC_LEVEL_COLORS[level]}
+          textColor={RUBRIC_LEVEL_TEXT_COLORS[level]}
           onSelect={() => onChange(value === level ? null : level)}
           ariaLabel={compact ? t(`rubric.level.${level}`) : undefined}
           title={compact ? t(`rubric.level.${level}`) : undefined}

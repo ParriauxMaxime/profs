@@ -1,6 +1,6 @@
 import { ATTENDANCE_VALUES } from "@domain/attendance";
-import { BEHAVIOUR_COLORS, BEHAVIOUR_TYPES } from "@domain/behaviour";
-import { RUBRIC_LEVEL_COLORS, RUBRIC_LEVELS } from "@domain/rubric";
+import { BEHAVIOUR_COLORS, BEHAVIOUR_TEXT_COLORS, BEHAVIOUR_TYPES } from "@domain/behaviour";
+import { RUBRIC_LEVEL_COLORS, RUBRIC_LEVEL_TEXT_COLORS, RUBRIC_LEVELS } from "@domain/rubric";
 import { SUBJECT_COLORS } from "@domain/subject";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -141,7 +141,13 @@ export function DesignPage() {
       <Section title="Behaviour — colour plus label, never colour alone">
         <ToggleGroup label={t("behaviour.title")}>
           {BEHAVIOUR_TYPES.map((type) => (
-            <ToggleOption key={type} selected color={BEHAVIOUR_COLORS[type]} onSelect={() => {}}>
+            <ToggleOption
+              key={type}
+              selected
+              color={BEHAVIOUR_COLORS[type]}
+              textColor={BEHAVIOUR_TEXT_COLORS[type]}
+              onSelect={() => {}}
+            >
               {t(`behaviour.${type}`)}
             </ToggleOption>
           ))}
@@ -162,6 +168,7 @@ export function DesignPage() {
               key={value}
               selected={level === value}
               color={RUBRIC_LEVEL_COLORS[value]}
+              textColor={RUBRIC_LEVEL_TEXT_COLORS[value]}
               onSelect={() => setLevel(level === value ? null : value)}
             >
               {/* The label keys arrive with the rubric UI; until then the

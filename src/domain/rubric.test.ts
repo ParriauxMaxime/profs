@@ -14,7 +14,7 @@ describe("levels", () => {
 
   it("gives every level a colour", () => {
     for (const level of RUBRIC_LEVELS) {
-      expect(RUBRIC_LEVEL_COLORS[level]).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(RUBRIC_LEVEL_COLORS[level]).toMatch(/^var\(--level-[1-4]\)$/);
     }
   });
 

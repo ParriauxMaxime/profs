@@ -3,7 +3,12 @@ import { attendanceKey } from "@db";
 import { deleteBehaviourEvent } from "@db/cascade";
 import { useDb } from "@db/provider";
 import { ATTENDANCE_VALUES, type AttendanceValue } from "@domain/attendance";
-import { BEHAVIOUR_COLORS, BEHAVIOUR_TYPES, type BehaviourType } from "@domain/behaviour";
+import {
+  BEHAVIOUR_COLORS,
+  BEHAVIOUR_TEXT_COLORS,
+  BEHAVIOUR_TYPES,
+  type BehaviourType,
+} from "@domain/behaviour";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useRef, useState } from "react";
@@ -139,7 +144,7 @@ export function StudentCard({
               key={type}
               type="button"
               className="min-h-11 min-w-11 flex-1 rounded-md border border-border px-3 py-2 font-medium text-sm text-white"
-              style={{ background: BEHAVIOUR_COLORS[type] }}
+              style={{ background: BEHAVIOUR_COLORS[type], color: BEHAVIOUR_TEXT_COLORS[type] }}
               onClick={() => void addBehaviour(type)}
             >
               {t(`behaviour.${type}`)}

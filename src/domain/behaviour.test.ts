@@ -7,7 +7,7 @@ describe("behaviour", () => {
 
   it("gives every type a colour", () => {
     for (const type of BEHAVIOUR_TYPES) {
-      expect(BEHAVIOUR_COLORS[type]).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(BEHAVIOUR_COLORS[type]).toMatch(/^var\(--behaviour-[a-z]+\)$/);
     }
   });
 

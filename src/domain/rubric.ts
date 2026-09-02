@@ -16,10 +16,18 @@ export type RubricLevel = (typeof RUBRIC_LEVELS)[number];
  * reader, and the number alone is slow to scan across a filled grid.
  */
 export const RUBRIC_LEVEL_COLORS: Record<RubricLevel, string> = {
-  1: "#dc2626",
-  2: "#ea580c",
-  3: "#16a34a",
-  4: "#2563eb",
+  1: "var(--level-1)",
+  2: "var(--level-2)",
+  3: "var(--level-3)",
+  4: "var(--level-4)",
+};
+
+/** The text colour for each level's fill. See BEHAVIOUR_TEXT_COLORS. */
+export const RUBRIC_LEVEL_TEXT_COLORS: Record<RubricLevel, string> = {
+  1: "var(--on-level-1)",
+  2: "var(--on-level-2)",
+  3: "var(--on-level-3)",
+  4: "var(--on-level-4)",
 };
 
 /** One thing being assessed. No weight: nothing downstream depends on one. */

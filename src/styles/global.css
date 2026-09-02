@@ -84,18 +84,21 @@ body {
 }
 
 /*
- * Visual directions, switchable from /design for comparison.
+ * Two themes, chosen by the teacher in Réglages.
  *
- * Tokens only — no component knows which direction is active. The default
- * (no data-design attribute) is the original neutral set, so nothing changes
- * until a direction is chosen deliberately.
+ * The light one, "copie", takes its identity from the paper a French pupil
+ * writes on: ink blue rather than a framework default, the red of a corrected
+ * copy, and the marge left for the teacher's remarks. The dark one, "ardoise",
+ * exists because teachers dim the lights for a projector and a white grid is
+ * painful in a dark room.
  *
- * A direction may set fonts and surface treatment, but never --control-min:
- * the 44px touch floor is a usability constraint, not a style.
+ * Light is the base so a document with no attribute — the very first paint,
+ * before any script runs — is already a real theme rather than a placeholder.
+ * Neither theme may set --control-min: the 44px touch floor is a usability
+ * constraint, not a style.
  */
 
-/* --- Copie: the paper a French pupil actually writes on ------------------ */
-:root[data-design="copie"] {
+:root {
   --color-bg: #fdfdfb;
   --color-bg-subtle: #f3f6fc;
   --color-bg-hover: #e9eef9;
@@ -103,49 +106,45 @@ body {
   --color-text: #16202e;
   --color-text-muted: #5b6a80;
   --color-text-faint: #93a1b5;
-  /* Ink blue from a cartouche, not the framework's default blue. */
   --color-accent: #2f4fb0;
-  /* The red of a corrected copy. */
   --color-danger: #c62828;
   --color-success: #2e7d4f;
 
-  /*
-   * Ruling removed deliberately. At low contrast it was invisible; at high
-   * contrast it competed with the content it sat behind. The marge is the
-   * device that says "French school" on its own, so it is the only one kept
-   * — one memorable thing, everything else quiet.
-   */
-  --paper-rule: transparent;
+  /* The signature: the red vertical rule of a copie. */
   --paper-margin: #cf6b6b;
+
+  /*
+   * Semantic colours live here rather than as hex in the domain, because the
+   * same meaning needs a different value on each ground: a red that reads as
+   * serious on paper glares on a dark screen.
+   */
+  --behaviour-green: #147a43;
+  --behaviour-yellow: #d69e00;
+  --behaviour-red: #b32424;
+  --behaviour-note: #4f5b6b;
+
+  /*
+   * Each fill carries its own foreground, measured rather than assumed. White
+   * on a mid-tone amber is 2.3:1 — it looked fine and failed badly. Every pair
+   * here clears 4.5:1, the AA threshold for the 14px text these controls use.
+   */
+  --on-behaviour-green: #ffffff;
+  --on-behaviour-yellow: #16202e;
+  --on-behaviour-red: #ffffff;
+  --on-behaviour-note: #ffffff;
+
+  --level-1: #b32424;
+  --level-2: #b76a06;
+  --level-3: #147a43;
+  --level-4: #2f4fb0;
+
+  --on-level-1: #ffffff;
+  --on-level-2: #ffffff;
+  --on-level-3: #ffffff;
+  --on-level-4: #ffffff;
 }
 
-/* --- Encre: quiet, carried by type -------------------------------------- */
-:root[data-design="encre"] {
-  --color-bg: #ffffff;
-  --color-bg-subtle: #f7f7f9;
-  --color-bg-hover: #efeff3;
-  --color-border: #e4e4ea;
-  --color-text: #1a1a22;
-  --color-text-muted: #61616e;
-  --color-text-faint: #9a9aa6;
-  --color-accent: #4b3fb5;
-  --color-danger: #b3261e;
-  --color-success: #2f6f4e;
-
-  --paper-rule: transparent;
-  --paper-margin: transparent;
-}
-
-:root[data-design="copie"] h2,
-:root[data-design="copie"] h3,
-:root[data-design="encre"] h2,
-:root[data-design="encre"] h3 {
-  font-family: Georgia, "Noto Serif", "Times New Roman", serif;
-  letter-spacing: -0.01em;
-}
-
-/* --- Ardoise: dark, for a room with the lights down ---------------------- */
-:root[data-design="ardoise"] {
+:root[data-theme="ardoise"] {
   --color-bg: #121821;
   --color-bg-subtle: #18202b;
   --color-bg-hover: #212b38;
@@ -153,29 +152,48 @@ body {
   --color-text: #e8eef6;
   --color-text-muted: #93a3b8;
   --color-text-faint: #6b7a8d;
-  --color-accent: #5b8cff;
-  --color-danger: #ff6b6b;
-  --color-success: #4ade80;
+  --color-accent: #6f9bff;
+  --color-danger: #ff7b72;
+  --color-success: #56d191;
 
-  --paper-rule: #202a37;
-  --paper-margin: #3a4757;
+  /* Chalk, not blood: the marge stays a quiet edge rather than a stripe. */
+  --paper-margin: #7e4a52;
+
+  /* Desaturated and lifted, so a filled cell reads without glaring. */
+  --behaviour-green: #4cb782;
+  --behaviour-yellow: #d3a53a;
+  --behaviour-red: #e8695f;
+  --behaviour-note: #7f8ea3;
+
+  /* Lifted fills need dark ink on them, not white. */
+  --on-behaviour-green: #10151c;
+  --on-behaviour-yellow: #10151c;
+  --on-behaviour-red: #10151c;
+  --on-behaviour-note: #10151c;
+
+  --level-1: #e8695f;
+  --level-2: #d3903a;
+  --level-3: #4cb782;
+  --level-4: #6f9bff;
+
+  --on-level-1: #10151c;
+  --on-level-2: #10151c;
+  --on-level-3: #10151c;
+  --on-level-4: #10151c;
+}
+
+h2,
+h3 {
+  font-family: Georgia, "Noto Serif", "Times New Roman", serif;
+  letter-spacing: -0.01em;
 }
 
 /*
- * The signature, and the one place any boldness is spent: a card is a sheet
- * of copie — faint horizontal ruling, and the red vertical marge a French
- * pupil leaves for the teacher's remarks. Low contrast on purpose; it should
- * register as texture, never as content.
+ * A card is a sheet of copie. The marge is the one place any boldness is
+ * spent — everything else stays quiet. Seyès ruling was tried and cut: at low
+ * contrast it was invisible, at high contrast it fought the content on it.
  */
 .paper {
-  background-color: var(--color-bg);
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 1.74rem,
-    var(--paper-rule, transparent) 1.74rem,
-    var(--paper-rule, transparent) calc(1.74rem + 1px)
-  );
   border-left: 3px solid var(--paper-margin, transparent);
 }
 

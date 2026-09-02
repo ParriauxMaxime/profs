@@ -137,7 +137,19 @@
     "subjectInUse_one": "La matière « {{name}} » ne peut pas être supprimée : {{count}} carnet de notes l'utilise encore.",
     "subjectInUse_other": "La matière « {{name}} » ne peut pas être supprimée : {{count}} carnets de notes l'utilisent encore.",
     "subjectInUseSessions_one": "La matière « {{name}} » ne peut pas être supprimée : {{count}} séance l'utilise encore.",
-    "subjectInUseSessions_other": "La matière « {{name}} » ne peut pas être supprimée : {{count}} séances l'utilisent encore."
+    "subjectInUseSessions_other": "La matière « {{name}} » ne peut pas être supprimée : {{count}} séances l'utilisent encore.",
+    "theme": "Apparence",
+    "themeHint": "Le choix reste sur cet appareil.",
+    "themeChoice": {
+      "system": "Système",
+      "copie": "Copie",
+      "ardoise": "Ardoise"
+    },
+    "themeNote": {
+      "system": "Suit l'appareil",
+      "copie": "Clair, papier et encre",
+      "ardoise": "Sombre, salle dans la pénombre"
+    }
   },
   "csv": {
     "title": "Importer une liste d'élèves",
