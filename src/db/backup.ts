@@ -63,7 +63,9 @@ const backupSchema = z.object({
         gradebookId: z.string(),
         columnId: z.string(),
         studentId: z.string(),
-        value: gradeValueSchema,
+        // Optional: a note may exist before a mark does — "absent, à
+        // rattraper" is worth recording against a cell with no value yet.
+        value: gradeValueSchema.optional(),
       })
       .loose(),
   ),
@@ -159,7 +161,13 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     // file this module's own `parseBackup` rejects — the teacher's backup was
     // unusable and nothing said why. Dropping an unreachable row loses
     // nothing that is still reachable.
-    grades: grades.filter((grade) => gradeValueSchema.safeParse(grade.value).success),
+    // Drop only rows whose value is PRESENT and no longer parses — the stale
+    // attendance rows a pre-phase-2 workspace left behind. A row with no value
+    // at all is a legitimate note-only annotation and must survive: filtering
+    // on parse success alone silently deleted a teacher's remarks on export.
+    grades: grades.filter(
+      (grade) => grade.value === undefined || gradeValueSchema.safeParse(grade.value).success,
+    ),
     sessions,
     attendance,
     behaviourEvents,

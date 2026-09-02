@@ -362,3 +362,37 @@ describe("exportWorkspace — unreachable rows", () => {
     db.close();
   });
 });
+
+describe("exportWorkspace — note-only rows", () => {
+  it("keeps a row that carries a note but no mark, and round-trips it", async () => {
+    const db = openWorkspaceDb(`backup-note-${crypto.randomUUID()}`);
+    await db.grades.bulkPut([
+      {
+        gradebookId: "g1",
+        columnId: "c1",
+        studentId: "p1",
+        value: { type: "numeric", value: 14 },
+        note: "copie rendue en retard",
+        updatedAt: 1,
+      },
+      // No value at all: the teacher noted something before there was a mark.
+      {
+        gradebookId: "g1",
+        columnId: "c2",
+        studentId: "p1",
+        note: "absent, à rattraper",
+        updatedAt: 1,
+      } as Parameters<typeof db.grades.put>[0],
+    ]);
+
+    const backup = await exportWorkspace(db);
+    expect(backup.grades).toHaveLength(2);
+    expect(() => parseBackup(backup)).not.toThrow();
+
+    await importWorkspace(db, backup);
+    const restored = await db.grades.get(["g1", "c2", "p1"]);
+    expect(restored?.note).toBe("absent, à rattraper");
+    expect(restored?.value).toBeUndefined();
+    db.close();
+  });
+});
