@@ -86,7 +86,7 @@ describe("workspace backup", () => {
 
     await expect(
       importWorkspace(db, {
-        version: 5,
+        version: 6,
         exportedAt: 0,
         classes: [],
         students: [],
@@ -111,6 +111,37 @@ describe("workspace backup", () => {
     expect(await db.classes.count()).toBe(classCountBefore);
     expect(await db.students.count()).toBe(studentCountBefore);
     expect(await db.classes.get(sampleBefore.id)).toEqual(sampleBefore);
+    db.close();
+  });
+
+  it("rejects a version 4 backup rather than half-importing it", async () => {
+    // A v4 file predates the recurring timetable. Importing it would leave a
+    // workspace whose classes and gradebooks are all present and whose week is
+    // silently empty — half a workspace looks like a whole one.
+    const db = openWorkspaceDb("backup-import-v4");
+    expect(() =>
+      parseBackup({
+        version: 4,
+        exportedAt: 1,
+        classes: [],
+        students: [],
+        subjects: [],
+        gradebooks: [],
+        periods: [],
+        columns: [],
+        grades: [],
+        sessions: [],
+        attendance: [],
+        behaviourEvents: [],
+        seatingLayouts: [],
+        seats: [],
+        rubricTemplates: [],
+        rubricAssessments: [],
+        rubricScores: [],
+        studentGroups: [],
+        groupMembers: [],
+      }),
+    ).toThrow();
     db.close();
   });
 
@@ -161,7 +192,7 @@ describe("workspace backup", () => {
     });
     await db.groupMembers.put({ groupId: "g1", studentId: "p1" });
     const backup = await exportWorkspace(db);
-    expect(backup.version).toBe(4);
+    expect(backup.version).toBe(5);
     expect(backup.sessions).toHaveLength(1);
     expect(backup.attendance).toHaveLength(1);
     expect(backup.rubricTemplates).toHaveLength(1);
@@ -438,6 +469,46 @@ describe("exportWorkspace — note-only rows", () => {
     const restored = await db.grades.get(["g1", "c2", "p1"]);
     expect(restored?.note).toBe("absent, à rattraper");
     expect(restored?.value).toBeUndefined();
+    db.close();
+  });
+});
+
+describe("importing twice", () => {
+  it("leaves identical row counts, table by table", async () => {
+    // The guard against a table added to the WRITES but not to the clear
+    // list: the first import looks perfect, and the second doubles that
+    // table — or throws on a duplicate key — long after anyone is watching.
+    // Asserted over db.tables rather than a hand-written list, so the next
+    // schema version is covered the day it is declared.
+    const db = openWorkspaceDb(`backup-double-${crypto.randomUUID()}`);
+    await seedIfEmpty(db, `backup-double-${crypto.randomUUID()}`);
+    await db.scheduleEntries.add({
+      id: "sch1",
+      classId: (await db.classes.toArray())[0].id,
+      weekday: 1,
+      startMinute: 600,
+      endMinute: 660,
+      weekCycle: "all",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+
+    const backup = JSON.parse(JSON.stringify(await exportWorkspace(db)));
+
+    await importWorkspace(db, backup);
+    const first: Record<string, number> = {};
+    for (const table of db.tables) first[table.name] = await table.count();
+
+    await importWorkspace(db, backup);
+    const second: Record<string, number> = {};
+    for (const table of db.tables) second[table.name] = await table.count();
+
+    expect(second).toEqual(first);
+    // Every table really did hold rows, or equal counts prove nothing: two
+    // empty tables also match. Listed per table so a failure names which one.
+    for (const [name, count] of Object.entries(first)) {
+      expect([name, count > 0]).toEqual([name, true]);
+    }
     db.close();
   });
 });

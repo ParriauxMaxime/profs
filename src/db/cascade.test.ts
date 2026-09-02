@@ -8,6 +8,7 @@ import {
   deletePeriod,
   deleteRubricAssessment,
   deleteRubricTemplate,
+  deleteScheduleEntry,
   deleteSeatingLayout,
   deleteSession,
   deleteStudent,
@@ -957,5 +958,104 @@ describe("deleteClass — defensive sweeps", () => {
       expect((await db.rubricScores.toArray())[0].assessmentId).toBe("a2");
       db.close();
     });
+  });
+});
+
+describe("schedule entries", () => {
+  async function seedSchedule(label: string) {
+    const db = openWorkspaceDb(`cascade-schedule-${label}-${crypto.randomUUID()}`);
+    await db.classes.bulkAdd([
+      { id: "c1", name: "3°B", createdAt: 1, updatedAt: 1 },
+      { id: "c2", name: "5°A", createdAt: 1, updatedAt: 1 },
+    ]);
+    await db.subjects.add({
+      id: "sub1",
+      name: "Maths",
+      color: "#2563eb",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await db.gradebooks.bulkAdd([
+      { id: "g1", classId: "c1", subjectId: "sub1", name: "Maths 3°B", createdAt: 1, updatedAt: 1 },
+      { id: "g2", classId: "c1", subjectId: "sub1", name: "Autre", createdAt: 1, updatedAt: 1 },
+    ]);
+    await db.scheduleEntries.bulkAdd([
+      {
+        id: "e1",
+        classId: "c1",
+        gradebookId: "g1",
+        weekday: 1,
+        startMinute: 600,
+        endMinute: 660,
+        weekCycle: "all",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      {
+        id: "e2",
+        classId: "c1",
+        gradebookId: "g2",
+        weekday: 2,
+        startMinute: 480,
+        endMinute: 540,
+        weekCycle: "A",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      {
+        id: "e3",
+        classId: "c2",
+        weekday: 3,
+        startMinute: 540,
+        endMinute: 600,
+        weekCycle: "B",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    return db;
+  }
+
+  it("deleteScheduleEntry removes exactly that entry", async () => {
+    const db = await seedSchedule("one");
+    await deleteScheduleEntry(db, "e1");
+
+    expect((await db.scheduleEntries.toArray()).map((e) => e.id).sort()).toEqual(["e2", "e3"]);
+    db.close();
+  });
+
+  it("deleteClass takes its schedule entries and leaves another class's alone", async () => {
+    const db = await seedSchedule("class");
+    await deleteClass(db, "c1");
+
+    expect((await db.scheduleEntries.toArray()).map((e) => e.id)).toEqual(["e3"]);
+    db.close();
+  });
+
+  it("deleteGradebook UNLINKS its entries rather than deleting them", async () => {
+    // The subtle cascade of this phase. A lesson still happens after its
+    // gradebook is deleted; it just no longer opens onto a grid. Deleting a
+    // gradebook must never delete part of a teacher's timetable.
+    const db = await seedSchedule("gradebook");
+    await deleteGradebook(db, "g1");
+
+    const e1 = await db.scheduleEntries.get("e1");
+    expect(e1).toBeDefined();
+    expect(e1).not.toHaveProperty("gradebookId");
+    expect(e1?.weekday).toBe(1);
+    expect(e1?.startMinute).toBe(600);
+
+    // An entry pointing at a DIFFERENT gradebook is untouched.
+    expect((await db.scheduleEntries.get("e2"))?.gradebookId).toBe("g2");
+    db.close();
+  });
+
+  it("deleteClass leaves no orphan entry behind", async () => {
+    const db = await seedSchedule("orphans");
+    await deleteClass(db, "c1");
+    await deleteClass(db, "c2");
+
+    expect(await db.scheduleEntries.count()).toBe(0);
+    db.close();
   });
 });

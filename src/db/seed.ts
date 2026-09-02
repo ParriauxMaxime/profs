@@ -3,8 +3,10 @@ import { BEHAVIOUR_TYPES } from "@domain/behaviour";
 import { defaultGradebookName } from "@domain/gradebook/naming";
 import { DEFAULT_PERIOD_NAMES } from "@domain/gradebook/period";
 import { RUBRIC_LEVELS } from "@domain/rubric";
+import type { WeekCycle } from "@domain/schedule";
 import { buildSeats, DEFAULT_COLS, DEFAULT_ROWS } from "@domain/seating";
 import { SUBJECT_COLORS } from "@domain/subject";
+import { readTermStart, writeTermStart } from "@domain/term";
 import { hasBeenSeeded, markSeeded } from "@domain/workspaces";
 import type { AppDatabase } from ".";
 import { startOfDay } from "./sessions";
@@ -19,6 +21,7 @@ import type {
   RubricAssessment,
   RubricScore,
   RubricTemplate,
+  ScheduleEntry,
   Seat,
   SeatingLayout,
   Session,
@@ -87,6 +90,17 @@ const FIRST_NAMES = [
   "Théo",
   "Zoé",
 ];
+
+/**
+ * The 1 September on or before `ms` — the start of the school year the demo
+ * data sits in. Derived rather than hard-coded so the demo still makes sense
+ * whenever it is first opened.
+ */
+function startOfSeptember(ms: number): number {
+  const d = new Date(ms);
+  const year = d.getMonth() >= 8 ? d.getFullYear() : d.getFullYear() - 1;
+  return startOfDay(new Date(year, 8, 1).getTime());
+}
 
 /** Deterministic pseudo-random so the demo looks the same on every device. */
 function makeRandom(seed: number): () => number {
@@ -383,6 +397,47 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       .map((student) => ({ groupId: studentGroups[1].id, studentId: student.id })),
   ];
 
+  // A plausible week: 3°B four times, 5°A three, with one lesson on each
+  // alternating cycle so the A/B mechanism is visible in the demo rather than
+  // being something a teacher has to build before they can see it work.
+  // Weekdays are ISO (1 = Monday); minutes are from midnight.
+  const scheduleShape: {
+    classIndex: number;
+    weekday: number;
+    start: number;
+    end: number;
+    cycle: WeekCycle;
+    room: string;
+  }[] = [
+    { classIndex: 0, weekday: 1, start: 8 * 60, end: 9 * 60, cycle: "all", room: "B12" },
+    { classIndex: 0, weekday: 2, start: 10 * 60, end: 11 * 60, cycle: "all", room: "B12" },
+    { classIndex: 0, weekday: 4, start: 14 * 60, end: 15 * 60, cycle: "A", room: "B14" },
+    { classIndex: 0, weekday: 4, start: 14 * 60, end: 15 * 60, cycle: "B", room: "Labo" },
+    { classIndex: 1, weekday: 1, start: 9 * 60, end: 10 * 60, cycle: "all", room: "A03" },
+    { classIndex: 1, weekday: 3, start: 11 * 60, end: 12 * 60, cycle: "all", room: "A03" },
+    { classIndex: 1, weekday: 5, start: 8 * 60, end: 9 * 60, cycle: "B", room: "A03" },
+  ];
+  const scheduleEntries: ScheduleEntry[] = scheduleShape.map((shape) => ({
+    id: id(),
+    classId: classes[shape.classIndex].id,
+    subjectId: subjects[shape.classIndex].id,
+    gradebookId: gradebooks[shape.classIndex].id,
+    weekday: shape.weekday,
+    startMinute: shape.start,
+    endMinute: shape.end,
+    weekCycle: shape.cycle,
+    room: shape.room,
+    createdAt: now,
+    updatedAt: now,
+  }));
+
+  // Without an anchor the demo's A and B lessons would never appear, and the
+  // feature would look broken rather than unconfigured. Seeded only if the
+  // teacher has not already chosen one — their date always wins.
+  if (readTermStart() === null) {
+    writeTermStart(startOfSeptember(now));
+  }
+
   await db.transaction(
     "rw",
     [
@@ -403,6 +458,7 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       db.rubricScores,
       db.studentGroups,
       db.groupMembers,
+      db.scheduleEntries,
     ],
     async () => {
       await db.classes.bulkAdd(classes);
@@ -422,6 +478,7 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       await db.rubricScores.bulkPut(rubricScores);
       await db.studentGroups.bulkAdd(studentGroups);
       await db.groupMembers.bulkPut(groupMembers);
+      await db.scheduleEntries.bulkAdd(scheduleEntries);
     },
   );
 

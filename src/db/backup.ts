@@ -12,6 +12,7 @@ import type {
   RubricAssessment,
   RubricScore,
   RubricTemplate,
+  ScheduleEntry,
   SchoolClass,
   Seat,
   SeatingLayout,
@@ -22,7 +23,7 @@ import type {
 } from "./types";
 
 export interface WorkspaceBackup {
-  version: 4;
+  version: 5;
   exportedAt: number;
   classes: SchoolClass[];
   students: Student[];
@@ -41,6 +42,7 @@ export interface WorkspaceBackup {
   rubricScores: RubricScore[];
   studentGroups: StudentGroup[];
   groupMembers: GroupMember[];
+  scheduleEntries: ScheduleEntry[];
 }
 
 /**
@@ -51,10 +53,13 @@ export interface WorkspaceBackup {
  * migration path, and a v2 file predates the rubric tables entirely, so
  * half-importing it would leave a workspace with gradebooks but no rubric
  * assessments to hang scores off of. Version 3 is rejected the same way: it
- * predates student groups entirely.
+ * predates student groups entirely, and version 4 the recurring timetable.
+ * The rule for the next schema change is unchanged: bump the version, do not
+ * write an upgrade — importing a file half-populated is worse than refusing
+ * it, because half a workspace looks like a whole one.
  */
 const backupSchema = z.object({
-  version: z.literal(4),
+  version: z.literal(5),
   exportedAt: z.number(),
   classes: z.array(z.object({ id: z.string() }).loose()),
   students: z.array(z.object({ id: z.string() }).loose()),
@@ -115,6 +120,7 @@ const backupSchema = z.object({
       })
       .loose(),
   ),
+  scheduleEntries: z.array(z.object({ id: z.string() }).loose()),
 });
 
 /**
@@ -143,6 +149,7 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     rubricScores,
     studentGroups,
     groupMembers,
+    scheduleEntries,
   ] = await Promise.all([
     db.classes.toArray(),
     db.students.toArray(),
@@ -161,10 +168,11 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     db.rubricScores.toArray(),
     db.studentGroups.toArray(),
     db.groupMembers.toArray(),
+    db.scheduleEntries.toArray(),
   ]);
 
   return {
-    version: 4,
+    version: 5,
     exportedAt: Date.now(),
     classes,
     students: students.map(({ photo: _photo, ...rest }) => rest),
@@ -196,6 +204,7 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     rubricScores,
     studentGroups,
     groupMembers,
+    scheduleEntries,
   };
 }
 
@@ -235,6 +244,7 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     db.rubricScores,
     db.studentGroups,
     db.groupMembers,
+    db.scheduleEntries,
   ];
 
   await db.transaction("rw", tables, async () => {
@@ -256,5 +266,6 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     await db.rubricScores.bulkPut(data.rubricScores);
     await db.studentGroups.bulkAdd(data.studentGroups);
     await db.groupMembers.bulkPut(data.groupMembers);
+    await db.scheduleEntries.bulkAdd(data.scheduleEntries);
   });
 }

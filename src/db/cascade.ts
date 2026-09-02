@@ -80,7 +80,15 @@ export async function deleteStudent(db: AppDatabase, studentId: string): Promise
 export async function deleteGradebook(db: AppDatabase, gradebookId: string): Promise<void> {
   await db.transaction(
     "rw",
-    [db.gradebooks, db.periods, db.columns, db.grades, db.rubricAssessments, db.rubricScores],
+    [
+      db.gradebooks,
+      db.periods,
+      db.columns,
+      db.grades,
+      db.rubricAssessments,
+      db.rubricScores,
+      db.scheduleEntries,
+    ],
     async () => {
       await db.grades.where("gradebookId").equals(gradebookId).delete();
       await db.columns.where("gradebookId").equals(gradebookId).delete();
@@ -92,6 +100,14 @@ export async function deleteGradebook(db: AppDatabase, gradebookId: string): Pro
       if (assessmentIds.length > 0) {
         await db.rubricScores.where("assessmentId").anyOf(assessmentIds).delete();
         await db.rubricAssessments.bulkDelete(assessmentIds);
+      }
+      // A schedule entry is NOT deleted with its gradebook — it is unlinked.
+      // The lesson still happens; it just no longer opens onto a grid.
+      // Deleting a gradebook must never delete part of a teacher's timetable.
+      const linked = await db.scheduleEntries.where("gradebookId").equals(gradebookId).toArray();
+      for (const entry of linked) {
+        const { gradebookId: _unlinked, ...rest } = entry;
+        await db.scheduleEntries.put({ ...rest, updatedAt: Date.now() });
       }
       await db.gradebooks.delete(gradebookId);
     },
@@ -155,8 +171,10 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
       db.rubricScores,
       db.studentGroups,
       db.groupMembers,
+      db.scheduleEntries,
     ],
     async () => {
+      await db.scheduleEntries.where("classId").equals(classId).delete();
       const gradebookIds = await db.gradebooks.where("classId").equals(classId).primaryKeys();
       if (gradebookIds.length > 0) {
         await db.grades.where("gradebookId").anyOf(gradebookIds).delete();
@@ -285,4 +303,16 @@ export async function deleteRubricAssessment(db: AppDatabase, assessmentId: stri
  */
 export async function deleteRubricTemplate(db: AppDatabase, templateId: string): Promise<void> {
   await db.rubricTemplates.delete(templateId);
+}
+
+/**
+ * Single-table, but it lives here because every delete does.
+ *
+ * Nothing references a schedule entry, so there is nothing to cascade — and
+ * that is worth stating rather than leaving to be rediscovered: an entry
+ * predicts lessons, it does not own the sessions that happened, so removing
+ * it changes what Today expects and touches no history.
+ */
+export async function deleteScheduleEntry(db: AppDatabase, entryId: string): Promise<void> {
+  await db.scheduleEntries.delete(entryId);
 }
