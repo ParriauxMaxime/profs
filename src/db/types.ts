@@ -173,3 +173,22 @@ export interface RubricScore {
   level: RubricLevel;
   updatedAt: number;
 }
+
+/**
+ * A working group of pupils within a class — for selecting and viewing, never
+ * for holding a grade. `color` follows the same palette as `Subject.color`.
+ */
+export interface StudentGroup {
+  id: string;
+  classId: string;
+  name: string;
+  color: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** One pupil's membership in one group. Keyed [groupId+studentId]. */
+export interface GroupMember {
+  groupId: string;
+  studentId: string;
+}

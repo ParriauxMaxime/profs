@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { attendanceKey, openWorkspaceDb, rubricScoreKey, seatKey } from ".";
+import { attendanceKey, groupMemberKey, openWorkspaceDb, rubricScoreKey, seatKey } from ".";
 
 describe("schema v2", () => {
   it("builds an attendance key", () => {
@@ -22,6 +22,7 @@ describe("schema v2", () => {
         "columns",
         "gradebooks",
         "grades",
+        "groupMembers",
         "periods",
         "rubricAssessments",
         "rubricScores",
@@ -30,6 +31,7 @@ describe("schema v2", () => {
         "seats",
         "sessions",
         "students",
+        "studentGroups",
         "subjects",
       ].sort(),
     );
@@ -72,6 +74,22 @@ describe("schema v2", () => {
     });
     expect(await db.rubricScores.count()).toBe(1);
     expect((await db.rubricScores.get(rubricScoreKey("a1", "c1", "p1")))?.level).toBe(4);
+    db.close();
+  });
+
+  it("builds a group member key", () => {
+    expect(groupMemberKey("g1", "p1")).toEqual(["g1", "p1"]);
+  });
+
+  it("round-trips a membership on its compound key", async () => {
+    const db = openWorkspaceDb(`groups-${crypto.randomUUID()}`);
+    await db.groupMembers.put({ groupId: "g1", studentId: "p1" });
+    await db.groupMembers.put({ groupId: "g1", studentId: "p1" });
+    expect(await db.groupMembers.count()).toBe(1);
+    expect(await db.groupMembers.get(groupMemberKey("g1", "p1"))).toEqual({
+      groupId: "g1",
+      studentId: "p1",
+    });
     db.close();
   });
 });

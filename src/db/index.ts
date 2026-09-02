@@ -5,6 +5,7 @@ import type {
   Grade,
   Gradebook,
   GradeColumn,
+  GroupMember,
   Period,
   RubricAssessment,
   RubricScore,
@@ -14,6 +15,7 @@ import type {
   SeatingLayout,
   Session,
   Student,
+  StudentGroup,
   Subject,
 } from "./types";
 
@@ -23,6 +25,7 @@ export type {
   Grade,
   Gradebook,
   GradeColumn,
+  GroupMember,
   Period,
   RubricAssessment,
   RubricScore,
@@ -32,6 +35,7 @@ export type {
   SeatingLayout,
   Session,
   Student,
+  StudentGroup,
   Subject,
 } from "./types";
 
@@ -51,6 +55,8 @@ export type AppDatabase = Dexie & {
   rubricTemplates: EntityTable<RubricTemplate, "id">;
   rubricAssessments: EntityTable<RubricAssessment, "id">;
   rubricScores: Table<RubricScore, [string, string, string]>;
+  studentGroups: EntityTable<StudentGroup, "id">;
+  groupMembers: Table<GroupMember, [string, string]>;
 };
 
 /** The compound primary key of a cell. */
@@ -81,6 +87,11 @@ export function rubricScoreKey(
   return [assessmentId, criterionId, studentId];
 }
 
+/** The compound primary key of one pupil's membership in one group. */
+export function groupMemberKey(groupId: string, studentId: string): [string, string] {
+  return [groupId, studentId];
+}
+
 export function openWorkspaceDb(workspaceId: string): AppDatabase {
   const db = new Dexie(`profs-${workspaceId}`) as AppDatabase;
   // v2 adds the classroom tables. Existing data is disposable — there is no
@@ -106,6 +117,12 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
     rubricTemplates: "id, name",
     rubricAssessments: "id, gradebookId, periodId, date",
     rubricScores: "[assessmentId+criterionId+studentId], assessmentId, criterionId, studentId",
+  });
+  // v4 adds student groups. Existing data is disposable — there is no
+  // upgrade callback, so only the two new stores are listed here.
+  db.version(4).stores({
+    studentGroups: "id, classId",
+    groupMembers: "[groupId+studentId], groupId, studentId",
   });
   return db;
 }
