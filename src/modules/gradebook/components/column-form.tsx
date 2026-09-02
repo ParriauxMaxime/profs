@@ -10,6 +10,7 @@ import {
 import { parseDecimal } from "@domain/gradebook/decimal";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useEscape } from "../../shared/use-escape";
 
 export function ColumnForm({
   gradebookId,
@@ -29,6 +30,8 @@ export function ColumnForm({
   const [weight, setWeight] = useState(String(column?.weight ?? DEFAULT_COLUMN_WEIGHT));
   const [max, setMax] = useState(String(column?.max ?? DEFAULT_COLUMN_MAX));
   const [error, setError] = useState<string | null>(null);
+
+  useEscape(onDone);
 
   async function save(): Promise<void> {
     // Weight and max must be strictly positive: a weight of 0 silently drops
@@ -77,15 +80,19 @@ export function ColumnForm({
   }
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded border border-border p-3">
-      <label className="flex flex-col gap-1">
-        <span className="text-sm text-text-muted">{t("gradebook.columnLabel")}</span>
-        <input className="field" value={label} onChange={(e) => setLabel(e.target.value)} />
-      </label>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+      className="flex flex-wrap items-end gap-3 rounded border border-border p-3"
+    >
       <label className="flex flex-col gap-1">
         <span className="text-sm text-text-muted">{t("gradebook.columnType")}</span>
         <select
           className="field"
+          // biome-ignore lint/a11y/noAutofocus: opens ready to use — one-handed, mid-lesson, no spare tap to reach the field.
+          autoFocus
           value={type}
           onChange={(e) => setType(e.target.value as ColumnType)}
         >
@@ -95,6 +102,10 @@ export function ColumnForm({
             </option>
           ))}
         </select>
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-sm text-text-muted">{t("gradebook.columnLabel")}</span>
+        <input className="field" value={label} onChange={(e) => setLabel(e.target.value)} />
       </label>
       {isNumericColumn(type) && (
         <label className="flex flex-col gap-1">
@@ -118,7 +129,7 @@ export function ColumnForm({
           />
         </label>
       )}
-      <button type="button" className="btn btn-primary" onClick={() => void save()}>
+      <button type="submit" className="btn btn-primary">
         {t("common.save")}
       </button>
       <button type="button" className="btn" onClick={onDone}>
@@ -129,6 +140,6 @@ export function ColumnForm({
           {error}
         </p>
       )}
-    </div>
+    </form>
   );
 }
