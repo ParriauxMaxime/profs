@@ -250,3 +250,33 @@ What the brainstorm has to settle, rather than just adding menu items:
 
 Related: item 7 (timetable/diary/planner), which would generate the sessions a
 "today" view would show.
+
+## Technical debt — phase 2A inline writes (recorded 2026-09-02)
+
+Phases 2B and 3 were built to the rule that **components hold no database write
+logic**: every write is a named, unit-tested function in `src/db/`. Phase 2A
+predates that rule and was never retrofitted.
+
+Still inline, at the time of writing:
+
+- `src/modules/plan/page.tsx` — the seating-layout get-or-create, and the
+  seat-assignment transaction
+- `src/modules/plan/components/seat-grid.tsx` — the move-pupil transaction
+- `src/modules/plan/components/student-card.tsx` — attendance put/delete,
+  behaviour event add, two `students.update` calls for photo and notes
+- `src/modules/plan/components/layout-size-form.tsx` — the resize transaction
+- `src/modules/dashboard/components/gradebook-form.tsx` — gradebook + periods
+- `src/modules/settings/page.tsx` — the wipe transaction
+
+Why it matters, concretely: every defect that escaped phase 2A review was a
+database fact reachable without a browser — a pupil seated in two chairs, a
+second tap failing to clear a mark, a session created twice. They needed a
+browser only because the writes were buried in components where the existing
+test posture cannot reach them. Extracting them turns that whole class of bug
+into ordinary `fake-indexeddb` tests.
+
+Suggested operations: `seatStudent`, `movePupil`, `resizeLayout`,
+`setAttendance`, `clearAttendance`, `logBehaviour`, `setStudentPhoto`,
+`setStudentNotes`, `createGradebookWithPeriods`, `wipeWorkspace`.
+
+Do this before the next feature phase adds more surfaces in the old shape.
