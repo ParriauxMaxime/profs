@@ -9,6 +9,7 @@ import {
 } from "@domain/gradebook/csv";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useEscape } from "../../shared/use-escape";
 
 export function CsvImport({
   classId,
@@ -35,6 +36,8 @@ export function CsvImport({
   const [skipFirstRow, setSkipFirstRow] = useState(true);
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEscape(onDone);
 
   const effectiveDelimiter = delimiter ?? (text ? sniffDelimiter(text) : ",");
 
@@ -98,6 +101,8 @@ export function CsvImport({
         className="field font-mono text-sm"
         rows={5}
         placeholder={t("csv.pastePlaceholder")}
+        // biome-ignore lint/a11y/noAutofocus: opens ready to paste — one-handed, mid-lesson, no spare tap to reach the field.
+        autoFocus
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
