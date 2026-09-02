@@ -54,7 +54,11 @@ export function SessionBar({
           // button is armed would fire the confirm at the newly selected one.
           key={selected.id}
           variant="link"
-          danger
+          // Deliberately NOT `danger`: that only colours the idle state, and a
+          // red link sitting at the top of a screen a teacher uses mid-lesson
+          // pulls attention it has no claim on. The armed step is red either
+          // way, so the warning arrives when it means something — after the
+          // first tap, next to the text naming what is about to go.
           label={t("plan.deleteSession")}
           confirmLabel={t("plan.confirmDeleteSession", {
             date: formatter.format(selected.date),
