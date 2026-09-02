@@ -48,6 +48,60 @@ describe("cascading deletes", () => {
     db.close();
   });
 
+  it("deleteColumn removes its id from a calculation column that references it", async () => {
+    const db = openWorkspaceDb("cascade-column-calc-referencing");
+    const gradebookId = "gb1";
+    const periodId = "p1";
+    await db.columns.bulkAdd([
+      { id: "a", gradebookId, periodId, type: "numeric", label: "A", weight: 1, max: 20, order: 0 },
+      { id: "b", gradebookId, periodId, type: "numeric", label: "B", weight: 1, max: 20, order: 1 },
+      {
+        id: "calc",
+        gradebookId,
+        periodId,
+        type: "calculation",
+        label: "Mean",
+        weight: 1,
+        max: 20,
+        order: 2,
+        calculation: { kind: "mean", sourceColumnIds: ["a", "b"] },
+      },
+    ]);
+
+    await deleteColumn(db, "a");
+
+    const calc = await db.columns.get("calc");
+    expect(calc?.calculation?.sourceColumnIds).toEqual(["b"]);
+    db.close();
+  });
+
+  it("leaves a calculation column referencing a different column untouched", async () => {
+    const db = openWorkspaceDb("cascade-column-calc-other");
+    const gradebookId = "gb1";
+    const periodId = "p1";
+    await db.columns.bulkAdd([
+      { id: "a", gradebookId, periodId, type: "numeric", label: "A", weight: 1, max: 20, order: 0 },
+      { id: "c", gradebookId, periodId, type: "numeric", label: "C", weight: 1, max: 20, order: 1 },
+      {
+        id: "calc2",
+        gradebookId,
+        periodId,
+        type: "calculation",
+        label: "Sum",
+        weight: 1,
+        max: 20,
+        order: 2,
+        calculation: { kind: "sum", sourceColumnIds: ["c"] },
+      },
+    ]);
+
+    await deleteColumn(db, "a");
+
+    const calc = await db.columns.get("calc2");
+    expect(calc?.calculation?.sourceColumnIds).toEqual(["c"]);
+    db.close();
+  });
+
   it("deleteStudent removes the student and every grade of theirs, and nothing else", async () => {
     const db = openWorkspaceDb("cascade-student");
     await seedIfEmpty(db, "cascade-student");

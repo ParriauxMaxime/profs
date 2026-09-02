@@ -22,9 +22,28 @@ export async function deleteGroup(db: AppDatabase, groupId: string): Promise<voi
   });
 }
 
+/**
+ * Deleting a column must also prune it out of every calculation column that
+ * references it as a source, in the same transaction. A calculation left
+ * pointing at a column that no longer exists would silently change meaning
+ * while still rendering a plausible number — the worst kind of wrong.
+ */
 export async function deleteColumn(db: AppDatabase, columnId: string): Promise<void> {
   await db.transaction("rw", [db.columns, db.grades], async () => {
     await db.grades.where("columnId").equals(columnId).delete();
+    const referencing = await db.columns
+      .filter((c) => c.calculation?.sourceColumnIds.includes(columnId) ?? false)
+      .toArray();
+    for (const calc of referencing) {
+      const spec = calc.calculation;
+      if (!spec) continue;
+      await db.columns.update(calc.id, {
+        calculation: {
+          ...spec,
+          sourceColumnIds: spec.sourceColumnIds.filter((id) => id !== columnId),
+        },
+      });
+    }
     await db.columns.delete(columnId);
   });
 }

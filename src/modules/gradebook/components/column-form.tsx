@@ -1,6 +1,11 @@
 import type { GradeColumn } from "@db";
 import { useDb } from "@db/provider";
 import {
+  CALCULATION_KINDS,
+  type CalculationKind,
+  type CalculationSpec,
+} from "@domain/gradebook/calculation";
+import {
   COLUMN_TYPES,
   type ColumnType,
   DEFAULT_COLUMN_MAX,
@@ -16,11 +21,14 @@ export function ColumnForm({
   gradebookId,
   periodId,
   column,
+  /** The gradebook's numeric columns in this period — the only valid sources for a calculation. */
+  numericColumns,
   onDone,
 }: {
   gradebookId: string;
   periodId: string;
   column?: GradeColumn;
+  numericColumns: GradeColumn[];
   onDone: () => void;
 }) {
   const { t } = useTranslation();
@@ -29,9 +37,22 @@ export function ColumnForm({
   const [type, setType] = useState<ColumnType>(column?.type ?? "numeric");
   const [weight, setWeight] = useState(String(column?.weight ?? DEFAULT_COLUMN_WEIGHT));
   const [max, setMax] = useState(String(column?.max ?? DEFAULT_COLUMN_MAX));
+  const [calcKind, setCalcKind] = useState<CalculationKind>(column?.calculation?.kind ?? "mean");
+  const [sourceColumnIds, setSourceColumnIds] = useState<string[]>(
+    column?.calculation?.sourceColumnIds ?? [],
+  );
+  const [bestCount, setBestCount] = useState(
+    column?.calculation?.bestCount === undefined ? "" : String(column.calculation.bestCount),
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEscape(onDone);
+
+  function toggleSource(id: string): void {
+    setSourceColumnIds((current) =>
+      current.includes(id) ? current.filter((existing) => existing !== id) : [...current, id],
+    );
+  }
 
   async function save(): Promise<void> {
     // Weight and max must be strictly positive: a weight of 0 silently drops
@@ -60,8 +81,34 @@ export function ColumnForm({
       parsedWeight !== null && parsedWeight > 0 ? parsedWeight : DEFAULT_COLUMN_WEIGHT;
     const nextMax = parsedMax !== null && parsedMax > 0 ? parsedMax : DEFAULT_COLUMN_MAX;
 
+    // A calculation column stores nothing of its own: weight and max stay at
+    // their defaults and are simply never consulted, since `isNumericColumn`
+    // is false for this type.
+    const parsedBestCount = parseDecimal(bestCount);
+    const calculation: CalculationSpec | undefined =
+      type === "calculation"
+        ? {
+            kind: calcKind,
+            sourceColumnIds,
+            ...(calcKind === "bestOf" && parsedBestCount !== null && parsedBestCount > 0
+              ? { bestCount: Math.round(parsedBestCount) }
+              : {}),
+          }
+        : undefined;
+
     if (column) {
-      await db.columns.update(column.id, { label, type, weight: nextWeight, max: nextMax });
+      // Destructure `calculation` out rather than leaving a stale spec
+      // behind: switching a column away from "calculation" must clear it,
+      // not just stop reading it.
+      const { calculation: _previousCalculation, ...rest } = column;
+      await db.columns.put({
+        ...rest,
+        label,
+        type,
+        weight: nextWeight,
+        max: nextMax,
+        ...(calculation ? { calculation } : {}),
+      });
     } else {
       const siblings = await db.columns.where("gradebookId").equals(gradebookId).count();
       await db.columns.add({
@@ -74,6 +121,7 @@ export function ColumnForm({
         max: nextMax,
         order: siblings,
         date: Date.now(),
+        ...(calculation ? { calculation } : {}),
       });
     }
     onDone();
@@ -128,6 +176,54 @@ export function ColumnForm({
             onChange={(e) => setMax(e.target.value)}
           />
         </label>
+      )}
+      {type === "calculation" && (
+        <>
+          <label className="flex flex-col gap-1">
+            <span className="text-sm text-text-muted">{t("gradebook.calcKindLabel")}</span>
+            <select
+              className="field"
+              value={calcKind}
+              onChange={(e) => setCalcKind(e.target.value as CalculationKind)}
+            >
+              {CALCULATION_KINDS.map((kind) => (
+                <option key={kind} value={kind}>
+                  {t(`gradebook.calcKind.${kind}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          {calcKind === "bestOf" && (
+            <label className="flex flex-col gap-1">
+              <span className="text-sm text-text-muted">{t("gradebook.bestCount")}</span>
+              <input
+                className="field"
+                inputMode="numeric"
+                value={bestCount}
+                onChange={(e) => setBestCount(e.target.value)}
+              />
+            </label>
+          )}
+          <fieldset className="flex min-w-48 flex-col gap-1 border-0 p-0">
+            <legend className="text-sm text-text-muted">{t("gradebook.calcSources")}</legend>
+            {numericColumns.length === 0 ? (
+              <p className="text-text-faint text-xs">{t("gradebook.calcNoSources")}</p>
+            ) : (
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {numericColumns.map((source) => (
+                  <label key={source.id} className="flex items-center gap-1 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={sourceColumnIds.includes(source.id)}
+                      onChange={() => toggleSource(source.id)}
+                    />
+                    {source.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </fieldset>
+        </>
       )}
       <button type="submit" className="btn btn-primary">
         {t("common.save")}

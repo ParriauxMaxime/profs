@@ -60,6 +60,11 @@ export function parseGradeValue(type: ColumnType, raw: unknown, max?: number): G
     case "icon":
     case "text":
       return { type, value: text };
+    case "calculation":
+      // A calculation column stores nothing: its value is derived on read.
+      // Accepting input here would create a stored value that the next
+      // render discards — a lie that looks like data.
+      return null;
   }
 }
 

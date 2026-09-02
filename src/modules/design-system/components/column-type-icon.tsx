@@ -6,6 +6,7 @@ const GLYPHS: Record<ColumnType, string> = {
   icon: "★",
   checkbox: "☑",
   text: "¶",
+  calculation: "Σ",
 };
 
 export function ColumnTypeIcon({ type }: { type: ColumnType }) {

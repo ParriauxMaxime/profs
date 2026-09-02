@@ -6,7 +6,14 @@
  * average computation (only `numeric` does).
  */
 
-export const COLUMN_TYPES = ["numeric", "letter", "icon", "checkbox", "text"] as const;
+export const COLUMN_TYPES = [
+  "numeric",
+  "letter",
+  "icon",
+  "checkbox",
+  "text",
+  "calculation",
+] as const;
 
 export type ColumnType = (typeof COLUMN_TYPES)[number];
 
@@ -14,7 +21,11 @@ export type ColumnType = (typeof COLUMN_TYPES)[number];
 export const DEFAULT_COLUMN_WEIGHT = 1;
 export const DEFAULT_COLUMN_MAX = 20;
 
-/** Only numeric columns contribute to averages. */
+/**
+ * Only numeric columns contribute to averages. A `calculation` column is
+ * derived, display-only, and deliberately excluded — see
+ * `src/domain/gradebook/calculation.ts`.
+ */
 export function isNumericColumn(type: ColumnType): boolean {
   return type === "numeric";
 }

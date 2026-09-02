@@ -1,5 +1,6 @@
 import type { AttendanceValue } from "@domain/attendance";
 import type { BehaviourType } from "@domain/behaviour";
+import type { CalculationSpec } from "@domain/gradebook/calculation";
 import type { ColumnType } from "@domain/gradebook/column";
 import type { GradeValue } from "@domain/gradebook/grade";
 import type { RubricCriterion, RubricLevel } from "@domain/rubric";
@@ -50,7 +51,13 @@ export interface Period {
   order: number;
 }
 
-/** One assessment column. `max` only meaningful when type is "numeric". */
+/**
+ * One assessment column. `max` only meaningful when type is "numeric".
+ *
+ * `calculation` is only meaningful when `type` is "calculation": the column
+ * stores no grade rows of its own, its value is derived on read from other
+ * columns' grades. See `src/domain/gradebook/calculation.ts`.
+ */
 export interface GradeColumn {
   id: string;
   gradebookId: string;
@@ -61,6 +68,7 @@ export interface GradeColumn {
   max: number;
   order: number;
   date?: number;
+  calculation?: CalculationSpec;
 }
 
 /**

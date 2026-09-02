@@ -60,6 +60,22 @@ export function EditableCell({
   const hasNote = note !== undefined && note.length > 0;
   const noteTitle = hasNote ? t("gradebook.hasNote", { note }) : undefined;
 
+  // A calculation column stores nothing — its value is derived on read by the
+  // caller and handed in as `value`. Rendering it read-only here (no button,
+  // no editor) is the only way to guarantee a teacher can never type into it
+  // and produce a stored value the next render would silently discard.
+  if (type === "calculation") {
+    const text = value?.type === "numeric" ? formatGradeValue(value, undefined, locale) : null;
+    return (
+      <span
+        className="tabular-nums text-text-muted"
+        title={text === null ? t("gradebook.calcEmpty") : undefined}
+      >
+        {text ?? <span className="text-text-faint">—</span>}
+      </span>
+    );
+  }
+
   function openEditor(): void {
     setDraft(value === undefined ? "" : rawText(value, locale));
     setNoteDraft(note ?? "");

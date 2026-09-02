@@ -59,6 +59,11 @@ describe("parseGradeValue", () => {
       value: 25,
     });
   });
+
+  it("never accepts input for a calculation column, since it stores nothing", () => {
+    expect(parseGradeValue("calculation", "14")).toBeNull();
+    expect(parseGradeValue("calculation", "")).toBeNull();
+  });
 });
 
 describe("isBlankInput", () => {

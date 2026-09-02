@@ -5,6 +5,8 @@ import { setGradeNote } from "@db/grades";
 import { useDb } from "@db/provider";
 import type { AverageColumn, AverageGrade } from "@domain/gradebook/average";
 import { classStats, studentAverage } from "@domain/gradebook/average";
+import type { CalculationSource } from "@domain/gradebook/calculation";
+import { evaluateCalculation } from "@domain/gradebook/calculation";
 import { isNumericColumn } from "@domain/gradebook/column";
 import { formatDecimal } from "@domain/gradebook/decimal";
 import type { GradeValue } from "@domain/gradebook/grade";
@@ -58,7 +60,11 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
   // deleted period must not leave the grid pointing at an id nothing matches.
   const selectedPeriod = data.periods.find((period) => period.id === periodId);
   const activePeriodId = selectedPeriod?.id ?? data.periods[0]?.id ?? "";
-  const columns = data.columns.filter((c) => c.periodId === activePeriodId);
+  // Bound to a local so the closures below (defined as function declarations,
+  // hence not narrowed by the guards above) don't touch the possibly-null
+  // `data` directly.
+  const allColumns = data.columns;
+  const columns = allColumns.filter((c) => c.periodId === activePeriodId);
   const visibleStudents = filterByGroup(data.students, data.memberships, selectedGroupId);
   const gradeMap = new Map<string, Grade>(
     data.grades.map((g) => [`${g.columnId}|${g.studentId}`, g]),
@@ -91,6 +97,30 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
   const stats = classStats(
     [...averages.values()].filter((value): value is number => value !== null),
   );
+
+  // Sources for a calculation are always plain numeric columns, regardless of
+  // which period the calculation itself sits in — `evaluateCalculation`
+  // ignores any id in `sourceColumnIds` that doesn't resolve, so a column
+  // outside this list (or since deleted) degrades gracefully rather than
+  // breaking.
+  const calculationSources: CalculationSource[] = data.columns
+    .filter((c) => isNumericColumn(c.type))
+    .map((c) => ({ id: c.id, max: c.max, weight: c.weight }));
+
+  function calculationValue(column: GradeColumn, studentId: string): number | null {
+    if (!column.calculation) return null;
+    return evaluateCalculation(
+      column.calculation,
+      calculationSources,
+      gradesByStudent.get(studentId) ?? [],
+    );
+  }
+
+  function numericColumnsFor(forPeriodId: string, excludeId?: string): GradeColumn[] {
+    return allColumns.filter(
+      (c) => c.periodId === forPeriodId && isNumericColumn(c.type) && c.id !== excludeId,
+    );
+  }
 
   async function writeGrade(
     column: GradeColumn,
@@ -179,6 +209,7 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
           key="new"
           gradebookId={gradebookId}
           periodId={activePeriodId}
+          numericColumns={numericColumnsFor(activePeriodId)}
           onDone={() => setAddingColumn(false)}
         />
       )}
@@ -191,6 +222,7 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
           gradebookId={gradebookId}
           periodId={editingColumn.periodId}
           column={editingColumn}
+          numericColumns={numericColumnsFor(editingColumn.periodId, editingColumn.id)}
           onDone={() => setEditingColumn(null)}
         />
       )}
@@ -265,20 +297,40 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
                 <td className="sticky left-0 z-10 whitespace-nowrap bg-bg px-3 py-2">
                   {student.lastName} {student.firstName}
                 </td>
-                {columns.map((column) => (
-                  <td key={column.id} className="px-3 py-2 text-center">
-                    <EditableCell
-                      type={column.type}
-                      max={column.max}
-                      value={gradeMap.get(`${column.id}|${student.id}`)?.value}
-                      note={gradeMap.get(`${column.id}|${student.id}`)?.note}
-                      onChange={(next) => writeGrade(column, student, next)}
-                      onNoteChange={(next) =>
-                        setGradeNote(db, gradebookId, column.id, student.id, next)
-                      }
-                    />
-                  </td>
-                ))}
+                {columns.map((column) =>
+                  column.type === "calculation" ? (
+                    <td key={column.id} className="px-3 py-2 text-center">
+                      <EditableCell
+                        type="calculation"
+                        max={column.max}
+                        value={(() => {
+                          const computed = calculationValue(column, student.id);
+                          return computed === null
+                            ? undefined
+                            : { type: "numeric", value: computed };
+                        })()}
+                        // A calculation stores nothing: neither callback below
+                        // is ever invoked, since EditableCell renders this
+                        // type read-only before either could be reached.
+                        onChange={async () => {}}
+                        onNoteChange={async () => {}}
+                      />
+                    </td>
+                  ) : (
+                    <td key={column.id} className="px-3 py-2 text-center">
+                      <EditableCell
+                        type={column.type}
+                        max={column.max}
+                        value={gradeMap.get(`${column.id}|${student.id}`)?.value}
+                        note={gradeMap.get(`${column.id}|${student.id}`)?.note}
+                        onChange={(next) => writeGrade(column, student, next)}
+                        onNoteChange={(next) =>
+                          setGradeNote(db, gradebookId, column.id, student.id, next)
+                        }
+                      />
+                    </td>
+                  ),
+                )}
                 <td className="px-3 py-2 text-center font-medium tabular-nums">
                   {averages.get(student.id) === null || averages.get(student.id) === undefined ? (
                     <span className="text-text-faint">—</span>

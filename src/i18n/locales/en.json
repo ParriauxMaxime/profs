@@ -99,8 +99,20 @@
       "letter": "Letter",
       "icon": "Icon",
       "checkbox": "Checkbox",
-      "text": "Text"
+      "text": "Text",
+      "calculation": "Calculation"
     },
+    "calcKindLabel": "Calculation",
+    "calcKind": {
+      "mean": "Weighted mean",
+      "sum": "Sum",
+      "bestOf": "Best of",
+      "count": "Count"
+    },
+    "bestCount": "Number of grades kept",
+    "calcSources": "Source columns",
+    "calcNoSources": "No numeric columns yet in this period to calculate from.",
+    "calcEmpty": "No data to calculate from yet",
     "average": "Average",
     "stats": {
       "mean": "Class average",

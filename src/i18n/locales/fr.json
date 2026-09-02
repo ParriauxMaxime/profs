@@ -99,8 +99,20 @@
       "letter": "Lettre",
       "icon": "Icône",
       "checkbox": "Case à cocher",
-      "text": "Texte"
+      "text": "Texte",
+      "calculation": "Calcul"
     },
+    "calcKindLabel": "Calcul",
+    "calcKind": {
+      "mean": "Moyenne pondérée",
+      "sum": "Somme",
+      "bestOf": "Meilleures notes",
+      "count": "Nombre de notes"
+    },
+    "bestCount": "Nombre de notes conservées",
+    "calcSources": "Colonnes sources",
+    "calcNoSources": "Pas encore de colonne chiffrée dans cette période pour servir de source.",
+    "calcEmpty": "Pas encore de note à partir de laquelle calculer",
     "average": "Moyenne",
     "stats": {
       "mean": "Moyenne de classe",
