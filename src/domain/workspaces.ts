@@ -15,6 +15,20 @@ const LIST_KEY = "profs-workspaces";
 const ACTIVE_KEY = "profs-active-workspace";
 const SEEDED_KEY = "profs-seeded-workspaces";
 
+/**
+ * The name a workspace gets when nobody named it — on first run, and when the
+ * teacher deletes the last one and the app has to stand a new one up. It is
+ * not translated: it is stored data a teacher can rename, and a name that
+ * changed with the interface language would be a different school in the list.
+ */
+export const DEFAULT_WORKSPACE_NAME = "Mon établissement";
+
+/** "2026-2027" — the way a French school year is written. */
+export function currentSchoolYear(): string {
+  const year = new Date().getFullYear();
+  return `${year}-${year + 1}`;
+}
+
 const listeners = new Set<() => void>();
 
 function emit(): void {
@@ -43,6 +57,56 @@ export function addWorkspace(name: string, year: string): Workspace {
   return workspace;
 }
 
+/**
+ * Create a workspace a teacher asked for, as opposed to the first-run one.
+ *
+ * The seeded marker is set immediately, and that is the whole point of this
+ * function existing beside `addWorkspace`: `initWorkspace` runs `seedIfEmpty`
+ * on the active workspace at every boot, so a school created here would be
+ * handed the demo school's classes and pupils on the next reload. Only
+ * `ensureDefaultWorkspace` leaves the marker unset, because the demo data is
+ * an introduction to an empty app, not something to pour into a real school.
+ */
+export function createWorkspace(name: string, year: string): Workspace {
+  const workspace = addWorkspace(name, year);
+  markSeeded(workspace.id);
+  return workspace;
+}
+
+export function renameWorkspace(id: string, name: string, year: string): void {
+  const workspaces = listWorkspaces();
+  if (!workspaces.some((w) => w.id === id)) return;
+  writeWorkspaces(workspaces.map((w) => (w.id === id ? { ...w, name, year } : w)));
+}
+
+/**
+ * Drop a workspace from the registry. The database itself is deleted by
+ * `deleteWorkspaceDb` in `src/db/workspace.ts` — this half owns the metadata
+ * only, so that it stays a synchronous localStorage module.
+ *
+ * Removing the active workspace re-points the active id at whatever remains;
+ * removing the last one leaves none, and the next boot's
+ * `ensureDefaultWorkspace` creates a fresh "Mon établissement". The seeded
+ * marker goes with it, so an id can never be resurrected already-seeded.
+ */
+export function removeWorkspace(id: string): void {
+  const workspaces = listWorkspaces();
+  if (!workspaces.some((w) => w.id === id)) return;
+
+  const remaining = workspaces.filter((w) => w.id !== id);
+  localStorage.setItem(SEEDED_KEY, JSON.stringify(seededIds().filter((seeded) => seeded !== id)));
+
+  if (localStorage.getItem(ACTIVE_KEY) === id) {
+    if (remaining.length > 0) {
+      localStorage.setItem(ACTIVE_KEY, remaining[0].id);
+    } else {
+      localStorage.removeItem(ACTIVE_KEY);
+    }
+  }
+
+  writeWorkspaces(remaining);
+}
+
 export function activeWorkspaceId(): string | null {
   const id = localStorage.getItem(ACTIVE_KEY);
   return id && listWorkspaces().some((w) => w.id === id) ? id : null;
@@ -66,8 +130,7 @@ export function ensureDefaultWorkspace(): Workspace {
     return existing[0];
   }
 
-  const year = new Date().getFullYear();
-  const workspace = addWorkspace("Mon établissement", `${year}-${year + 1}`);
+  const workspace = addWorkspace(DEFAULT_WORKSPACE_NAME, currentSchoolYear());
   setActiveWorkspaceId(workspace.id);
   return workspace;
 }
@@ -116,4 +179,24 @@ function getSnapshot(): string {
 
 export function useActiveWorkspaceId(): string {
   return useSyncExternalStore(subscribe, getSnapshot);
+}
+
+// `listWorkspaces` parses the JSON afresh on every call, so it returns a new
+// array each time. `useSyncExternalStore` compares snapshots by identity and
+// would re-render forever. The cache is keyed on the raw string, which only
+// changes when the registry actually does.
+let cachedRaw: string | null = null;
+let cachedList: Workspace[] = [];
+
+function getWorkspacesSnapshot(): Workspace[] {
+  const raw = localStorage.getItem(LIST_KEY);
+  if (raw !== cachedRaw) {
+    cachedRaw = raw;
+    cachedList = listWorkspaces();
+  }
+  return cachedList;
+}
+
+export function useWorkspaces(): Workspace[] {
+  return useSyncExternalStore(subscribe, getWorkspacesSnapshot);
 }

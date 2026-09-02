@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { openWorkspaceDb } from ".";
-import { wipeWorkspace } from "./workspace";
+import { deleteWorkspaceDb, wipeWorkspace } from "./workspace";
 
 describe("wipeWorkspace", () => {
   it("leaves no row in any table", async () => {
@@ -132,5 +132,39 @@ describe("wipeWorkspace", () => {
       expect([table.name, await table.count()]).toEqual([table.name, 0]);
     }
     db.close();
+  });
+});
+
+describe("deleteWorkspaceDb", () => {
+  it("removes the database, so reopening the same workspace id finds nothing", async () => {
+    const workspaceId = `delete-${crypto.randomUUID()}`;
+    const db = openWorkspaceDb(workspaceId);
+    await db.classes.add({ id: "c1", name: "3°B", createdAt: 1, updatedAt: 1 });
+    db.close();
+
+    await deleteWorkspaceDb(workspaceId);
+
+    const reopened = openWorkspaceDb(workspaceId);
+    expect(await reopened.classes.count()).toBe(0);
+    reopened.close();
+  });
+
+  it("leaves other workspaces untouched", async () => {
+    const doomedId = `doomed-${crypto.randomUUID()}`;
+    const keptId = `kept-${crypto.randomUUID()}`;
+    const doomed = openWorkspaceDb(doomedId);
+    const kept = openWorkspaceDb(keptId);
+    await doomed.classes.add({ id: "c1", name: "3°B", createdAt: 1, updatedAt: 1 });
+    await kept.classes.add({ id: "c2", name: "4°A", createdAt: 1, updatedAt: 1 });
+    doomed.close();
+
+    await deleteWorkspaceDb(doomedId);
+
+    expect(await kept.classes.count()).toBe(1);
+    kept.close();
+  });
+
+  it("resolves for a workspace that was never opened", async () => {
+    await expect(deleteWorkspaceDb(`never-opened-${crypto.randomUUID()}`)).resolves.toBeUndefined();
   });
 });
