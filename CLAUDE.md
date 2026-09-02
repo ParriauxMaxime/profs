@@ -86,9 +86,12 @@ per lesson it carries the contenu de la séance and the travail à faire, and it
 must be consultable by pupils, parents and the chef d'établissement. It lives
 in Pronote or the ENT.
 
-This app has no network and cannot be that record. The phrase "cahier de
-textes" therefore appears nowhere in the product except in the sentence saying
-the journal does not replace it, and no field is named after an official one.
+This app has no network and cannot be that record. The distinction is kept by
+the **naming** — the feature is a Journal, and no field is named after an
+official one. There is deliberately no on-screen disclaimer: one was written
+and removed, because a teacher who installed a local-only app does not need
+telling it is not the ENT, and the line read as defensive. `PRIVACY.md` and
+`README.md` carry the statement in full, which is where it belongs.
 A teacher who believed this discharged a legal obligation would be worse off
 than one who never installed it. Do not add a Pronote-shaped export, due
 dates, or a travail-à-faire field without reopening that question.

@@ -33,10 +33,12 @@ interface Lesson {
 /**
  * The journal, read through a calendar.
  *
- * Deliberately not called a cahier de textes anywhere: that record is legally
- * mandated in France and must be consultable by pupils, parents and the chef
- * d'établissement. This app has no network and cannot be it, and a teacher who
- * believed otherwise would be worse off than one who never installed it.
+ * Deliberately not called a cahier de textes: that record is legally mandated
+ * in France and must be consultable by pupils, parents and the chef
+ * d'établissement, which an app with no network cannot be. The naming is where
+ * that distinction is kept — there is no on-screen disclaimer, because a
+ * teacher who installed a local-only app does not need telling it is not the
+ * ENT. PRIVACY.md and README.md carry the statement in full.
  *
  * With the class filter off and the week mode on, this is what was scoped as
  * the 4c planner. A second calendar rendering the same tables would have been
@@ -108,8 +110,6 @@ export function DiaryPage() {
           ))}
         </ToggleGroup>
       </div>
-
-      <p className="text-sm text-text-muted">{t("diary.notOfficial")}</p>
 
       <div className="flex flex-wrap items-center gap-2">
         <select
