@@ -2,6 +2,7 @@ import Dexie, { type EntityTable, type Table } from "dexie";
 import type {
   AttendanceRecord,
   BehaviourEvent,
+  DiaryEntry,
   Grade,
   Gradebook,
   GradeColumn,
@@ -23,6 +24,7 @@ import type {
 export type {
   AttendanceRecord,
   BehaviourEvent,
+  DiaryEntry,
   Grade,
   Gradebook,
   GradeColumn,
@@ -60,6 +62,7 @@ export type AppDatabase = Dexie & {
   studentGroups: EntityTable<StudentGroup, "id">;
   groupMembers: Table<GroupMember, [string, string]>;
   scheduleEntries: EntityTable<ScheduleEntry, "id">;
+  diaryEntries: Table<DiaryEntry, [string, number]>;
 };
 
 /** The compound primary key of a cell. */
@@ -88,6 +91,11 @@ export function rubricScoreKey(
   studentId: string,
 ): [string, string, string] {
   return [assessmentId, criterionId, studentId];
+}
+
+/** The compound primary key of one day's journal entry for one class. */
+export function diaryKey(classId: string, date: number): [string, number] {
+  return [classId, date];
 }
 
 /** The compound primary key of one pupil's membership in one group. */
@@ -131,6 +139,11 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
   // upgrade callback, so only the new store is listed here.
   db.version(5).stores({
     scheduleEntries: "id, classId, weekday, gradebookId",
+  });
+  // v6 adds the journal. Existing data is disposable — there is no upgrade
+  // callback, so only the new store is listed here.
+  db.version(6).stores({
+    diaryEntries: "[classId+date], classId, date",
   });
   return db;
 }

@@ -103,6 +103,13 @@ describe("wipeWorkspace", () => {
       updatedAt: 1,
     });
     await db.groupMembers.add({ groupId: "grp1", studentId: "s1" });
+    await db.diaryEntries.add({
+      classId: "c1",
+      date: 1,
+      text: "on a fait les fractions",
+      createdAt: 1,
+      updatedAt: 1,
+    });
     await db.scheduleEntries.add({
       id: "sch1",
       classId: "c1",

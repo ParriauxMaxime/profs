@@ -229,3 +229,25 @@ export interface ScheduleEntry {
   createdAt: number;
   updatedAt: number;
 }
+
+/**
+ * One day's journal entry for one class. Keyed [classId+date].
+ *
+ * `date` is local midnight, as `Session.date` is. Deliberately carries NO
+ * `sessionId`: an entry is writable before the lesson happens, and hanging it
+ * off a session would mean writing next Thursday's plan created a session for
+ * a lesson nobody taught — quietly undoing phase 4a's ruling that the schedule
+ * predicts and never pre-creates. The two are joined at read time only.
+ *
+ * One entry per class per day, not per lesson slot: keying on a start time
+ * would pin the text to a clock, and moving a lesson from 10h to 11h would
+ * make its entry match no lesson and vanish. A class taught twice in one day
+ * shares an entry, which is accepted.
+ */
+export interface DiaryEntry {
+  classId: string;
+  date: number;
+  text: string;
+  createdAt: number;
+  updatedAt: number;
+}

@@ -20,6 +20,7 @@ describe("schema v2", () => {
         "behaviourEvents",
         "classes",
         "columns",
+        "diaryEntries",
         "gradebooks",
         "grades",
         "groupMembers",

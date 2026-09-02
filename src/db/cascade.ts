@@ -1,4 +1,6 @@
+import { startOfDay } from "@domain/term";
 import type { AppDatabase } from ".";
+import { diaryKey } from ".";
 
 /**
  * Deletes that must take their dependent rows with them.
@@ -172,9 +174,11 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
       db.studentGroups,
       db.groupMembers,
       db.scheduleEntries,
+      db.diaryEntries,
     ],
     async () => {
       await db.scheduleEntries.where("classId").equals(classId).delete();
+      await db.diaryEntries.where("classId").equals(classId).delete();
       const gradebookIds = await db.gradebooks.where("classId").equals(classId).primaryKeys();
       if (gradebookIds.length > 0) {
         await db.grades.where("gradebookId").anyOf(gradebookIds).delete();
@@ -315,4 +319,21 @@ export async function deleteRubricTemplate(db: AppDatabase, templateId: string):
  */
 export async function deleteScheduleEntry(db: AppDatabase, entryId: string): Promise<void> {
   await db.scheduleEntries.delete(entryId);
+}
+
+/**
+ * Single-table, and here because every delete is.
+ *
+ * Note what does NOT cascade into the journal: `deleteScheduleEntry` above
+ * leaves it entirely alone. The lesson happened; taking it off next term's
+ * timetable must not erase what was written about it. That is the same shape
+ * as `deleteGradebook` unlinking rather than deleting a schedule entry, and it
+ * has its own test.
+ */
+export async function deleteDiaryEntry(
+  db: AppDatabase,
+  classId: string,
+  date: number,
+): Promise<void> {
+  await db.diaryEntries.delete(diaryKey(classId, startOfDay(date)));
 }

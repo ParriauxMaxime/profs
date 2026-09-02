@@ -3,6 +3,7 @@ import { gradeKey, openWorkspaceDb } from ".";
 import {
   deleteClass,
   deleteColumn,
+  deleteDiaryEntry,
   deleteGradebook,
   deleteGroup,
   deletePeriod,
@@ -1056,6 +1057,74 @@ describe("schedule entries", () => {
     await deleteClass(db, "c2");
 
     expect(await db.scheduleEntries.count()).toBe(0);
+    db.close();
+  });
+});
+
+describe("the journal", () => {
+  const day = (y: number, m: number, d: number): number => new Date(y, m, d).getTime();
+
+  async function seedDiary(label: string) {
+    const db = openWorkspaceDb(`cascade-diary-${label}-${crypto.randomUUID()}`);
+    await db.classes.bulkAdd([
+      { id: "c1", name: "3°B", createdAt: 1, updatedAt: 1 },
+      { id: "c2", name: "5°A", createdAt: 1, updatedAt: 1 },
+    ]);
+    await db.scheduleEntries.add({
+      id: "sch1",
+      classId: "c1",
+      weekday: 2,
+      startMinute: 600,
+      endMinute: 660,
+      weekCycle: "all",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await db.diaryEntries.bulkPut([
+      { classId: "c1", date: day(2026, 8, 1), text: "3°B lundi", createdAt: 1, updatedAt: 1 },
+      { classId: "c1", date: day(2026, 8, 8), text: "3°B mardi", createdAt: 1, updatedAt: 1 },
+      { classId: "c2", date: day(2026, 8, 1), text: "5°A", createdAt: 1, updatedAt: 1 },
+    ]);
+    return db;
+  }
+
+  it("deleteDiaryEntry removes exactly that day", async () => {
+    const db = await seedDiary("one");
+    await deleteDiaryEntry(db, "c1", day(2026, 8, 1));
+
+    expect((await db.diaryEntries.toArray()).map((e) => e.text).sort()).toEqual([
+      "3°B mardi",
+      "5°A",
+    ]);
+    db.close();
+  });
+
+  it("deleteClass takes its journal and leaves another class's alone", async () => {
+    const db = await seedDiary("class");
+    await deleteClass(db, "c1");
+
+    expect((await db.diaryEntries.toArray()).map((e) => e.text)).toEqual(["5°A"]);
+    db.close();
+  });
+
+  it("deleteScheduleEntry leaves the journal entirely untouched", async () => {
+    // The subtle cascade of this phase, in the negative. The lesson happened;
+    // taking it off next term's timetable must not erase what was written
+    // about it.
+    const db = await seedDiary("schedule");
+    await deleteScheduleEntry(db, "sch1");
+
+    expect(await db.diaryEntries.count()).toBe(3);
+    expect(await db.scheduleEntries.count()).toBe(0);
+    db.close();
+  });
+
+  it("deleteClass leaves no orphan entry behind", async () => {
+    const db = await seedDiary("orphans");
+    await deleteClass(db, "c1");
+    await deleteClass(db, "c2");
+
+    expect(await db.diaryEntries.count()).toBe(0);
     db.close();
   });
 });

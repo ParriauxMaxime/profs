@@ -4,6 +4,7 @@ import type { AppDatabase } from ".";
 import type {
   AttendanceRecord,
   BehaviourEvent,
+  DiaryEntry,
   Grade,
   Gradebook,
   GradeColumn,
@@ -23,7 +24,7 @@ import type {
 } from "./types";
 
 export interface WorkspaceBackup {
-  version: 5;
+  version: 6;
   exportedAt: number;
   classes: SchoolClass[];
   students: Student[];
@@ -43,6 +44,7 @@ export interface WorkspaceBackup {
   studentGroups: StudentGroup[];
   groupMembers: GroupMember[];
   scheduleEntries: ScheduleEntry[];
+  diaryEntries: DiaryEntry[];
 }
 
 /**
@@ -53,13 +55,14 @@ export interface WorkspaceBackup {
  * migration path, and a v2 file predates the rubric tables entirely, so
  * half-importing it would leave a workspace with gradebooks but no rubric
  * assessments to hang scores off of. Version 3 is rejected the same way: it
- * predates student groups entirely, and version 4 the recurring timetable.
+ * predates student groups entirely, version 4 the recurring timetable, and
+ * version 5 the journal.
  * The rule for the next schema change is unchanged: bump the version, do not
  * write an upgrade — importing a file half-populated is worse than refusing
  * it, because half a workspace looks like a whole one.
  */
 const backupSchema = z.object({
-  version: z.literal(5),
+  version: z.literal(6),
   exportedAt: z.number(),
   classes: z.array(z.object({ id: z.string() }).loose()),
   students: z.array(z.object({ id: z.string() }).loose()),
@@ -121,6 +124,7 @@ const backupSchema = z.object({
       .loose(),
   ),
   scheduleEntries: z.array(z.object({ id: z.string() }).loose()),
+  diaryEntries: z.array(z.object({ classId: z.string(), date: z.number() }).loose()),
 });
 
 /**
@@ -150,6 +154,7 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     studentGroups,
     groupMembers,
     scheduleEntries,
+    diaryEntries,
   ] = await Promise.all([
     db.classes.toArray(),
     db.students.toArray(),
@@ -169,10 +174,11 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     db.studentGroups.toArray(),
     db.groupMembers.toArray(),
     db.scheduleEntries.toArray(),
+    db.diaryEntries.toArray(),
   ]);
 
   return {
-    version: 5,
+    version: 6,
     exportedAt: Date.now(),
     classes,
     students: students.map(({ photo: _photo, ...rest }) => rest),
@@ -205,6 +211,7 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     studentGroups,
     groupMembers,
     scheduleEntries,
+    diaryEntries,
   };
 }
 
@@ -245,6 +252,7 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     db.studentGroups,
     db.groupMembers,
     db.scheduleEntries,
+    db.diaryEntries,
   ];
 
   await db.transaction("rw", tables, async () => {
@@ -267,5 +275,6 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     await db.studentGroups.bulkAdd(data.studentGroups);
     await db.groupMembers.bulkPut(data.groupMembers);
     await db.scheduleEntries.bulkAdd(data.scheduleEntries);
+    await db.diaryEntries.bulkPut(data.diaryEntries);
   });
 }

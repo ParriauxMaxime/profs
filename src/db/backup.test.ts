@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 import { openWorkspaceDb } from ".";
 import { exportWorkspace, importWorkspace, parseBackup } from "./backup";
 import { seedIfEmpty } from "./seed";
+import { wipeWorkspace } from "./workspace";
 
 describe("workspace backup", () => {
   it("round-trips a seeded workspace into an empty one, values intact", async () => {
@@ -86,7 +87,7 @@ describe("workspace backup", () => {
 
     await expect(
       importWorkspace(db, {
-        version: 6,
+        version: 7,
         exportedAt: 0,
         classes: [],
         students: [],
@@ -105,12 +106,47 @@ describe("workspace backup", () => {
         rubricScores: [],
         studentGroups: [],
         groupMembers: [],
+        scheduleEntries: [],
+        diaryEntries: [],
       }),
     ).rejects.toThrow();
 
     expect(await db.classes.count()).toBe(classCountBefore);
     expect(await db.students.count()).toBe(studentCountBefore);
     expect(await db.classes.get(sampleBefore.id)).toEqual(sampleBefore);
+    db.close();
+  });
+
+  it("rejects a version 5 backup rather than half-importing it", async () => {
+    // A v5 file predates the journal. Importing it would restore every class,
+    // gradebook and lesson while silently losing a year of written notes —
+    // and a workspace that looks complete is worse than one that refuses.
+    const db = openWorkspaceDb("backup-import-v5");
+    expect(() =>
+      parseBackup({
+        version: 5,
+        exportedAt: 1,
+        classes: [],
+        students: [],
+        subjects: [],
+        gradebooks: [],
+        periods: [],
+        columns: [],
+        grades: [],
+        sessions: [],
+        attendance: [],
+        behaviourEvents: [],
+        seatingLayouts: [],
+        seats: [],
+        rubricTemplates: [],
+        rubricAssessments: [],
+        rubricScores: [],
+        studentGroups: [],
+        groupMembers: [],
+        scheduleEntries: [],
+        diaryEntries: [],
+      }),
+    ).toThrow();
     db.close();
   });
 
@@ -140,6 +176,8 @@ describe("workspace backup", () => {
         rubricScores: [],
         studentGroups: [],
         groupMembers: [],
+        scheduleEntries: [],
+        diaryEntries: [],
       }),
     ).toThrow();
     db.close();
@@ -171,7 +209,7 @@ describe("workspace backup", () => {
     db.close();
   });
 
-  it("exports version 4 with the group tables", async () => {
+  it("exports the current version with every table", async () => {
     const db = openWorkspaceDb("backup-export-v4");
     await db.sessions.add({ id: "s1", classId: "c1", date: 1, createdAt: 1 });
     await db.attendance.put({ sessionId: "s1", studentId: "p1", value: "late", updatedAt: 1 });
@@ -192,7 +230,7 @@ describe("workspace backup", () => {
     });
     await db.groupMembers.put({ groupId: "g1", studentId: "p1" });
     const backup = await exportWorkspace(db);
-    expect(backup.version).toBe(5);
+    expect(backup.version).toBe(6);
     expect(backup.sessions).toHaveLength(1);
     expect(backup.attendance).toHaveLength(1);
     expect(backup.rubricTemplates).toHaveLength(1);
@@ -473,6 +511,56 @@ describe("exportWorkspace — note-only rows", () => {
   });
 });
 
+describe("export completeness", () => {
+  it("carries every table the schema declares", async () => {
+    // The hole the double-import guard does NOT cover, found the hard way:
+    // that test compares counts before and after a second import, so a table
+    // missing from the backup ENTIRELY keeps its count on both passes and
+    // looks perfectly healthy. `diaryEntries` was absent from export and
+    // import for a whole commit while every backup test passed.
+    //
+    // Asserted over db.tables so the next schema version is covered the day
+    // it is declared.
+    const db = openWorkspaceDb(`backup-complete-${crypto.randomUUID()}`);
+    const backup = (await exportWorkspace(db)) as unknown as Record<string, unknown>;
+
+    for (const table of db.tables) {
+      expect([table.name, Array.isArray(backup[table.name])]).toEqual([table.name, true]);
+    }
+    db.close();
+  });
+
+  it("restores every table, so nothing is exported and then dropped on the way back", async () => {
+    const db = openWorkspaceDb(`backup-restore-${crypto.randomUUID()}`);
+    await seedIfEmpty(db, `backup-restore-${crypto.randomUUID()}`);
+    await db.diaryEntries.put({
+      classId: (await db.classes.toArray())[0].id,
+      date: new Date(2026, 8, 1).getTime(),
+      text: "on a fait les fractions",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+
+    const before: Record<string, number> = {};
+    for (const table of db.tables) before[table.name] = await table.count();
+
+    const backup = JSON.parse(JSON.stringify(await exportWorkspace(db)));
+    await wipeWorkspace(db);
+    await importWorkspace(db, backup);
+
+    const after: Record<string, number> = {};
+    for (const table of db.tables) after[table.name] = await table.count();
+
+    // Photos are Blobs and cannot survive JSON, but no ROW is lost — only the
+    // photo field on a student. Row counts must match exactly.
+    expect(after).toEqual(before);
+    for (const [name, count] of Object.entries(before)) {
+      expect([name, count > 0]).toEqual([name, true]);
+    }
+    db.close();
+  });
+});
+
 describe("importing twice", () => {
   it("leaves identical row counts, table by table", async () => {
     // The guard against a table added to the WRITES but not to the clear
@@ -482,6 +570,13 @@ describe("importing twice", () => {
     // schema version is covered the day it is declared.
     const db = openWorkspaceDb(`backup-double-${crypto.randomUUID()}`);
     await seedIfEmpty(db, `backup-double-${crypto.randomUUID()}`);
+    await db.diaryEntries.add({
+      classId: (await db.classes.toArray())[0].id,
+      date: new Date(2026, 8, 1).getTime(),
+      text: "on a fait les fractions",
+      createdAt: 1,
+      updatedAt: 1,
+    });
     await db.scheduleEntries.add({
       id: "sch1",
       classId: (await db.classes.toArray())[0].id,
