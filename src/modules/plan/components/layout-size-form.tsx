@@ -3,6 +3,7 @@ import { useDb } from "@db/provider";
 import { MAX_COLS, MAX_ROWS, resizeSeats } from "@domain/seating";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useEscape } from "../../shared/use-escape";
 
 /**
  * Resize the room. Keyed on `layout.id` by the caller so switching layouts
@@ -23,6 +24,8 @@ export function LayoutSizeForm({
   const [rows, setRows] = useState(layout.rows);
   const [cols, setCols] = useState(layout.cols);
   const [saving, setSaving] = useState(false);
+
+  useEscape(onDone);
 
   const preview = resizeSeats(seats, layout.id, rows, cols, layout.rows, layout.cols);
   const unseatedCount = preview.unseated.length;
@@ -55,7 +58,13 @@ export function LayoutSizeForm({
   };
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void apply();
+      }}
+      className="flex flex-wrap items-end gap-3 rounded-md border border-border p-3"
+    >
       <label className="flex flex-col gap-1 text-sm">
         {t("plan.rows")}
         <input
@@ -63,6 +72,8 @@ export function LayoutSizeForm({
           min={1}
           max={MAX_ROWS}
           value={rows}
+          // biome-ignore lint/a11y/noAutofocus: opens ready to use — one-handed, mid-lesson, no spare tap to reach the field.
+          autoFocus
           className="field w-20"
           onChange={(e) => setRows(Math.min(MAX_ROWS, Math.max(1, Number(e.target.value) || 1)))}
         />
@@ -84,13 +95,13 @@ export function LayoutSizeForm({
       )}
 
       <div className="flex gap-2">
-        <button type="button" className="btn btn-primary" disabled={saving} onClick={apply}>
+        <button type="submit" className="btn btn-primary" disabled={saving}>
           {t("common.save")}
         </button>
         <button type="button" className="btn" disabled={saving} onClick={onDone}>
           {t("common.cancel")}
         </button>
       </div>
-    </div>
+    </form>
   );
 }

@@ -4,6 +4,7 @@ import { defaultGradebookName } from "@domain/gradebook/naming";
 import { DEFAULT_PERIOD_NAMES } from "@domain/gradebook/period";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useEscape } from "../../shared/use-escape";
 
 /**
  * Creates a gradebook: one class taught in one subject.
@@ -36,6 +37,8 @@ export function GradebookForm({
   );
   const name = customName ?? suggestedName;
 
+  useEscape(onDone);
+
   async function save(): Promise<void> {
     const now = Date.now();
     const gradebookId = crypto.randomUUID();
@@ -66,11 +69,23 @@ export function GradebookForm({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded border border-border p-3">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+      className="flex flex-col gap-3 rounded border border-border p-3"
+    >
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="flex flex-col gap-1">
           <span className="text-sm text-text-muted">{t("dashboard.gradebookClass")}</span>
-          <select className="field" value={classId} onChange={(e) => setClassId(e.target.value)}>
+          <select
+            className="field"
+            // biome-ignore lint/a11y/noAutofocus: opens ready to use — one-handed, mid-lesson, no spare tap to reach the field.
+            autoFocus
+            value={classId}
+            onChange={(e) => setClassId(e.target.value)}
+          >
             {classes.map((schoolClass) => (
               <option key={schoolClass.id} value={schoolClass.id}>
                 {schoolClass.name}
@@ -99,13 +114,13 @@ export function GradebookForm({
       </div>
       <p className="text-sm text-text-muted">{t("dashboard.gradebookPeriodsHint")}</p>
       <div className="flex gap-2">
-        <button type="button" className="btn btn-primary" onClick={() => void save()}>
+        <button type="submit" className="btn btn-primary">
           {t("common.save")}
         </button>
         <button type="button" className="btn" onClick={onDone}>
           {t("common.cancel")}
         </button>
       </div>
-    </div>
+    </form>
   );
 }

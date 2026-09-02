@@ -5,6 +5,7 @@ import type { RubricCriterion } from "@domain/rubric";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../../router";
+import { useEscape } from "../../shared/use-escape";
 import { CriteriaEditor } from "./criteria-editor";
 
 /**
@@ -37,6 +38,8 @@ export function AssessmentForm({
   const [templateId, setTemplateId] = useState<string>("blank");
   const [criteria, setCriteria] = useState<RubricCriterion[]>([]);
 
+  useEscape(onDone);
+
   async function save(): Promise<void> {
     const trimmed = name.trim();
     if (trimmed.length === 0 || periodId === "") return;
@@ -55,10 +58,22 @@ export function AssessmentForm({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded border border-border p-3">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+      className="flex flex-col gap-3 rounded border border-border p-3"
+    >
       <label className="flex max-w-xs flex-col gap-1">
         <span className="text-sm text-text-muted">{t("rubric.assessmentName")}</span>
-        <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
+        <input
+          className="field"
+          // biome-ignore lint/a11y/noAutofocus: opens ready to type — one-handed, mid-lesson, no spare tap to reach the field.
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
       </label>
 
       <label className="flex max-w-xs flex-col gap-1">
@@ -92,10 +107,9 @@ export function AssessmentForm({
 
       <div className="flex gap-2">
         <button
-          type="button"
+          type="submit"
           className="btn btn-primary"
           disabled={name.trim().length === 0 || periodId === ""}
-          onClick={() => void save()}
         >
           {t("common.save")}
         </button>
@@ -103,6 +117,6 @@ export function AssessmentForm({
           {t("common.cancel")}
         </button>
       </div>
-    </div>
+    </form>
   );
 }

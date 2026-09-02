@@ -5,6 +5,7 @@ import type { RubricCriterion } from "@domain/rubric";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CriteriaEditor } from "../../rubric/components/criteria-editor";
+import { useEscape } from "../../shared/use-escape";
 
 /**
  * Creates or renames a rubric template and edits its criteria.
@@ -26,6 +27,8 @@ export function RubricTemplateForm({
   const [name, setName] = useState(template?.name ?? "");
   const [criteria, setCriteria] = useState<RubricCriterion[]>(template?.criteria ?? []);
 
+  useEscape(onDone);
+
   async function save(): Promise<void> {
     const trimmed = name.trim();
     if (trimmed.length === 0) return;
@@ -38,27 +41,34 @@ export function RubricTemplateForm({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded border border-border p-3">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+      className="flex flex-col gap-3 rounded border border-border p-3"
+    >
       <label className="flex max-w-xs flex-col gap-1">
         <span className="text-sm text-text-muted">{t("rubric.templateName")}</span>
-        <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
+        <input
+          className="field"
+          // biome-ignore lint/a11y/noAutofocus: opens ready to type — one-handed, mid-lesson, no spare tap to reach the field.
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
       </label>
 
       <CriteriaEditor value={criteria} onChange={setCriteria} />
 
       <div className="flex gap-2">
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={name.trim().length === 0}
-          onClick={() => void save()}
-        >
+        <button type="submit" className="btn btn-primary" disabled={name.trim().length === 0}>
           {t("common.save")}
         </button>
         <button type="button" className="btn" onClick={onDone}>
           {t("common.cancel")}
         </button>
       </div>
-    </div>
+    </form>
   );
 }

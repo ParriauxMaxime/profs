@@ -3,6 +3,7 @@ import { useDb } from "@db/provider";
 import { DEFAULT_SUBJECT_COLOR, SUBJECT_COLORS } from "@domain/subject";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useEscape } from "../../shared/use-escape";
 
 /**
  * Creates or renames a subject, and picks its colour from the shared palette.
@@ -17,6 +18,8 @@ export function SubjectForm({ subject, onDone }: { subject?: Subject; onDone: ()
   const [name, setName] = useState(subject?.name ?? "");
   const [color, setColor] = useState<string>(subject?.color ?? DEFAULT_SUBJECT_COLOR);
   const [error, setError] = useState<string | null>(null);
+
+  useEscape(onDone);
 
   async function save(): Promise<void> {
     const trimmed = name.trim();
@@ -42,13 +45,22 @@ export function SubjectForm({ subject, onDone }: { subject?: Subject; onDone: ()
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded border border-border p-3">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+      className="flex flex-col gap-3 rounded border border-border p-3"
+    >
       <label className="flex max-w-xs flex-col gap-1">
         <span className="text-sm text-text-muted">{t("settings.subjectName")}</span>
         <input
           className="field"
+          // biome-ignore lint/a11y/noAutofocus: opens ready to type — one-handed, mid-lesson, no spare tap to reach the field.
+          autoFocus
           value={name}
           placeholder={t("settings.subjectNamePlaceholder")}
+          aria-invalid={error ? true : undefined}
           onChange={(e) => setName(e.target.value)}
         />
       </label>
@@ -73,7 +85,7 @@ export function SubjectForm({ subject, onDone }: { subject?: Subject; onDone: ()
       </fieldset>
 
       <div className="flex gap-2">
-        <button type="button" className="btn btn-primary" onClick={() => void save()}>
+        <button type="submit" className="btn btn-primary">
           {t("common.save")}
         </button>
         <button type="button" className="btn" onClick={onDone}>
@@ -86,6 +98,6 @@ export function SubjectForm({ subject, onDone }: { subject?: Subject; onDone: ()
           {error}
         </p>
       )}
-    </div>
+    </form>
   );
 }
