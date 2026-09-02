@@ -364,7 +364,11 @@ export function SettingsPage() {
             </div>
           </div>
         )}
-        {error && <p className="text-danger text-sm">{error}</p>}
+        {error && (
+          <p role="alert" className="text-danger text-sm">
+            {error}
+          </p>
+        )}
         {success && <p className="text-sm">{t("settings.importSuccess")}</p>}
       </section>
 
