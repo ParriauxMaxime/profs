@@ -169,6 +169,54 @@ function buildArc(perRow: number, rows: number, curve: number): Position[] {
   return positions;
 }
 
+/** Islands sit in a grid of their own, this many across before wrapping. */
+const ISLANDS_PER_BAND = 3;
+
+/**
+ * Clusters of tables, two wide.
+ *
+ * The gap BETWEEN islands has to read as bigger than the gap inside one, or
+ * the room is just a grid with odd spacing — so islands step by twice pitch.
+ */
+function buildIslands(islands: number, perIsland: number): Position[] {
+  const islandCols = 2;
+  const islandRows = Math.ceil(perIsland / islandCols);
+  const bandStep = { x: (islandCols + 2) * PITCH, y: (islandRows + 1) * PITCH };
+  const positions: Position[] = [];
+  for (let island = 0; island < islands; island += 1) {
+    const originX = (island % ISLANDS_PER_BAND) * bandStep.x;
+    const originY = Math.floor(island / ISLANDS_PER_BAND) * bandStep.y;
+    for (let i = 0; i < perIsland; i += 1) {
+      positions.push({
+        x: originX + (i % islandCols) * PITCH,
+        y: originY + Math.floor(i / islandCols) * PITCH,
+      });
+    }
+  }
+  return positions;
+}
+
+/**
+ * A horseshoe, open toward the board.
+ *
+ * The board is at the top, so the closed side is the BACK row and the two arms
+ * run up the left and right edges toward it. Every pupil faces up. With one
+ * row it degrades to a plain row rather than to two overlapping arm ends.
+ */
+function buildU(cols: number, rows: number): Position[] {
+  const positions: Position[] = [];
+  const backY = (rows - 1) * PITCH;
+  for (let arm = 0; arm < rows - 1; arm += 1) {
+    const y = arm * PITCH;
+    positions.push({ x: 0, y });
+    positions.push({ x: (cols - 1) * PITCH, y });
+  }
+  for (let col = 0; col < cols; col += 1) {
+    positions.push({ x: col * PITCH, y: backY });
+  }
+  return positions;
+}
+
 export function buildRoom(template: RoomTemplate): RoomShape {
   const t = clampTemplate(template);
   switch (t.id) {
@@ -177,7 +225,8 @@ export function buildRoom(template: RoomTemplate): RoomShape {
     case "arc":
       return frame(buildArc(t.perRow, t.rows, t.curve));
     case "islands":
+      return frame(buildIslands(t.islands, t.perIsland));
     case "u":
-      throw new Error(`room template not implemented: ${t.id}`);
+      return frame(buildU(t.cols, t.rows));
   }
 }

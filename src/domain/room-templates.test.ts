@@ -43,8 +43,7 @@ describe("the registry", () => {
   });
 
   it("builds a well-formed room from every default", () => {
-    // Widened to every id in Task 4, once all four generators exist.
-    expectWellFormed(defaultTemplate("rows"));
+    for (const id of TEMPLATE_IDS) expectWellFormed(defaultTemplate(id));
   });
 });
 
@@ -153,5 +152,67 @@ describe("arc", () => {
     const shallow = buildRoom({ id: "arc", perRow: 20, rows: 1, curve: 1 });
     const deep = buildRoom({ id: "arc", perRow: 20, rows: 1, curve: 5 });
     expect(shallow.width).toBeGreaterThan(deep.width);
+  });
+});
+
+describe("islands", () => {
+  it("clusters tables two wide", () => {
+    const shape = buildRoom({ id: "islands", islands: 1, perIsland: 4 });
+    const xs = new Set(shape.positions.map((p) => p.x));
+    expect(xs.size).toBe(2);
+  });
+
+  it("puts an odd table alone on the last row of its island", () => {
+    const shape = buildRoom({ id: "islands", islands: 1, perIsland: 5 });
+    expect(shape.positions).toHaveLength(5);
+    const lastRowY = Math.max(...shape.positions.map((p) => p.y));
+    expect(shape.positions.filter((p) => p.y === lastRowY)).toHaveLength(1);
+  });
+
+  it("separates two islands by more than it separates tables inside one", () => {
+    const shape = buildRoom({ id: "islands", islands: 2, perIsland: 2 });
+    const xs = [...new Set(shape.positions.map((p) => p.x))].sort((a, b) => a - b);
+    expect(xs).toHaveLength(4);
+    expect(xs[2] - xs[1]).toBeGreaterThan(xs[1] - xs[0]);
+  });
+
+  it("is well formed across its entire parameter range", () => {
+    for (let islands = 1; islands <= 12; islands += 1) {
+      for (let perIsland = 2; perIsland <= 8; perIsland += 1) {
+        expectWellFormed(clampTemplate({ id: "islands", islands, perIsland }));
+      }
+    }
+  });
+});
+
+describe("u", () => {
+  it("opens toward the board: the arms run up, the closed side is at the bottom", () => {
+    const shape = buildRoom({ id: "u", cols: 5, rows: 3 });
+    const maxY = Math.max(...shape.positions.map((p) => p.y));
+    // The back row is full width.
+    expect(shape.positions.filter((p) => p.y === maxY)).toHaveLength(5);
+    // The row nearest the board holds only the two arm ends.
+    const minY = Math.min(...shape.positions.map((p) => p.y));
+    expect(shape.positions.filter((p) => p.y === minY)).toHaveLength(2);
+  });
+
+  it("counts cols + 2 * (rows - 1) seats", () => {
+    expect(buildRoom({ id: "u", cols: 8, rows: 4 }).positions).toHaveLength(
+      seatCount({ id: "u", cols: 8, rows: 4 }),
+    );
+  });
+
+  it("degrades to a single row when there is only one row", () => {
+    const shape = buildRoom({ id: "u", cols: 6, rows: 1 });
+    expect(shape.positions).toHaveLength(6);
+    expect(new Set(shape.positions.map((p) => p.y)).size).toBe(1);
+  });
+
+  it("is well formed across its entire parameter range", () => {
+    for (let cols = 2; cols <= 20; cols += 1) {
+      for (let rows = 1; rows <= 10; rows += 1) {
+        expectWellFormed(clampTemplate({ id: "u", cols, rows }));
+      }
+    }
   });
 });
