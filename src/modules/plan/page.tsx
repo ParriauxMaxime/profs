@@ -3,13 +3,13 @@ import { useDb } from "@db/provider";
 import { getOrCreateLayout, seatStudent, swapSeats } from "@db/seating";
 import { createSession, getOrCreateTodaySession, sessionsForClass, startOfDay } from "@db/sessions";
 import { filterByGroup } from "@domain/group";
-import { type Held, resolveDrop, unseatedStudentIds } from "@domain/seating";
+import { type Held, resolveDrop, unseatedStudentIds } from "@domain/room";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEscape } from "../shared/use-escape";
-import { LayoutSizeForm } from "./components/layout-size-form";
-import { SeatGrid } from "./components/seat-grid";
+import { RoomTemplateForm } from "./components/room-template-form";
+import { RoomView } from "./components/room-view";
 import { SessionBar } from "./components/session-bar";
 import { StudentCard } from "./components/student-card";
 import { StudentRail } from "./components/student-rail";
@@ -40,8 +40,9 @@ export function PlanPage({
 }) {
   const { t } = useTranslation();
   const db = useDb();
-  // Who is in the teacher's hand: a pupil id from the rail, or a seat's
-  // coordinates. Never a list index — the rail reorders on every placement.
+  // Who is in the teacher's hand: a pupil id from the rail, or a table's id.
+  // Never a list index and never a coordinate — the rail reorders on every
+  // placement, and a table can be moved out from under a coordinate.
   const [held, setHeld] = useState<Held | null>(null);
   const [resizing, setResizing] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -140,28 +141,26 @@ export function PlanPage({
   const unseatedStudents = unseated.map((id) => byId.get(id)).filter((s) => s !== undefined);
   const visibleUnseated = filterByGroup(unseatedStudents, memberships, selectedGroupId);
 
-  const onDrop = async (row: number, col: number): Promise<void> => {
+  const onDropSeat = async (seatId: string): Promise<void> => {
     if (held === null) return;
     // One drop per hold. `setHeld(null)` only lands after the await, and a
     // second tap runs a closure that already captured the old `held` — so
-    // holding seat A and tapping B then C would write swap(A,B) AND swap(A,C),
-    // moving a pupil the teacher never touched. Clearing the state earlier
-    // cannot fix that; only a ref read at call time can.
+    // holding table A and tapping B then C would write both swaps, moving a
+    // pupil the teacher never touched. Clearing the state earlier cannot fix
+    // that; only a ref read at call time can.
     if (dropping.current) return;
     dropping.current = true;
     try {
-      const target = seats.find((s) => s.row === row && s.col === col);
-      const action = resolveDrop(held, target, { row, col });
+      const action = resolveDrop(
+        held,
+        seats.find((s) => s.id === seatId),
+      );
       if (action.kind === "seat") {
-        await seatStudent(db, layout.id, action.row, action.col, action.studentId);
+        await seatStudent(db, action.seatId, action.studentId);
       } else if (action.kind === "swap") {
-        // A held seat is coordinates only, so tell the write which pupil we
-        // believe is sitting there: if another tab has moved them out and
-        // seated somebody else since, the swap must not move that stranger.
-        const source = seats.find((s) => s.row === action.from.row && s.col === action.from.col);
-        if (source?.studentId != null) {
-          await swapSeats(db, layout.id, action.from, action.to, source.studentId);
-        }
+        // No `expectedStudentId` guard: a table has an id now, so the id is
+        // the guard. A table another tab removed simply fails the read.
+        await swapSeats(db, action.fromSeatId, action.toSeatId);
       }
     } catch (error) {
       // No blocking dialog here — they are banned. A failed write must still
@@ -213,15 +212,15 @@ export function PlanPage({
       </div>
 
       {resizing && (
-        <LayoutSizeForm
+        <RoomTemplateForm
           key={layout.id}
           layout={layout}
           seats={seats}
           onDone={() => {
             // Save, Cancel and the form's own Escape all leave layout-edit
             // mode through here. Leaving must release the held pupil on EVERY
-            // exit path, not only the toolbar button — and a resize can move
-            // or unseat the very seat being held.
+            // exit path, not only the toolbar button — and a stamp replaces
+            // every table, so the very one being held ceases to exist.
             setHeld(null);
             setResizing(false);
           }}
@@ -250,13 +249,13 @@ export function PlanPage({
         </div>
 
         <div className="lg:order-1 lg:min-w-0 lg:flex-1">
-          <SeatGrid
+          <RoomView
             layout={layout}
             seats={seats}
             studentsById={byId}
             held={held}
-            onHoldSeat={(row, col) => setHeld({ kind: "seat", row, col })}
-            onDrop={(row, col) => void onDrop(row, col)}
+            onHoldSeat={(seatId) => setHeld({ kind: "seat", seatId })}
+            onDropSeat={(seatId) => void onDropSeat(seatId)}
             onSelectStudent={setSelectedStudentId}
             editing={resizing}
           />
@@ -278,7 +277,7 @@ export function PlanPage({
                 const seat = seats.find((s) => s.studentId === student.id);
                 if (!seat) return;
                 setSelectedStudentId(null);
-                setHeld({ kind: "seat", row: seat.row, col: seat.col });
+                setHeld({ kind: "seat", seatId: seat.id });
               }}
             />
           );

@@ -55,7 +55,7 @@ export type AppDatabase = Dexie & {
   attendance: Table<AttendanceRecord, [string, string]>;
   behaviourEvents: EntityTable<BehaviourEvent, "id">;
   seatingLayouts: EntityTable<SeatingLayout, "id">;
-  seats: Table<Seat, [string, number, number]>;
+  seats: EntityTable<Seat, "id">;
   rubricTemplates: EntityTable<RubricTemplate, "id">;
   rubricAssessments: EntityTable<RubricAssessment, "id">;
   rubricScores: Table<RubricScore, [string, string, string]>;
@@ -77,11 +77,6 @@ export function gradeKey(
 /** The compound primary key of one pupil's presence at one session. */
 export function attendanceKey(sessionId: string, studentId: string): [string, string] {
   return [sessionId, studentId];
-}
-
-/** The compound primary key of one cell of a room. */
-export function seatKey(layoutId: string, row: number, col: number): [string, number, number] {
-  return [layoutId, row, col];
 }
 
 /** The compound primary key of one rubric cell. */
@@ -144,6 +139,15 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
   // callback, so only the new store is listed here.
   db.version(6).stores({
     diaryEntries: "[classId+date], classId, date",
+  });
+  // v7 turns the room from a grid into free positions. Existing data is
+  // disposable — there is no upgrade callback, so a v6 seat keyed [layoutId+
+  // row+col] is garbage the wipe in Réglages clears. `&[layoutId+x+y]` is
+  // unique: it is the database's own guarantee that two tables never share a
+  // point, so a bug in `canPlace` surfaces as a rejected write rather than as
+  // a pupil nobody can tap.
+  db.version(7).stores({
+    seats: "id, layoutId, studentId, &[layoutId+x+y]",
   });
   return db;
 }

@@ -137,6 +137,19 @@ export function occupantsInReadingOrder(seats: Seated[]): string[] {
 }
 
 /**
+ * Pupils holding no table, in the order they were given.
+ *
+ * With two seat states rather than three, this is the whole of "who is in the
+ * rail": a pupil is unseated when no table names them — including because
+ * their table was removed, which is why `removeTable` needs no companion
+ * write to put them back.
+ */
+export function unseatedStudentIds(students: { id: string }[], seats: Seated[]): string[] {
+  const seated = new Set(seats.map((s) => s.studentId).filter((id): id is string => id !== null));
+  return students.filter((s) => !seated.has(s.id)).map((s) => s.id);
+}
+
+/**
  * Pour pupils into a freshly stamped room.
  *
  * A template stamp destroys the tables, and this is what stops it destroying

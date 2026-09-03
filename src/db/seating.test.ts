@@ -1,43 +1,36 @@
 import "fake-indexeddb/auto";
-import { openWorkspaceDb, seatKey } from ".";
+import { buildRoom } from "@domain/room-templates";
+import { openWorkspaceDb } from ".";
 import {
+  addTable,
+  applyTemplate,
   clearSeat,
   getOrCreateLayout,
-  makeGap,
-  makeSeat,
-  resizeLayout,
+  moveTable,
+  removeTable,
   seatStudent,
+  seatsForLayout,
   swapSeats,
 } from "./seating";
 
-function freshDb(label: string) {
-  return openWorkspaceDb(`seating-${label}-${crypto.randomUUID()}`);
+function freshDb(name: string) {
+  return openWorkspaceDb(`${name}-${crypto.randomUUID()}`);
 }
 
 describe("getOrCreateLayout", () => {
-  it("creates a default room filled with empty seats", async () => {
-    const db = freshDb("create");
+  it("stamps the default room the first time a class is looked at", async () => {
+    const db = freshDb("layout");
     const layout = await getOrCreateLayout(db, "c1");
-
-    expect(layout.rows).toBe(5);
-    expect(layout.cols).toBe(6);
-    expect(await db.seats.where("layoutId").equals(layout.id).count()).toBe(30);
-    expect(
-      await db.seats
-        .where("layoutId")
-        .equals(layout.id)
-        .filter((s) => s.studentId !== null)
-        .count(),
-    ).toBe(0);
+    const seats = await seatsForLayout(db, layout.id);
+    expect(seats).toHaveLength(30);
+    expect(seats.every((s) => s.studentId === null)).toBe(true);
+    expect(layout.width).toBeGreaterThan(0);
     db.close();
   });
 
-  it("returns the same room when called twice concurrently", async () => {
-    // StrictMode invokes the effect twice. Two layouts for one class would
-    // split a teacher's seating in half, and neither half looks wrong.
-    const db = freshDb("idempotent");
+  it("is idempotent, so StrictMode cannot give one class two rooms", async () => {
+    const db = freshDb("layout-once");
     const [a, b] = await Promise.all([getOrCreateLayout(db, "c1"), getOrCreateLayout(db, "c1")]);
-
     expect(a.id).toBe(b.id);
     expect(await db.seatingLayouts.where("classId").equals("c1").count()).toBe(1);
     db.close();
@@ -45,218 +38,199 @@ describe("getOrCreateLayout", () => {
 });
 
 describe("seatStudent", () => {
-  it("clears the pupil's previous chair in the same write", async () => {
-    const db = freshDb("seat-move");
+  it("seats a pupil and clears the table they held before", async () => {
+    const db = freshDb("seat");
     const layout = await getOrCreateLayout(db, "c1");
-    await seatStudent(db, layout.id, 0, 0, "s1");
-    await seatStudent(db, layout.id, 1, 2, "s1");
-
-    expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBeNull();
-    expect((await db.seats.get(seatKey(layout.id, 1, 2)))?.studentId).toBe("s1");
-    // Exactly one chair, never two.
-    const occupied = await db.seats
-      .where("layoutId")
-      .equals(layout.id)
-      .filter((s) => s.studentId === "s1")
-      .toArray();
-    expect(occupied).toHaveLength(1);
+    const seats = await seatsForLayout(db, layout.id);
+    await seatStudent(db, seats[0].id, "p1");
+    await seatStudent(db, seats[5].id, "p1");
+    expect((await db.seats.get(seats[0].id))?.studentId).toBeNull();
+    expect((await db.seats.get(seats[5].id))?.studentId).toBe("p1");
     db.close();
   });
 
-  it("is a no-op when the pupil is already in that seat", async () => {
-    const db = freshDb("seat-same");
+  it("writes nothing when the table has been removed by another tab", async () => {
+    const db = freshDb("seat-gone");
     const layout = await getOrCreateLayout(db, "c1");
-    await seatStudent(db, layout.id, 0, 0, "s1");
-    await seatStudent(db, layout.id, 0, 0, "s1");
-
-    expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBe("s1");
-    db.close();
-  });
-
-  // The caller classifies the target from the grid it last rendered, so a cell
-  // another tab has just carved into an aisle still looks like a seat from
-  // there. Refusing here is the only place that can tell.
-  it("refuses a gap: writes nothing and leaves the cell a gap", async () => {
-    const db = freshDb("seat-gap");
-    const layout = await getOrCreateLayout(db, "c1");
-    await seatStudent(db, layout.id, 0, 0, "s1");
-    await makeGap(db, layout.id, 2, 2);
-
-    await seatStudent(db, layout.id, 2, 2, "s1");
-
-    // Still a gap — no row, not an empty seat.
-    expect(await db.seats.get(seatKey(layout.id, 2, 2))).toBeUndefined();
-    // And the pupil was not lifted out of the chair they already held.
-    expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBe("s1");
-    db.close();
-  });
-});
-
-describe("clearSeat, makeSeat and makeGap", () => {
-  it("keeps the three seat states distinct", async () => {
-    const db = freshDb("states");
-    const layout = await getOrCreateLayout(db, "c1");
-    await seatStudent(db, layout.id, 0, 0, "s1");
-
-    await clearSeat(db, layout.id, 0, 0);
-    expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBeNull();
-
-    await makeGap(db, layout.id, 0, 0);
-    expect(await db.seats.get(seatKey(layout.id, 0, 0))).toBeUndefined();
-
-    await makeSeat(db, layout.id, 0, 0);
-    expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBeNull();
-    db.close();
-  });
-});
-
-describe("resizeLayout", () => {
-  it("reports the pupils whose chair falls outside the new room", async () => {
-    const db = freshDb("resize-unseat");
-    const layout = await getOrCreateLayout(db, "c1");
-    await seatStudent(db, layout.id, 4, 5, "s1");
-    await seatStudent(db, layout.id, 0, 0, "s2");
-
-    const { unseated } = await resizeLayout(db, layout, 2, 2);
-
-    expect(unseated).toEqual(["s1"]);
-    expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBe("s2");
-    expect(await db.seats.where("layoutId").equals(layout.id).count()).toBe(4);
-    db.close();
-  });
-
-  it("does not refill a carved gap when the room grows", async () => {
-    // The bug this pins: inferring the old extent from the seats that survive
-    // meant carving away a whole edge row lowered the inferred extent, so the
-    // next resize saw that row as new growth and put the aisle back.
-    const db = freshDb("resize-gap");
-    const layout = await getOrCreateLayout(db, "c1");
-    for (let col = 0; col < 6; col += 1) await makeGap(db, layout.id, 4, col);
-
-    await resizeLayout(db, { ...layout, rows: 5, cols: 6 }, 5, 8);
-
-    const row4 = await db.seats
-      .where("layoutId")
-      .equals(layout.id)
-      .filter((s) => s.row === 4)
-      .toArray();
-    // Only the two columns the room actually gained.
-    expect(row4.map((s) => s.col).sort((a, b) => a - b)).toEqual([6, 7]);
-    db.close();
-  });
-
-  it("stores the new extent on the layout", async () => {
-    const db = freshDb("resize-extent");
-    const layout = await getOrCreateLayout(db, "c1");
-    await resizeLayout(db, layout, 3, 4);
-
-    const stored = await db.seatingLayouts.get(layout.id);
-    expect([stored?.rows, stored?.cols]).toEqual([3, 4]);
-    expect(await db.seats.where("layoutId").equals(layout.id).count()).toBe(12);
+    const seats = await seatsForLayout(db, layout.id);
+    await removeTable(db, seats[0].id);
+    await seatStudent(db, seats[0].id, "p1");
+    expect(await db.seats.get(seats[0].id)).toBeUndefined();
     db.close();
   });
 });
 
 describe("swapSeats", () => {
   it("exchanges two occupants", async () => {
-    const db = freshDb("swap-two");
+    const db = freshDb("swap");
     const layout = await getOrCreateLayout(db, "c1");
-    await seatStudent(db, layout.id, 0, 0, "s1");
-    await seatStudent(db, layout.id, 2, 3, "s2");
-
-    await swapSeats(db, layout.id, { row: 0, col: 0 }, { row: 2, col: 3 }, "s1");
-
-    expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBe("s2");
-    expect((await db.seats.get(seatKey(layout.id, 2, 3)))?.studentId).toBe("s1");
+    const [a, b] = await seatsForLayout(db, layout.id);
+    await seatStudent(db, a.id, "p1");
+    await seatStudent(db, b.id, "p2");
+    await swapSeats(db, a.id, b.id);
+    expect((await db.seats.get(a.id))?.studentId).toBe("p2");
+    expect((await db.seats.get(b.id))?.studentId).toBe("p1");
     db.close();
   });
 
-  it("behaves as a move when the target is an empty seat", async () => {
+  it("degrades to a move when the target is empty", async () => {
     const db = freshDb("swap-empty");
     const layout = await getOrCreateLayout(db, "c1");
-    await seatStudent(db, layout.id, 0, 0, "s1");
-
-    await swapSeats(db, layout.id, { row: 0, col: 0 }, { row: 4, col: 5 }, "s1");
-
-    expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBeNull();
-    expect((await db.seats.get(seatKey(layout.id, 4, 5)))?.studentId).toBe("s1");
+    const [a, b] = await seatsForLayout(db, layout.id);
+    await seatStudent(db, a.id, "p1");
+    await swapSeats(db, a.id, b.id);
+    expect((await db.seats.get(a.id))?.studentId).toBeNull();
+    expect((await db.seats.get(b.id))?.studentId).toBe("p1");
     db.close();
   });
 
-  it("changes nothing when a cell is swapped with itself", async () => {
-    const db = freshDb("swap-self");
+  it("writes nothing when the source table is gone", async () => {
+    const db = freshDb("swap-gone");
     const layout = await getOrCreateLayout(db, "c1");
-    await seatStudent(db, layout.id, 1, 1, "s1");
-
-    await swapSeats(db, layout.id, { row: 1, col: 1 }, { row: 1, col: 1 }, "s1");
-
-    expect((await db.seats.get(seatKey(layout.id, 1, 1)))?.studentId).toBe("s1");
-    db.close();
-  });
-
-  it("refuses to swap into a gap rather than creating a seat there", async () => {
-    // A gap is an aisle, a doorway, a pillar. Writing a seat row into one
-    // would put a chair where the teacher carved the room open, and the grid
-    // would render it as if they had asked for it.
-    const db = freshDb("swap-gap");
-    const layout = await getOrCreateLayout(db, "c1");
-    await seatStudent(db, layout.id, 0, 0, "s1");
-    await makeGap(db, layout.id, 3, 3);
-
-    await swapSeats(db, layout.id, { row: 0, col: 0 }, { row: 3, col: 3 }, "s1");
-
-    expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBe("s1");
-    expect(await db.seats.get(seatKey(layout.id, 3, 3))).toBeUndefined();
-    db.close();
-  });
-
-  it("does nothing when the source seat is empty", async () => {
-    const db = freshDb("swap-empty-source");
-    const layout = await getOrCreateLayout(db, "c1");
-    await seatStudent(db, layout.id, 2, 2, "s1");
-
-    await swapSeats(db, layout.id, { row: 0, col: 0 }, { row: 2, col: 2 }, "s1");
-
-    expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBeNull();
-    expect((await db.seats.get(seatKey(layout.id, 2, 2)))?.studentId).toBe("s1");
-    db.close();
-  });
-
-  it("refuses when the source no longer holds the pupil the caller believed", async () => {
-    // A held seat is coordinates only. Tab A holds (0,0) = s1; tab B moves s1
-    // away and seats s2 there; tab A drops on (2,2). Without the expected
-    // occupant, that would move s2 — a pupil the teacher never touched.
-    const db = freshDb("swap-stale");
-    const layout = await getOrCreateLayout(db, "c1");
-    await seatStudent(db, layout.id, 0, 0, "s2");
-
-    await swapSeats(db, layout.id, { row: 0, col: 0 }, { row: 2, col: 2 }, "s1");
-
-    expect((await db.seats.get(seatKey(layout.id, 0, 0)))?.studentId).toBe("s2");
-    expect((await db.seats.get(seatKey(layout.id, 2, 2)))?.studentId).toBeNull();
+    const [a, b] = await seatsForLayout(db, layout.id);
+    await seatStudent(db, b.id, "p2");
+    await removeTable(db, a.id);
+    await swapSeats(db, a.id, b.id);
+    expect((await db.seats.get(b.id))?.studentId).toBe("p2");
     db.close();
   });
 });
 
-describe("seatStudent displacement", () => {
-  it("displaces the pupil already sitting there, leaving them unseated", async () => {
-    // This is the rule the rail relies on: dropping a pupil from the rail
-    // onto an occupied seat always completes, and the occupant reappears in
-    // the rail rather than the gesture being refused. It was already true and
-    // asserted nowhere, which is how an invariant leaves.
-    const db = freshDb("seat-displace");
+describe("clearSeat", () => {
+  it("empties a table without removing it", async () => {
+    const db = freshDb("clear");
     const layout = await getOrCreateLayout(db, "c1");
-    await seatStudent(db, layout.id, 1, 1, "sitting");
+    const [a] = await seatsForLayout(db, layout.id);
+    await seatStudent(db, a.id, "p1");
+    await clearSeat(db, a.id);
+    expect(await db.seats.get(a.id)).toMatchObject({ studentId: null });
+    db.close();
+  });
+});
 
-    await seatStudent(db, layout.id, 1, 1, "incoming");
+describe("addTable", () => {
+  it("refuses a spot that overlaps an existing table", async () => {
+    const db = freshDb("add-overlap");
+    const layout = await getOrCreateLayout(db, "c1");
+    const [first] = await seatsForLayout(db, layout.id);
+    const before = (await seatsForLayout(db, layout.id)).length;
+    expect(await addTable(db, layout.id, { x: first.x + 1, y: first.y })).toBeNull();
+    expect(await seatsForLayout(db, layout.id)).toHaveLength(before);
+    db.close();
+  });
 
-    expect((await db.seats.get(seatKey(layout.id, 1, 1)))?.studentId).toBe("incoming");
-    const stillSeated = await db.seats
-      .where("layoutId")
-      .equals(layout.id)
-      .filter((s) => s.studentId === "sitting")
-      .count();
-    expect(stillSeated).toBe(0);
+  it("refuses a spot outside the room", async () => {
+    const db = freshDb("add-outside");
+    const layout = await getOrCreateLayout(db, "c1");
+    expect(await addTable(db, layout.id, { x: layout.width, y: 0 })).toBeNull();
+    db.close();
+  });
+
+  it("adds an empty table where there is room", async () => {
+    const db = freshDb("add-ok");
+    const layout = await getOrCreateLayout(db, "c1");
+    const seats = await seatsForLayout(db, layout.id);
+    await removeTable(db, seats[0].id);
+    const added = await addTable(db, layout.id, { x: seats[0].x, y: seats[0].y });
+    expect(added).not.toBeNull();
+    expect(added?.studentId).toBeNull();
+    db.close();
+  });
+});
+
+describe("moveTable", () => {
+  it("keeps the table's id, so anything holding it keeps holding it", async () => {
+    const db = freshDb("move");
+    const layout = await getOrCreateLayout(db, "c1");
+    const seats = await seatsForLayout(db, layout.id);
+    await removeTable(db, seats[1].id);
+    expect(await moveTable(db, seats[0].id, { x: seats[1].x, y: seats[1].y })).toBe(true);
+    const moved = await db.seats.get(seats[0].id);
+    expect(moved).toMatchObject({ x: seats[1].x, y: seats[1].y });
+    db.close();
+  });
+
+  it("carries its occupant along", async () => {
+    const db = freshDb("move-occupied");
+    const layout = await getOrCreateLayout(db, "c1");
+    const seats = await seatsForLayout(db, layout.id);
+    await seatStudent(db, seats[0].id, "p1");
+    await removeTable(db, seats[1].id);
+    await moveTable(db, seats[0].id, { x: seats[1].x, y: seats[1].y });
+    expect((await db.seats.get(seats[0].id))?.studentId).toBe("p1");
+    db.close();
+  });
+
+  it("refuses a move onto another table and leaves the original where it was", async () => {
+    const db = freshDb("move-overlap");
+    const layout = await getOrCreateLayout(db, "c1");
+    const seats = await seatsForLayout(db, layout.id);
+    expect(await moveTable(db, seats[0].id, { x: seats[1].x, y: seats[1].y })).toBe(false);
+    expect(await db.seats.get(seats[0].id)).toMatchObject({ x: seats[0].x, y: seats[0].y });
+    db.close();
+  });
+});
+
+describe("removeTable", () => {
+  it("removes the table, and its occupant is unseated by that alone", async () => {
+    const db = freshDb("remove");
+    const layout = await getOrCreateLayout(db, "c1");
+    const seats = await seatsForLayout(db, layout.id);
+    await seatStudent(db, seats[0].id, "p1");
+    await removeTable(db, seats[0].id);
+    expect(await db.seats.get(seats[0].id)).toBeUndefined();
+    const remaining = await seatsForLayout(db, layout.id);
+    expect(remaining.some((s) => s.studentId === "p1")).toBe(false);
+    db.close();
+  });
+});
+
+describe("applyTemplate", () => {
+  it("replaces the room and keeps seated pupils in reading order", async () => {
+    const db = freshDb("stamp");
+    const layout = await getOrCreateLayout(db, "c1");
+    const seats = (await seatsForLayout(db, layout.id)).sort((a, b) => a.y - b.y || a.x - b.x);
+    await seatStudent(db, seats[0].id, "p1");
+    await seatStudent(db, seats[1].id, "p2");
+
+    const { overflow } = await applyTemplate(
+      db,
+      layout.id,
+      buildRoom({ id: "arc", perRow: 8, rows: 1, curve: 3 }),
+    );
+
+    expect(overflow).toEqual([]);
+    const after = (await seatsForLayout(db, layout.id)).sort((a, b) => a.y - b.y || a.x - b.x);
+    expect(after).toHaveLength(8);
+    expect(after[0].studentId).toBe("p1");
+    expect(after[1].studentId).toBe("p2");
+    db.close();
+  });
+
+  it("reports the pupils who no longer fit", async () => {
+    const db = freshDb("stamp-overflow");
+    const layout = await getOrCreateLayout(db, "c1");
+    const seats = await seatsForLayout(db, layout.id);
+    await seatStudent(db, seats[0].id, "p1");
+    await seatStudent(db, seats[1].id, "p2");
+    const { overflow } = await applyTemplate(
+      db,
+      layout.id,
+      buildRoom({ id: "rows", rows: 1, cols: 1 }),
+    );
+    expect(overflow).toHaveLength(1);
+    db.close();
+  });
+
+  it("resizes the room to the stamp", async () => {
+    const db = freshDb("stamp-size");
+    const layout = await getOrCreateLayout(db, "c1");
+    const shape = buildRoom({ id: "u", cols: 6, rows: 3 });
+    await applyTemplate(db, layout.id, shape);
+    expect(await db.seatingLayouts.get(layout.id)).toMatchObject({
+      width: shape.width,
+      height: shape.height,
+    });
     db.close();
   });
 });

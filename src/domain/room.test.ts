@@ -16,6 +16,7 @@ import {
   resolveFloorDrop,
   type Seated,
   TABLE,
+  unseatedStudentIds,
 } from "./room";
 
 describe("constants", () => {
@@ -263,5 +264,16 @@ describe("resolveFloorDrop", () => {
     expect(resolveFloorDrop({ kind: "seat", seatId: "s1" }, { x: 6, y: 6 })).toEqual({
       kind: "none",
     });
+  });
+});
+
+describe("unseatedStudentIds", () => {
+  it("returns pupils holding no table, in the given order", () => {
+    const students = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    const seats = [
+      { id: "t1", x: 0, y: 0, studentId: "b" },
+      { id: "t2", x: 3, y: 0, studentId: null },
+    ];
+    expect(unseatedStudentIds(students, seats)).toEqual(["a", "c"]);
   });
 });

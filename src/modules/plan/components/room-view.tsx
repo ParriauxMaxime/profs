@@ -1,11 +1,19 @@
 import type { Seat, SeatingLayout, Student } from "@db";
 import { useDb } from "@db/provider";
-import { clearSeat, makeGap, makeSeat } from "@db/seating";
-import type { Held } from "@domain/seating";
+import { clearSeat, removeTable } from "@db/seating";
+import { compareReadingOrder, type Held, TABLE } from "@domain/room";
 import { SUBJECT_COLORS } from "@domain/subject";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PupilName } from "../../design-system/components/pupil-name";
+
+/**
+ * How many pixels one half-tile is worth.
+ *
+ * A table is `TABLE` units square, so it renders 72 × 72 — a hair wider than
+ * phase 5's cell and comfortably past the 44px live-entry floor.
+ */
+const UNIT_PX = 36;
 
 /** A stable colour for a pupil with no photo, picked from the id — not random. */
 function colorFor(studentId: string): string {
@@ -22,7 +30,7 @@ function initials(student: Student): string {
   return `${a}${b}`.toUpperCase();
 }
 
-/** One occupied seat's disc: the pupil's photo, or their initials on a colour. */
+/** One occupied table's disc: the pupil's photo, or their initials on a colour. */
 function PupilDisc({ student }: { student: Student }) {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
@@ -58,103 +66,94 @@ function PupilDisc({ student }: { student: Student }) {
   );
 }
 
-export function SeatGrid({
+/**
+ * The room: tables at free positions, not a grid of cells.
+ *
+ * There is no gap branch any more. A cell no row existed for used to be an
+ * aisle the teacher had carved, and it needed a control to carve and uncarve
+ * it; with free positions an aisle is simply floor, and floor is nothing to
+ * render.
+ */
+export function RoomView({
   layout,
   seats,
   studentsById,
   held,
   onHoldSeat,
-  onDrop,
+  onDropSeat,
   onSelectStudent,
   editing,
 }: {
   layout: SeatingLayout;
   seats: Seat[];
   studentsById: Map<string, Student>;
-  /** Who is held, or null. A seat is a target only while something is held. */
+  /** Who is held, or null. A table is a target only while something is held. */
   held: Held | null;
-  /** Pick up the occupant of a seat. Only reachable in layout-edit mode. */
-  onHoldSeat: (row: number, col: number) => void;
-  /** Drop whoever is held onto this cell. */
-  onDrop: (row: number, col: number) => void;
+  /** Pick up the occupant of a table, by the table's id. */
+  onHoldSeat: (seatId: string) => void;
+  /** Drop whoever is held onto this table. */
+  onDropSeat: (seatId: string) => void;
   onSelectStudent: (studentId: string) => void;
   /**
-   * Layout-edit mode. The controls that carve gaps and empty chairs are
-   * destructive and small, so they exist only here — never on the grid a
-   * teacher is tapping mid-lesson, where a mis-tap would remove a seat.
+   * Layout-edit mode. The controls that remove a table and empty a chair are
+   * destructive and small, so they exist only here — never on the room a
+   * teacher is tapping mid-lesson, where a mis-tap would take a table out.
    */
   editing: boolean;
 }) {
   const { t } = useTranslation();
   const db = useDb();
 
-  const byCoord = new Map<string, Seat>();
-  for (const seat of seats) byCoord.set(`${seat.row}:${seat.col}`, seat);
+  // Reading order in the DOM, so Tab moves front-to-back through the room
+  // rather than in whatever order IndexedDB handed the rows back.
+  const ordered = [...seats].sort(compareReadingOrder);
 
-  const cells: { row: number; col: number }[] = [];
-  for (let row = 0; row < layout.rows; row += 1) {
-    for (let col = 0; col < layout.cols; col += 1) {
-      cells.push({ row, col });
-    }
-  }
-
-  const onMakeSeat = (row: number, col: number): Promise<void> => makeSeat(db, layout.id, row, col);
-
-  const onMakeGap = (row: number, col: number): Promise<void> => makeGap(db, layout.id, row, col);
-
-  const onClearSeat = (row: number, col: number): Promise<void> =>
-    clearSeat(db, layout.id, row, col);
+  const tableStyle = (seat: Seat) => ({
+    left: seat.x * UNIT_PX,
+    top: seat.y * UNIT_PX,
+    width: TABLE * UNIT_PX,
+    height: TABLE * UNIT_PX,
+  });
 
   return (
-    <div className="paper overflow-x-auto rounded-md border border-border">
+    <div className="paper overflow-auto rounded-md border border-border p-2">
       <div
-        className="grid w-max gap-1.5 p-2"
-        style={{ gridTemplateColumns: `repeat(${layout.cols}, minmax(0, 1fr))` }}
+        className="relative"
+        style={{ width: layout.width * UNIT_PX, height: layout.height * UNIT_PX }}
       >
-        {cells.map(({ row, col }) => {
-          const coord = `${row}:${col}`;
-          const seat = byCoord.get(coord);
+        {/* The board is fixed at the top and is not a control: an arc and a U
+            are meaningless without something to face, and this is the whole of
+            the orientation model. */}
+        <div className="absolute inset-x-0 top-0 flex h-6 items-center justify-center rounded bg-bg-hover font-medium text-text-faint text-xs tracking-wide">
+          {t("plan.board")}
+        </div>
 
-          if (!seat) {
-            // Outside layout-edit mode a gap is just empty floor, not a control.
-            if (!editing) return <div key={coord} className="h-14 w-20" />;
-            return (
-              <button
-                key={coord}
-                type="button"
-                className="flex h-14 w-20 flex-col items-center justify-center rounded-md border border-border border-dashed text-[10px] text-text-faint hover:bg-bg-hover"
-                onClick={() => void onMakeSeat(row, col)}
-              >
-                {t("plan.makeSeat")}
-              </button>
-            );
-          }
-
+        {ordered.map((seat) => {
           if (seat.studentId === null) {
             return (
-              <div key={coord} className="relative">
+              <div key={seat.id} className="absolute" style={tableStyle(seat)}>
                 <button
                   type="button"
                   disabled={held === null}
                   title={held ? t("plan.moveHere") : undefined}
-                  className={`flex h-14 w-20 flex-col items-center justify-center rounded-md border text-[11px] text-text-muted disabled:cursor-default ${
+                  className={`flex h-full w-full flex-col items-center justify-center rounded-md border text-[11px] text-text-muted disabled:cursor-default ${
                     held !== null
                       ? "border-accent border-dashed bg-accent/10 hover:bg-bg-hover"
                       : "border-border"
                   }`}
-                  onClick={() => onDrop(row, col)}
+                  onClick={() => onDropSeat(seat.id)}
                 >
                   {t("plan.emptySeat")}
                 </button>
                 {editing && (
                   <button
                     type="button"
-                    aria-label={t("plan.makeGap")}
-                    title={t("plan.makeGap")}
+                    aria-label={t("plan.removeTable")}
+                    title={t("plan.removeTable")}
                     className="-right-2 -top-2 absolute flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg text-sm text-text-muted leading-none hover:text-danger"
                     onClick={(e) => {
                       e.stopPropagation();
-                      void onMakeGap(row, col);
+                      void removeTable(db, seat.id);
                     }}
                   >
                     ×
@@ -166,21 +165,22 @@ export function SeatGrid({
 
           const student = studentsById.get(seat.studentId);
           if (!student) {
-            // The pupil was deleted elsewhere; the seat row is stale until the
+            // The pupil was deleted elsewhere; the table row is stale until the
             // teacher clears it. Render it as empty rather than crashing —
             // and while something is held it is a target like every other
-            // cell, not a clear button that would swallow the gesture.
+            // table, not a clear button that would swallow the gesture.
             return (
               <button
-                key={coord}
+                key={seat.id}
                 type="button"
                 title={held ? t("plan.moveHere") : undefined}
-                className={`flex h-14 w-20 flex-col items-center justify-center rounded-md border text-[11px] text-text-muted hover:bg-bg-hover ${
+                className={`absolute flex flex-col items-center justify-center rounded-md border text-[11px] text-text-muted hover:bg-bg-hover ${
                   held !== null ? "border-accent border-dashed bg-accent/10" : "border-border"
                 }`}
+                style={tableStyle(seat)}
                 onClick={() => {
-                  if (held) onDrop(row, col);
-                  else void onClearSeat(row, col);
+                  if (held) onDropSeat(seat.id);
+                  else void clearSeat(db, seat.id);
                 }}
               >
                 {t("plan.emptySeat")}
@@ -188,17 +188,18 @@ export function SeatGrid({
             );
           }
 
-          const isHeldSeat = held?.kind === "seat" && held.row === row && held.col === col;
+          const isHeldSeat =
+            (held?.kind === "seat" || held?.kind === "table") && held.seatId === seat.id;
 
           return (
-            <div key={coord} className="relative">
+            <div key={seat.id} className="absolute" style={tableStyle(seat)}>
               <button
                 type="button"
                 title={held ? t("plan.moveHere") : undefined}
-                // Only the seat in hand is announced as pressed; the others
+                // Only the table in hand is announced as pressed; the others
                 // are targets, not toggles, so they carry no state at all.
                 aria-pressed={isHeldSeat || undefined}
-                className={`flex h-14 w-20 flex-col items-center justify-center gap-0.5 rounded-md border p-1 hover:bg-bg-hover ${
+                className={`flex h-full w-full flex-col items-center justify-center gap-0.5 rounded-md border p-1 hover:bg-bg-hover ${
                   isHeldSeat
                     ? "border-accent ring-2 ring-accent"
                     : held
@@ -206,30 +207,30 @@ export function SeatGrid({
                       : "border-border"
                 }`}
                 onClick={() => {
-                  // Something held: this seat is a target.
+                  // Something held: this table is a target.
                   // Nothing held, layout-edit mode: pick this pupil up.
                   // Nothing held, normal mode: open their card. That last
                   // branch is the gesture of the lesson itself — attendance
                   // and behaviour — and it stays the bare tap.
-                  if (held) onDrop(row, col);
-                  else if (editing) onHoldSeat(row, col);
+                  if (held) onDropSeat(seat.id);
+                  else if (editing) onHoldSeat(seat.id);
                   else onSelectStudent(student.id);
                 }}
               >
                 <PupilDisc student={student} />
-                <span className="w-full truncate text-[10px] text-text">
+                <span className="w-full truncate px-1 text-[10px] text-text">
                   <PupilName student={student} format="surname" />
                 </span>
               </button>
               {editing && (
                 <button
                   type="button"
-                  aria-label={t("plan.clearSeat")}
-                  title={t("plan.clearSeat")}
+                  aria-label={t("plan.removeTable")}
+                  title={t("plan.removeTable")}
                   className="-right-2 -top-2 absolute flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg text-sm text-text-muted leading-none hover:text-danger"
                   onClick={(e) => {
                     e.stopPropagation();
-                    void onClearSeat(row, col);
+                    void removeTable(db, seat.id);
                   }}
                 >
                   ×

@@ -68,8 +68,8 @@ describe("wipeWorkspace", () => {
       comment: "mot dans le carnet",
       createdAt: 1,
     });
-    await db.seatingLayouts.add({ id: "l1", classId: "c1", rows: 2, cols: 2, updatedAt: 1 });
-    await db.seats.add({ layoutId: "l1", row: 0, col: 0, studentId: "s1" });
+    await db.seatingLayouts.add({ id: "l1", classId: "c1", width: 4, height: 4, updatedAt: 1 });
+    await db.seats.add({ id: "t1", layoutId: "l1", x: 0, y: 0, studentId: "s1" });
     await db.rubricTemplates.add({
       id: "t1",
       name: "Oral",

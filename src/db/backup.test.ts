@@ -87,7 +87,7 @@ describe("workspace backup", () => {
 
     await expect(
       importWorkspace(db, {
-        version: 7,
+        version: 8,
         exportedAt: 0,
         classes: [],
         students: [],
@@ -230,7 +230,7 @@ describe("workspace backup", () => {
     });
     await db.groupMembers.put({ groupId: "g1", studentId: "p1" });
     const backup = await exportWorkspace(db);
-    expect(backup.version).toBe(6);
+    expect(backup.version).toBe(7);
     expect(backup.sessions).toHaveLength(1);
     expect(backup.attendance).toHaveLength(1);
     expect(backup.rubricTemplates).toHaveLength(1);
@@ -274,8 +274,8 @@ describe("workspace backup", () => {
       comment: "bavardage",
       createdAt: 1,
     });
-    await db.seatingLayouts.add({ id: "l1", classId: "c1", rows: 2, cols: 2, updatedAt: 1 });
-    await db.seats.put({ layoutId: "l1", row: 1, col: 1, studentId: "p1" });
+    await db.seatingLayouts.add({ id: "l1", classId: "c1", width: 8, height: 8, updatedAt: 1 });
+    await db.seats.put({ id: "s1", layoutId: "l1", x: 2, y: 2, studentId: "p1" });
 
     const backup = await exportWorkspace(db);
     await importWorkspace(db, backup);
@@ -284,7 +284,7 @@ describe("workspace backup", () => {
       type: "red",
       comment: "bavardage",
     });
-    expect(await db.seats.get(["l1", 1, 1])).toMatchObject({ studentId: "p1" });
+    expect(await db.seats.get("s1")).toMatchObject({ studentId: "p1" });
     db.close();
   });
 
@@ -343,8 +343,8 @@ describe("workspace backup", () => {
       type: "red",
       createdAt: 1,
     });
-    await db.seatingLayouts.add({ id: "l1", classId: "c1", rows: 1, cols: 1, updatedAt: 1 });
-    await db.seats.put({ layoutId: "l1", row: 0, col: 0, studentId: "p1" });
+    await db.seatingLayouts.add({ id: "l1", classId: "c1", width: 4, height: 4, updatedAt: 1 });
+    await db.seats.put({ id: "s1", layoutId: "l1", x: 0, y: 0, studentId: "p1" });
     await db.rubricTemplates.add({
       id: "t1",
       name: "Oral",
@@ -437,8 +437,8 @@ describe("workspace backup", () => {
 
     const backup = await exportWorkspace(db);
     const corrupted = JSON.parse(JSON.stringify(backup));
-    corrupted.seatingLayouts = [{ id: "l1", classId: "c1", rows: 1, cols: 1, updatedAt: 1 }];
-    corrupted.seats = [{ layoutId: "l1", row: 0, col: 0 }];
+    corrupted.seatingLayouts = [{ id: "l1", classId: "c1", width: 4, height: 4, updatedAt: 1 }];
+    corrupted.seats = [{ id: "s1", layoutId: "l1", x: 0 }];
 
     expect(() => parseBackup(corrupted)).toThrow();
     db.close();
@@ -614,7 +614,7 @@ describe("class-size ceiling on import", () => {
   /** A minimal, schema-valid backup carrying `count` pupils in one class. */
   function backupWithRoster(count: number) {
     return {
-      version: 6,
+      version: 7,
       exportedAt: Date.now(),
       classes: [{ id: "c1", name: "3°B", createdAt: 1, updatedAt: 1 }],
       students: Array.from({ length: count }, (_, i) => ({

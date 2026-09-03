@@ -25,7 +25,7 @@ import type {
 } from "./types";
 
 export interface WorkspaceBackup {
-  version: 6;
+  version: 7;
   exportedAt: number;
   classes: SchoolClass[];
   students: Student[];
@@ -56,14 +56,14 @@ export interface WorkspaceBackup {
  * migration path, and a v2 file predates the rubric tables entirely, so
  * half-importing it would leave a workspace with gradebooks but no rubric
  * assessments to hang scores off of. Version 3 is rejected the same way: it
- * predates student groups entirely, version 4 the recurring timetable, and
- * version 5 the journal.
+ * predates student groups entirely, version 4 the recurring timetable,
+ * version 5 the journal, and version 6 the rectangular seating grid.
  * The rule for the next schema change is unchanged: bump the version, do not
  * write an upgrade — importing a file half-populated is worse than refusing
  * it, because half a workspace looks like a whole one.
  */
 const backupSchema = z.object({
-  version: z.literal(6),
+  version: z.literal(7),
   exportedAt: z.number(),
   classes: z.array(z.object({ id: z.string() }).loose()),
   students: z.array(z.object({ id: z.string() }).loose()),
@@ -97,9 +97,10 @@ const backupSchema = z.object({
   seats: z.array(
     z
       .object({
+        id: z.string(),
         layoutId: z.string(),
-        row: z.number(),
-        col: z.number(),
+        x: z.number(),
+        y: z.number(),
         studentId: z.string().nullable(),
       })
       .loose(),
@@ -179,7 +180,7 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
   ]);
 
   return {
-    version: 6,
+    version: 7,
     exportedAt: Date.now(),
     classes,
     students: students.map(({ photo: _photo, ...rest }) => rest),

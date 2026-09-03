@@ -1,13 +1,9 @@
 import "fake-indexeddb/auto";
-import { attendanceKey, groupMemberKey, openWorkspaceDb, rubricScoreKey, seatKey } from ".";
+import { attendanceKey, groupMemberKey, openWorkspaceDb, rubricScoreKey } from ".";
 
 describe("schema v2", () => {
   it("builds an attendance key", () => {
     expect(attendanceKey("s1", "p1")).toEqual(["s1", "p1"]);
-  });
-
-  it("builds a seat key", () => {
-    expect(seatKey("l1", 2, 3)).toEqual(["l1", 2, 3]);
   });
 
   it("opens with every table the schema declares", async () => {
@@ -40,17 +36,13 @@ describe("schema v2", () => {
     db.close();
   });
 
-  it("round-trips a seat on its compound key", async () => {
-    const db = openWorkspaceDb("schema-v2-seat");
-    await db.seats.put({ layoutId: "l1", row: 0, col: 0, studentId: null });
-    await db.seats.put({ layoutId: "l1", row: 0, col: 0, studentId: "p1" });
-    expect(await db.seats.count()).toBe(1);
-    expect(await db.seats.get(seatKey("l1", 0, 0))).toEqual({
-      layoutId: "l1",
-      row: 0,
-      col: 0,
-      studentId: "p1",
-    });
+  it("refuses two tables at one point", async () => {
+    const db = openWorkspaceDb("schema-v7-seat");
+    await db.seats.put({ id: "s1", layoutId: "l1", x: 0, y: 0, studentId: null });
+    await expect(
+      db.seats.put({ id: "s2", layoutId: "l1", x: 0, y: 0, studentId: null }),
+    ).rejects.toThrow();
+    expect(await db.seats.where("layoutId").equals("l1").count()).toBe(1);
     db.close();
   });
 

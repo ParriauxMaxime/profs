@@ -1,6 +1,6 @@
 import type { Student } from "@db";
+import type { Held } from "@domain/room";
 import { fuzzyMatchAny } from "@domain/search";
-import type { Held } from "@domain/seating";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PupilName } from "../../design-system/components/pupil-name";
