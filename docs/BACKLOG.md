@@ -92,6 +92,22 @@ exists for the same session. `deleteSeatingLayout` in `src/db/cascade.ts`
 already supports removing one of several, so the schema is not the blocker —
 the UI and the "which layout is active" question are.
 
+## 4b. Named, reusable rooms
+
+Phase 7 replaced the seating plan's rectangular grid with a room of freely
+positioned tables, stamped from one of four templates (rows, arc, islands, U)
+and then hand-tuned — see
+`docs/superpowers/specs/2026-09-03-profs-room-layouts-design.md`. Every room is
+still owned by exactly one `SeatingLayout` per class, and a template stamp is
+one-way: nothing records that a room "is an arc", so re-stamping is
+destructive to the tables (`reseat` only preserves the *pupils*, not the
+hand-tuning). A teacher whose actual classroom does not change between two
+different classes she teaches there has to rebuild — or re-stamp and re-tune —
+the same room twice. Named, reusable rooms ("Ma salle 204", picked from a list
+rather than stamped from scratch) would need their own table and a management
+screen, and a decision on what happens to a room's occupants when it is
+detached from one class and attached to another. Not started.
+
 ## 5. Behaviour counts by period
 
 The pupil page's behaviour counts (`countByType`) are deliberately computed
