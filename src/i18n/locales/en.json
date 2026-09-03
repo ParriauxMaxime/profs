@@ -242,7 +242,6 @@
     "needsSession": "Select a lesson in the seating plan to record attendance and behaviour."
   },
   "plan": {
-    "title": "Classroom plan",
     "newSession": "New session",
     "session": "Session",
     "deleteSession": "Delete session",
@@ -255,12 +254,10 @@
     "hintPlaceTable": "Drop the table, or nudge it with the arrow keys.",
     "searchPupil": "Search for a pupil",
     "movePupil": "Move",
-    "putDown": "Put down",
     "emptySeat": "Empty seat",
     "board": "Board",
     "removeTable": "Remove the table",
     "freeSeat": "Free the seat",
-    "stamp": "Lay out the room",
     "confirmStamp": "Replace every table",
     "template": "Layout",
     "templateRows": "Rows",

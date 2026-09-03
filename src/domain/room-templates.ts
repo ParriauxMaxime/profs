@@ -27,7 +27,18 @@ export type RoomTemplate =
  * Every parameter's floor and ceiling, beside the generators that read them.
  *
  * Exported so a form's `min`/`max` are the same numbers `clampTemplate`
- * enforces: a spinner that runs past the clamp silently corrects the teacher.
+ * enforces for that parameter ON ITS OWN.
+ *
+ * They are not the whole clamp, and a form must not read them as if they were.
+ * `clampTemplate` also brings the SEAT TOTAL under `MAX_POSITIONS`, and it does
+ * that by lowering whichever parameter multiplies fastest — so with `cols: 20`
+ * any `rows` above 5 is silently reduced, well short of the 20 this table
+ * allows. The effective ceiling on one parameter depends on the others and is
+ * not expressible here; only `clampTemplate` knows it. The silent correction is
+ * the right outcome — the class ceiling is a hard rule — but it does mean a
+ * spinner bounded by these numbers can still hand `clampTemplate` a value it
+ * lowers. The form shows the resulting seat count, which is where a teacher
+ * sees it happen.
  */
 export const TEMPLATE_LIMITS = {
   rows: { rows: [1, 20], cols: [1, 20] },

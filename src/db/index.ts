@@ -152,15 +152,27 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
   // Dropping the store and recreating it is the whole of the migration: a v6
   // seat keyed [layoutId+row+col] is garbage either way, and every other table
   // is carried forward untouched.
+  //
+  // `seatingLayouts` goes with the seats, and it must. Its primary key never
+  // changed, so Dexie would happily carry a v6 room forward — but a v6 room
+  // carries `rows`/`cols` where the new one carries `width`/`height`, and a
+  // layout whose every seat was just discarded describes nothing anyway.
+  // Carried forward, `layout.width` is `undefined`: the room renders at
+  // `scale(NaN)`, `floorSlots` yields nothing, `addTable` refuses every
+  // placement, and a backup taken in that window exports the zombie row
+  // intact. Same doctrine as the seats — disposable, not migrated.
   db.version(7).stores({
     seats: null,
+    seatingLayouts: null,
   });
   // v8 lays the free-position room down in a fresh store. `&[layoutId+x+y]` is
   // unique: it is the database's own guarantee that two tables never share a
   // point, so a bug in `canPlace` surfaces as a rejected write rather than as
-  // a pupil nobody can tap.
+  // a pupil nobody can tap. `seatingLayouts` is redeclared at its unchanged
+  // key so the empty store comes back for `getOrCreateLayout` to fill.
   db.version(8).stores({
     seats: "id, layoutId, studentId, &[layoutId+x+y]",
+    seatingLayouts: "id, classId",
   });
   return db;
 }

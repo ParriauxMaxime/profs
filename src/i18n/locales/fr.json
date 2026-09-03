@@ -242,7 +242,6 @@
     "needsSession": "Sélectionnez une séance dans le plan de table pour noter la présence et le comportement."
   },
   "plan": {
-    "title": "Plan de classe",
     "newSession": "Nouvelle séance",
     "session": "Séance",
     "deleteSession": "Supprimer la séance",
@@ -255,12 +254,10 @@
     "hintPlaceTable": "Posez la table, ou ajustez-la aux flèches.",
     "searchPupil": "Rechercher un élève",
     "movePupil": "Déplacer",
-    "putDown": "Reposer",
     "emptySeat": "Place libre",
     "board": "Tableau",
     "removeTable": "Retirer la table",
     "freeSeat": "Libérer la place",
-    "stamp": "Disposer la salle",
     "confirmStamp": "Remplacer toutes les tables",
     "template": "Disposition",
     "templateRows": "Rangées",

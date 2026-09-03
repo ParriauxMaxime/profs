@@ -132,6 +132,15 @@ interface Seat {
 
 **Schema** — `db.version(7)`:
 
+> **Errata (applied during implementation).** One version was not enough.
+> Dexie refuses to change a store's primary key in place — `UpgradeError: Not
+> yet support for changing primary key`, thrown while opening, which `init.ts`
+> does not catch — so what shipped is TWO bumps: `version(7)` drops `seats`
+> **and `seatingLayouts`** (`: null`), and `version(8)` redeclares both at
+> their new shape. Dropping the layouts too was a later correction: their
+> primary key never changed, so Dexie would have carried a v6 room forward
+> with `rows`/`cols` where the code now reads `width`/`height`.
+
 ```
 seatingLayouts: "id, classId"
 seats:          "id, layoutId, &[layoutId+x+y]"
@@ -150,7 +159,8 @@ garbage the wipe in Réglages already handles. Rooms already laid out are laid o
 again. Nothing else moves — pupils, notes, attendance, behaviour, gradebooks,
 rubrics, groups, the timetable and the journal are all untouched.
 
-`backup.ts` goes to `version: 7` and refuses a v6 file outright. A v6 backup
+`backup.ts` goes to `version: 7` and refuses a v6 file outright. *(Errata: it
+shipped as `version: 8`, following the two schema bumps above.)* A v6 backup
 carries `Seat` rows keyed `row`/`col`; importing it would either drop every
 seating plan silently or write rows the new index rejects mid-transaction, and
 `parseBackup` refuses whole files before `importWorkspace` clears a table for
@@ -388,10 +398,10 @@ delete a table out from under its occupant.
 | `src/domain/room-templates.ts` | new — the four generators and their clamps |
 | `src/domain/seating.ts` | removed — `buildSeats` and `resizeSeats` have no successor |
 | `src/db/types.ts` | `Seat` gains `id`/`x`/`y`, `SeatingLayout` gains `width`/`height` |
-| `src/db/index.ts` | `version(7)`; `seatKey` deleted |
+| `src/db/index.ts` | `version(7)` + `version(8)` (see errata above); `seatKey` deleted |
 | `src/db/seating.ts` | `addTable`, `moveTable`, `removeTable`, `applyTemplate`; `swapSeats` loses `expectedStudentId` |
 | `src/db/seed.ts` | demo rooms stamped from `rows` |
-| `src/db/backup.ts` | `version: 7`, v6 refused |
+| `src/db/backup.ts` | `version: 8` (spec said 7 — see errata), v6 refused |
 | `src/modules/plan/components/room-view.tsx` | replaces `seat-grid.tsx` |
 | `src/modules/plan/components/room-template-form.tsx` | replaces `layout-size-form.tsx` |
 | `src/modules/plan/page.tsx` | three-kind `Held`, table editing |

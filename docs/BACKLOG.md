@@ -328,3 +328,44 @@ Still inline, and deliberately left: five single-table v1-era writes in
 not in the recorded scope. Worth folding in the next time one of those forms
 is touched.
 
+
+## Technical debt — a failed `db.open()` is a blank page with no way back
+
+`src/db/init.ts` calls `db.open()` with no `catch`, and `src/main.tsx` calls
+`initWorkspace().then(...)` with no `.catch`. Any rejection — a Dexie
+`UpgradeError`, a corrupt store, a browser that denies IndexedDB in a private
+window, a quota failure — means the promise never resolves into `render`, so
+React never mounts. What the teacher sees is a blank page. Their pupils' names
+and grades are still in IndexedDB, and there is no route to the wipe in
+Réglages, to the JSON export, or to the workspace switcher, because none of
+those screens exist until React has mounted.
+
+Phase 6 hit exactly one instance of this and fixed only that instance: Dexie
+refuses to change a store's primary key in place and throws while opening, so
+the room migration was split into `version(7)` (drop) + `version(8)`
+(redeclare) specifically to avoid the throw. The class of failure is untouched.
+It matters more than a normal crash because the app is the only copy of the
+data — there is no server to log in to from another device, and `PRIVACY.md`
+says so.
+
+What has to be settled before anything is built, and the reason this is a
+backlog entry rather than a fix:
+
+- **What does the fallback offer?** A wipe is the one recovery that always
+  works and the one that destroys a term of marks. Offering it on a transient
+  error — a locked database because another tab is mid-upgrade, a quota blip —
+  invites a teacher to delete data that was never lost. Offering nothing but
+  "reload" is honest and often useless.
+- **Can it export first?** An export needs the database open, which is the
+  thing that just failed. A partial export from a half-open database may be
+  worse than none.
+- **Which errors are recoverable?** `DatabaseClosedError` and `VersionError`
+  want a reload; `UpgradeError` and `InvalidStateError` do not. The panel
+  cannot be one message.
+- **Where does it live?** It must render without `DbProvider`, without
+  `useLiveQuery`, and arguably without i18n if the failure is early enough —
+  which makes it a second, smaller shell rather than a route.
+
+Related: the standing rule that schema changes are disposable, not migrated.
+Disposable has to mean *wiped on the next boot*, never *bricked*, and today
+nothing enforces that but review.

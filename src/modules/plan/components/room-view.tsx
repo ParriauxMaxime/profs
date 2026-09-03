@@ -187,6 +187,22 @@ export function RoomView({
     height: TABLE * UNIT_PX,
   });
 
+  /**
+   * A per-table control's counter-scale.
+   *
+   * The `×` and `↩` buttons live INSIDE the scaled room, so at `MIN_SCALE`
+   * a 28px button renders at 17px — a destructive control below the 44px tap
+   * target this branch derived `MIN_SCALE` from in the first place. Undoing
+   * the room's scale on the button holds its on-screen size as the room
+   * shrinks. Bumping it to 44px in room units instead would have crowded a
+   * 44px tile off its own corner. The origin is the button's own outer
+   * corner, so it grows away from the tile rather than across it.
+   */
+  const controlStyle = (corner: "left" | "right") => ({
+    transform: `scale(${1 / scale})`,
+    transformOrigin: `top ${corner}`,
+  });
+
   const positionStyle = (at: Position) => ({
     left: at.x * UNIT_PX,
     top: at.y * UNIT_PX,
@@ -225,18 +241,31 @@ export function RoomView({
             </div>
           )}
 
-          {slots.map((at) => (
-            <button
-              key={`floor-${at.x}-${at.y}`}
-              type="button"
-              title={held?.kind === "table" ? t("plan.moveHere") : t("plan.addTable")}
-              className="absolute flex min-h-11 min-w-11 items-center justify-center rounded-md border border-border border-dashed text-[11px] text-text-faint hover:bg-bg-hover"
-              style={positionStyle(at)}
-              onClick={() => onFloor(at)}
-            >
-              {held?.kind === "table" ? t("plan.moveHere") : t("plan.addTable")}
-            </button>
-          ))}
+          {slots.map((at) => {
+            // Three states, and the label has to tell the truth about each.
+            // A table held: the floor is where it goes. Nothing held: the slot
+            // is the control that adds a table. A PUPIL held — reachable,
+            // because the rail stays live in layout-edit mode — is neither:
+            // "a pupil is never dropped on bare floor" is a deliberate rule,
+            // so the slot keeps its name and goes inert rather than offering
+            // an action it would decline to perform.
+            const movingTable = held?.kind === "table";
+            const pupilInHand = held !== null && !movingTable;
+            const label = movingTable ? t("plan.moveHere") : t("plan.addTable");
+            return (
+              <button
+                key={`floor-${at.x}-${at.y}`}
+                type="button"
+                disabled={pupilInHand}
+                title={label}
+                className="absolute flex min-h-11 min-w-11 items-center justify-center rounded-md border border-border border-dashed text-[11px] text-text-faint hover:bg-bg-hover disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+                style={positionStyle(at)}
+                onClick={() => onFloor(at)}
+              >
+                {label}
+              </button>
+            );
+          })}
 
           {ordered.map((seat) => {
             if (seat.studentId === null) {
@@ -267,6 +296,7 @@ export function RoomView({
                       aria-label={t("plan.removeTable")}
                       title={t("plan.removeTable")}
                       className="-right-2 -top-2 absolute flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg text-sm text-text-muted leading-none hover:text-danger"
+                      style={controlStyle("right")}
                       onClick={(e) => {
                         e.stopPropagation();
                         void removeTable(db, seat.id);
@@ -354,6 +384,7 @@ export function RoomView({
                       aria-label={t("plan.freeSeat")}
                       title={t("plan.freeSeat")}
                       className="-left-2 -top-2 absolute flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg text-sm text-text-muted leading-none hover:text-accent"
+                      style={controlStyle("left")}
                       onClick={(e) => {
                         e.stopPropagation();
                         void clearSeat(db, seat.id);
@@ -366,6 +397,7 @@ export function RoomView({
                       aria-label={t("plan.removeTable")}
                       title={t("plan.removeTable")}
                       className="-right-2 -top-2 absolute flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg text-sm text-text-muted leading-none hover:text-danger"
+                      style={controlStyle("right")}
                       onClick={(e) => {
                         e.stopPropagation();
                         void removeTable(db, seat.id);

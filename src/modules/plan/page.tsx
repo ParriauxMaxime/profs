@@ -169,6 +169,19 @@ export function PlanPage({
     function onKeyDown(event: KeyboardEvent): void {
       const delta = deltas[event.key];
       if (!delta) return;
+      // The template form is on screen whenever a table can be held, so its
+      // number spinners are one Tab away from the room. Without this guard the
+      // nudge eats their arrow keys — and the `preventDefault` below cancels
+      // the input's own increment, so "Rangées" would refuse to count up while
+      // the table moved instead.
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLSelectElement ||
+        target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
       event.preventDefault();
       void nudgeTable(db, heldSeatId, delta);
     }

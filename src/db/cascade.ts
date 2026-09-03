@@ -52,8 +52,10 @@ export async function deleteColumn(db: AppDatabase, columnId: string): Promise<v
 
 /**
  * A pupil's rows reach into six tables. The seat is emptied rather than
- * deleted: removing it would punch a hole in the room's geometry, and a gap
- * means something different from an empty chair.
+ * deleted: a seat row is a TABLE, furniture the teacher placed, and a pupil
+ * leaving the class is no reason to take their table out of the room. Deleting
+ * it would redraw the layout behind the teacher's back — the room would come
+ * back one table short, with nothing to say why.
  */
 export async function deleteStudent(db: AppDatabase, studentId: string): Promise<void> {
   await db.transaction(
@@ -285,7 +287,7 @@ export async function deleteBehaviourEvent(db: AppDatabase, eventId: string): Pr
   await db.behaviourEvents.delete(eventId);
 }
 
-/** The room and its cells. */
+/** The room and every table in it. */
 export async function deleteSeatingLayout(db: AppDatabase, layoutId: string): Promise<void> {
   await db.transaction("rw", [db.seatingLayouts, db.seats], async () => {
     await db.seats.where("layoutId").equals(layoutId).delete();

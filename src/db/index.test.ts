@@ -141,4 +141,35 @@ describe("schema v7 — the grid store is dropped, not re-keyed", () => {
     expect(await fresh.seats.get("t1")).toMatchObject({ x: 0, y: 0 });
     fresh.close();
   });
+
+  it("drops the grid's rooms too, so no rows/cols layout is carried forward", async () => {
+    const name = `repro-layout-${crypto.randomUUID()}`;
+    const old = openOldDb(name);
+    await old.open();
+    await old.table("classes").add({ id: "c1", name: "3°B", createdAt: 1, updatedAt: 1 });
+    // The v6 shape: rows and cols, and no width or height at all. Carried
+    // forward it renders at scale(NaN) and refuses every placement.
+    await old
+      .table("seatingLayouts")
+      .add({ id: "l1", classId: "c1", rows: 5, cols: 6, updatedAt: 1 });
+    old.close();
+
+    const fresh = openWorkspaceDb(name);
+    await fresh.open();
+    expect(await fresh.classes.count()).toBe(1);
+    expect(await fresh.seatingLayouts.count()).toBe(0);
+    // And the empty store is a real one the new code can fill.
+    await fresh.seatingLayouts.add({
+      id: "l2",
+      classId: "c1",
+      width: 30,
+      height: 20,
+      updatedAt: 1,
+    });
+    expect(await fresh.seatingLayouts.where("classId").equals("c1").first()).toMatchObject({
+      width: 30,
+      height: 20,
+    });
+    fresh.close();
+  });
 });
