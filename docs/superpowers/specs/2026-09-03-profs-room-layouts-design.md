@@ -108,7 +108,7 @@ Half a tile is also exactly the precision an arc needs and no more.
 interface SeatingLayout {
   id: string;
   classId: string;
-  /** Half-tiles. At most ROOM_MAX (40 units = 20 tiles). */
+  /** Half-tiles. At most ROOM_MAX (120 units). */
   width: number;
   height: number;
   updatedAt: number;
@@ -175,52 +175,100 @@ cell had no identity to anchor to.
 
 ## Geometry
 
-One constant governs everything: **`PITCH = 3`** units. A table is 2 wide, so
-there is one unit of air between neighbours.
+Two constants, and the second exists because the first is not enough on a curve.
+
+- **`PITCH = 3`** units, for anything rectilinear. A table is 2 wide, so
+  neighbours have one unit of air between them.
+- **`ARC_SPACING = 5`** units, along a curved row and between curved rows. Why
+  it has to be larger is the whole of the next section.
 
 `canPlace(positions, at)` — two tables clear each other when
-`|dx| >= 2 || |dy| >= 2`. Pure, and the only overlap rule in the codebase.
+`|dx| >= 2 || |dy| >= 2`. Per-axis, not Euclidean, because a table is an
+axis-aligned square. Pure, and the only overlap rule in the codebase.
 
 ### The arc cannot self-collide, by arithmetic
 
 Seats are spread at equal angles along a circle centred **on the board**, so
 every seat is the same distance from it and the ends of the row wrap forward —
-which is what a teacher means by an arc. The radius is chosen so the arc length
-is at least `seats * PITCH`. Every adjacent pair is
-therefore at least 3 units apart before rounding. Rounding each coordinate to an
-integer moves a point by at most 0.5, so the worst case separation is 2 units —
-exactly the tile width, which `canPlace` accepts.
+which is what a teacher means by an arc. Rows sit at increasing radius, so the
+back row is farther from the board than the front.
 
-Non-overlap falls out of the radius choice rather than out of a repair pass that
+The spacing bound has to survive two things, and the naive `PITCH` survives
+neither:
+
+1. **`canPlace` is per-axis.** Two points 2.8 units apart on the diagonal have
+   `dx = dy = 2.0` and clear; the same 2.8 units at `dx = dy = 1.98` do not.
+   Only `max(|dx|, |dy|)` counts, and on a circle that is as low as
+   `distance / sqrt(2)`.
+2. **Rounding to integers moves each point by up to 0.5 per axis**, so a pair
+   can lose a whole unit of per-axis separation.
+
+Working backwards: the post-rounding requirement is `max(|dx|, |dy|) >= 2`, so
+pre-rounding it must be `>= 3`, so the centre distance must be
+`>= 3 * sqrt(2) ~= 4.25`. A chord is a little shorter than its arc — at the
+widest angular step in range the ratio bottoms out near 0.93 — so the arc step
+must be `>= 4.57`. **`ARC_SPACING = 5`** is that bound rounded up, and it is
+used both along a row and between rows, where the same diagonal argument
+applies at the ends of the arc.
+
+The radius therefore comes out of the spacing rather than the other way round:
+`R = ARC_SPACING * (n - 1) / theta`, with `theta` from the curve parameter
+(15° at curve 1, 75° at curve 5).
+
+Non-overlap falls out of that choice rather than out of a repair pass that
 nudges colliding seats afterwards. A repair pass is where this would have gone
-wrong: it terminates on most inputs and produces a visibly lumpy arc on the rest,
-which is the failure that gets shipped because it still looks like an arc.
+wrong: it terminates on most inputs and produces a visibly lumpy arc on the
+rest, which is the failure that gets shipped because it still looks like an arc.
 
-The test asserts non-overlap across the full clamped parameter range for all four
-generators, not at sampled points.
+The test does not sample. Every parameter combination in range is a few hundred
+cases, so the test **enumerates all of them** and asserts non-overlap and
+in-bounds for each. If a combination ever fails, `ARC_SPACING` is the documented
+knob to raise — not the individual case to patch.
 
 ## The Four Templates
 
-`src/domain/room-templates.ts`. Pure, no React, no Dexie. Each is
-`params -> { width, height, positions }`, with its clamps beside it.
+`src/domain/room-templates.ts`. Pure, no React, no Dexie. One discriminated
+union in, one `RoomShape` (`{ width, height, positions }`) out.
 
 ```ts
-rows    ({ rows, cols })          // phase 5's grid, still the default
-arc     ({ seats, rows, curve })  // curved rows facing the board
-islands ({ islands, perIsland })  // clusters, two tables wide
-u       ({ seats })               // arms down both sides, closed at the back
+type RoomTemplate =
+  | { id: "rows";    rows: number; cols: number }
+  | { id: "arc";     perRow: number; rows: number; curve: number }
+  | { id: "islands"; islands: number; perIsland: number }
+  | { id: "u";       cols: number; rows: number };
 ```
 
-**The U opens toward the board.** The board is at the top, so the arms run down
-the left and right edges and the closed side is at the bottom. Every pupil faces
-up.
+Every parameter is a **count of tables**, never a count of pupils. "18 places"
+is what the form displays, computed live from the parameters; it is not what the
+generator takes. A seat total as input would make clamping ambiguous — twenty
+seats over three rows is not a shape until something decides how they split —
+and every generator would have to invent that rule separately.
 
-**Clamps**: room at most 40 × 40 units (20 × 20 tiles); at most
-`MAX_STUDENTS_PER_CLASS` (100) positions, so a room can never be stamped larger
-than a class may be. Each parameter carries its own floor and ceiling in the
-domain, next to the generator that reads it — not in the form, which is the
-mistake the subject palette and the period names were moved out of a component
-to avoid.
+**The U opens toward the board.** The board is at the top, so `cols` tables run
+along the bottom and the two arms run up the left and right edges. Every pupil
+faces up. Its seat count is `cols + 2 * (rows - 1)`.
+
+**Clamps**, each beside the generator that reads it, in the domain — not in the
+form, which is the mistake the subject palette and the period names were moved
+out of a component to avoid:
+
+| Template | Parameters | Seats |
+|---|---|---|
+| `rows` | `rows` 1–20, `cols` 1–20 | `rows * cols` |
+| `arc` | `perRow` 1–20, `rows` 1–4, `curve` 1–5 | `perRow * rows` |
+| `islands` | `islands` 1–12, `perIsland` 2–8 | `islands * perIsland` |
+| `u` | `cols` 2–20, `rows` 1–10 | `cols + 2 * (rows - 1)` |
+
+Two global bounds sit above those. **`MAX_POSITIONS` is
+`MAX_STUDENTS_PER_CLASS` (100)** — a room can never be stamped larger than a
+class may be, and `clampTemplate` lowers the parameter that multiplies fastest
+until the product fits. **`ROOM_MAX` is 120 units** in each direction.
+
+That 120 is not arbitrary and an earlier draft of this document had it wrong at
+40. A shallow arc is *wider* than the straight row holding the same tables — 20
+tables at curve 1 span about 95 units where a straight row spans 60 — so a bound
+tight enough to look tidy would have made the flattest arcs, the common ones,
+unstampable.
 
 ### Applying a template does not empty the room
 
@@ -272,8 +320,9 @@ Tapping bare floor has no keyboard equivalent, so reaching every position needs
 two mechanisms rather than one:
 
 - **Floor buttons** render in layout-edit mode only, at whole-tile coordinates
-  (even `x` and `y`) where a table would fit. Bounded by the 20 × 20 tile clamp,
-  so a few hundred at most, and only while editing. Tap precision is one tile.
+  (even `x` and `y`) where a table would fit. Bounded by the room the template
+  actually stamped rather than by `ROOM_MAX`, so a stamped arc offers a couple
+  of hundred and only while editing. Tap precision is one tile.
 - **Arrow keys on a held table** move it one unit. This reaches the odd
   coordinates an arc uses, and gives a keyboard user the whole feature rather
   than a degraded one.
@@ -291,9 +340,10 @@ square unit is required, not cosmetic: a non-square unit turns every circle into
 an ellipse, and `canPlace`'s distance test into something that disagrees with
 what the teacher sees.
 
-**Scale to fit.** An 18-seat arc spans 54 units of arc length, and close to that
-in width when the curve is shallow — near 1950px, which no tablet scrolls
-comfortably mid-lesson. A `ResizeObserver` on the wrapper sets
+**Scale to fit.** At `ARC_SPACING = 5`, an 18-seat arc spans 90 units of arc
+length and about that in width when the curve is shallow — over 3000px, which no
+tablet scrolls comfortably mid-lesson. Scaling is not a nicety here; without it
+the flagship case of this phase does not fit on the device it is used on. A `ResizeObserver` on the wrapper sets
 `transform: scale(min(1, containerWidth / roomWidth))` on the canvas. It never
 scales above 1 — a four-table room stays at its natural size rather than
 ballooning to fill the screen.
