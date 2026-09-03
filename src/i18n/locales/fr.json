@@ -282,7 +282,8 @@
     "doneEditing": "Terminer",
     "moveHere": "Déplacer ici",
     "addTable": "Ajouter une table",
-    "holdTable": "Déplacer la table"
+    "holdTable": "Déplacer la table",
+    "emptyRoom": "Cette salle n'a aucune table. Choisissez une disposition pour la remplir."
   },
   "behaviour": {
     "title": "Comportement",

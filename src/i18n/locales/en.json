@@ -282,7 +282,8 @@
     "doneEditing": "Done",
     "moveHere": "Move here",
     "addTable": "Add a table",
-    "holdTable": "Move the table"
+    "holdTable": "Move the table",
+    "emptyRoom": "This room has no tables. Pick a layout to fill it."
   },
   "behaviour": {
     "title": "Behaviour",
