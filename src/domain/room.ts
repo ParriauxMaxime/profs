@@ -93,6 +93,15 @@ const MIN_EXTENT = TABLE + 2;
  * Generators work in whatever coordinates their maths is natural in — an arc
  * is centred on its circle and runs negative — and hand the result here rather
  * than each keeping its own bookkeeping.
+ *
+ * The invariant is exact and unconditional: every position `frame` returns
+ * fits inside the width and height it returns. `frame` does not clamp to
+ * `ROOM_MAX` — doing so here would either clip a position outside the room it
+ * just reported (orphaning a table silently) or drop it (losing it silently),
+ * and both are worse than reporting the true extent. `ROOM_MAX` is enforced
+ * one layer up, by the template clamps: free placement can only ever grow a
+ * room by adding a position already checked against the stored layout's
+ * dimensions, so a template stamp is the only thing that can ever exceed it.
  */
 export function frame(positions: Position[]): RoomShape {
   if (positions.length === 0) {
@@ -101,7 +110,7 @@ export function frame(positions: Position[]): RoomShape {
   const minX = Math.min(...positions.map((p) => p.x));
   const minY = Math.min(...positions.map((p) => p.y));
   const shifted = positions.map((p) => ({ x: p.x - minX + 1, y: p.y - minY + 1 }));
-  const width = Math.min(ROOM_MAX, Math.max(...shifted.map((p) => p.x)) + TABLE + 1);
-  const height = Math.min(ROOM_MAX, Math.max(...shifted.map((p) => p.y)) + TABLE + 1);
+  const width = Math.max(...shifted.map((p) => p.x)) + TABLE + 1;
+  const height = Math.max(...shifted.map((p) => p.y)) + TABLE + 1;
   return { width, height, positions: shifted };
 }

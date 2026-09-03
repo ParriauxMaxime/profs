@@ -7,6 +7,7 @@ import {
   MAX_POSITIONS,
   overlaps,
   PITCH,
+  type Position,
   ROOM_MAX,
   TABLE,
 } from "./room";
@@ -119,12 +120,28 @@ describe("frame", () => {
     expect(shape.height).toBeGreaterThanOrEqual(TABLE + 2);
   });
 
-  it("never exceeds ROOM_MAX", () => {
-    const shape = frame([
-      { x: 0, y: 0 },
-      { x: 500, y: 500 },
-    ]);
-    expect(shape.width).toBeLessThanOrEqual(ROOM_MAX);
-    expect(shape.height).toBeLessThanOrEqual(ROOM_MAX);
+  it("every position it returns fits inside the room it returns, even far outside ROOM_MAX", () => {
+    const inputs: Position[][] = [
+      [{ x: 0, y: 0 }],
+      [
+        { x: -4, y: 2 },
+        { x: 2, y: 8 },
+      ],
+      [
+        { x: 0, y: 0 },
+        { x: 500, y: 500 },
+      ],
+      [
+        { x: -1000, y: 3 },
+        { x: 250, y: -750 },
+        { x: 0, y: 0 },
+      ],
+    ];
+    for (const input of inputs) {
+      const shape = frame(input);
+      for (const position of shape.positions) {
+        expect(fitsRoom(position, shape)).toBe(true);
+      }
+    }
   });
 });
