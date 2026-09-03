@@ -607,7 +607,7 @@ describe("deleteStudent — phase 2 rows", () => {
       type: "yellow",
       createdAt: 1,
     });
-    await db.seats.put({ layoutId: "l1", row: 0, col: 0, studentId: "p1" });
+    await db.seats.put({ id: "t1", layoutId: "l1", x: 0, y: 0, studentId: "p1" });
 
     await deleteStudent(db, "p1");
 
@@ -616,10 +616,11 @@ describe("deleteStudent — phase 2 rows", () => {
     expect(await db.behaviourEvents.count()).toBe(0);
     // The seat survives, emptied: deleting a pupil must not punch a hole in
     // the room's geometry.
-    expect(await db.seats.get(["l1", 0, 0])).toEqual({
+    expect(await db.seats.get("t1")).toEqual({
+      id: "t1",
       layoutId: "l1",
-      row: 0,
-      col: 0,
+      x: 0,
+      y: 0,
       studentId: null,
     });
     db.close();
@@ -660,8 +661,8 @@ describe("deleteClass — phase 2 rows", () => {
       type: "red",
       createdAt: 1,
     });
-    await db.seatingLayouts.add({ id: "l1", classId: "c1", rows: 1, cols: 1, updatedAt: 1 });
-    await db.seats.put({ layoutId: "l1", row: 0, col: 0, studentId: "p1" });
+    await db.seatingLayouts.add({ id: "l1", classId: "c1", width: 4, height: 4, updatedAt: 1 });
+    await db.seats.put({ id: "t1", layoutId: "l1", x: 0, y: 0, studentId: "p1" });
     await db.studentGroups.add({
       id: "g1",
       classId: "c1",
@@ -718,11 +719,11 @@ describe("deleteSession", () => {
 describe("deleteSeatingLayout", () => {
   it("takes its seats", async () => {
     const db = openWorkspaceDb(`cascade-layout-${crypto.randomUUID()}`);
-    await db.seatingLayouts.add({ id: "l1", classId: "c1", rows: 1, cols: 2, updatedAt: 1 });
+    await db.seatingLayouts.add({ id: "l1", classId: "c1", width: 7, height: 4, updatedAt: 1 });
     await db.seats.bulkPut([
-      { layoutId: "l1", row: 0, col: 0, studentId: null },
-      { layoutId: "l1", row: 0, col: 1, studentId: "p1" },
-      { layoutId: "l2", row: 0, col: 0, studentId: null },
+      { id: "t1", layoutId: "l1", x: 0, y: 0, studentId: null },
+      { id: "t2", layoutId: "l1", x: 3, y: 0, studentId: "p1" },
+      { id: "t3", layoutId: "l2", x: 0, y: 0, studentId: null },
     ]);
     await deleteSeatingLayout(db, "l1");
     expect(await db.seatingLayouts.count()).toBe(0);

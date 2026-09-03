@@ -3,9 +3,9 @@ import { avatarSvg, hasAvatar } from "@domain/avatar";
 import { BEHAVIOUR_TYPES } from "@domain/behaviour";
 import { defaultGradebookName } from "@domain/gradebook/naming";
 import { DEFAULT_PERIOD_NAMES } from "@domain/gradebook/period";
+import { buildRoom, DEFAULT_TEMPLATE } from "@domain/room-templates";
 import { RUBRIC_LEVELS } from "@domain/rubric";
 import type { WeekCycle } from "@domain/schedule";
-import { buildSeats, DEFAULT_COLS, DEFAULT_ROWS } from "@domain/seating";
 import { SUBJECT_COLORS } from "@domain/subject";
 import { readTermStart, writeTermStart } from "@domain/term";
 import { hasBeenSeeded, markSeeded } from "@domain/workspaces";
@@ -354,18 +354,23 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     const classStudents = students.filter((s) => s.classId === schoolClass.id);
 
     const layoutId = id();
+    const shape = buildRoom(DEFAULT_TEMPLATE);
     seatingLayouts.push({
       id: layoutId,
       classId: schoolClass.id,
-      rows: DEFAULT_ROWS,
-      cols: DEFAULT_COLS,
+      width: shape.width,
+      height: shape.height,
       updatedAt: now,
     });
-    const classSeats = buildSeats(layoutId, DEFAULT_ROWS, DEFAULT_COLS);
-    classStudents.forEach((student, i) => {
-      if (i < classSeats.length) classSeats[i].studentId = student.id;
+    shape.positions.forEach((position, i) => {
+      seats.push({
+        id: id(),
+        layoutId,
+        x: position.x,
+        y: position.y,
+        studentId: classStudents[i]?.id ?? null,
+      });
     });
-    seats.push(...classSeats);
 
     const classSessions = weekdays.map((date) => ({
       id: id(),

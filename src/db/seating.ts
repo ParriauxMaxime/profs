@@ -1,192 +1,244 @@
-import { buildSeats, DEFAULT_COLS, DEFAULT_ROWS, resizeSeats } from "@domain/seating";
+import {
+  canPlace,
+  occupantsInReadingOrder,
+  type Position,
+  type RoomShape,
+  reseat,
+} from "@domain/room";
+import { buildRoom, DEFAULT_TEMPLATE } from "@domain/room-templates";
 import type { AppDatabase, Seat, SeatingLayout } from ".";
-import { seatKey } from ".";
 
 /**
- * The seating plan's writes.
+ * The room's writes.
  *
- * Every one of these was inline in a component until now, which is why the
- * bugs they carry are the ones a browser had to find: a pupil in two chairs, a
- * whole row growing back after being carved into an aisle. As functions they
- * are ordinary `fake-indexeddb` tests.
+ * Every one of these re-reads inside its transaction rather than trusting the
+ * grid the caller last rendered. Phase 5 learned that the hard way — a stale
+ * render could resurrect a carved aisle or move a pupil another tab had
+ * already moved.
  *
- * The three seat states are load-bearing throughout: no row is a gap, a row
- * with `studentId: null` is an empty seat, a row with a `studentId` is
- * occupied. Nothing here may collapse the first two.
+ * Phase 5's `expectedStudentId` guard on `swapSeats` is gone, and nothing
+ * replaces it: a table now has an id, so the id IS the guard. A table that has
+ * been removed or replaced simply fails the read.
  */
 
-/**
- * The class's room, created on first look.
- *
- * The re-check inside the transaction is what makes this idempotent under
- * React StrictMode's double-invoked effects — two layouts for one class would
- * silently split a teacher's seating in half.
- */
+/** A class gets its room, stamped from the default template, on first look. */
 export async function getOrCreateLayout(db: AppDatabase, classId: string): Promise<SeatingLayout> {
   return await db.transaction("rw", [db.seatingLayouts, db.seats], async () => {
     const existing = await db.seatingLayouts.where("classId").equals(classId).first();
     if (existing) return existing;
+    const shape = buildRoom(DEFAULT_TEMPLATE);
     const layout: SeatingLayout = {
       id: crypto.randomUUID(),
       classId,
-      rows: DEFAULT_ROWS,
-      cols: DEFAULT_COLS,
+      width: shape.width,
+      height: shape.height,
       updatedAt: Date.now(),
     };
     await db.seatingLayouts.add(layout);
-    await db.seats.bulkPut(buildSeats(layout.id, DEFAULT_ROWS, DEFAULT_COLS));
+    await db.seats.bulkAdd(
+      shape.positions.map((position) => ({
+        id: crypto.randomUUID(),
+        layoutId: layout.id,
+        x: position.x,
+        y: position.y,
+        studentId: null,
+      })),
+    );
     return layout;
   });
 }
 
 /**
- * Seat a pupil, clearing whatever chair they held before.
+ * Seat a pupil, clearing whatever table they held before.
  *
- * Both writes are in one transaction: a pupil briefly occupying two seats is
- * a state the grid renders, and a crash between the writes would make it
+ * Both writes are in one transaction: a pupil briefly occupying two tables is
+ * a state the room renders, and a crash between the writes would make it
  * permanent.
- *
- * A gap at the target is refused rather than filled, exactly as `swapSeats`
- * refuses one: the caller classifies the target from the grid it last
- * rendered, so a cell another tab has just carved into an aisle still looks
- * like a seat from here. Re-reading inside the transaction is the only place
- * that can tell, and putting a chair back where the teacher carved a doorway
- * is not a write this app may make.
  */
 export async function seatStudent(
   db: AppDatabase,
-  layoutId: string,
-  row: number,
-  col: number,
+  seatId: string,
   studentId: string,
 ): Promise<void> {
   await db.transaction("rw", db.seats, async () => {
-    const layoutSeats = await db.seats.where("layoutId").equals(layoutId).toArray();
-    const target = layoutSeats.find((seat) => seat.row === row && seat.col === col);
+    const target = await db.seats.get(seatId);
     if (!target) return;
-    const previous = layoutSeats.find((seat) => seat.studentId === studentId);
-    if (previous && (previous.row !== row || previous.col !== col)) {
+    const previous = await db.seats
+      .where("layoutId")
+      .equals(target.layoutId)
+      .filter((seat) => seat.studentId === studentId)
+      .first();
+    if (previous && previous.id !== seatId) {
       await db.seats.put({ ...previous, studentId: null });
     }
-    await db.seats.put({ layoutId, row, col, studentId });
+    await db.seats.put({ ...target, studentId });
   });
 }
 
 /**
- * Exchange the occupants of two cells.
+ * Exchange the occupants of two tables.
  *
- * The whole point of the seating plan is rearranging, and rearranging is
- * mostly swapping: before this, exchanging two pupils meant clearing one seat,
- * moving, re-arming and moving back — four writes, through a state that is not
- * the room.
- *
- * A swap with an empty seat degrades to a move: the source becomes an empty
- * seat, never a gap — the chair is still there, nobody is on it. Passing the
- * same cell twice is a no-op rather than a way to erase a pupil.
- *
- * Both seats are read INSIDE the transaction rather than taken from what the
- * caller last rendered, for the same reason `resizeLayout` does it: a swap
- * submitted from a stale grid must not write back a pupil another tab has
- * already moved.
- *
- * `expectedStudentId` is the pupil the caller believes is sitting at `a`, and
- * it is what makes that guarantee complete. A held seat is coordinates only,
- * so a hold on (0,0) survives another tab moving that pupil away and seating
- * somebody else there — dropping would then move a pupil the teacher never
- * touched. If the source no longer holds who the caller thinks it does, this
- * writes nothing.
- *
- * A gap at either end is refused rather than filled: no row means the teacher
- * carved that cell out of the room, and a swap must not put a chair back.
+ * Degrades to a move when the target is empty — the source becomes an empty
+ * table, never a removed one. The chair is still there; nobody is on it.
  */
-export async function swapSeats(
-  db: AppDatabase,
-  layoutId: string,
-  a: { row: number; col: number },
-  b: { row: number; col: number },
-  expectedStudentId: string,
-): Promise<void> {
-  if (a.row === b.row && a.col === b.col) return;
+export async function swapSeats(db: AppDatabase, aSeatId: string, bSeatId: string): Promise<void> {
+  if (aSeatId === bSeatId) return;
   await db.transaction("rw", db.seats, async () => {
-    const source = await db.seats.get(seatKey(layoutId, a.row, a.col));
-    const target = await db.seats.get(seatKey(layoutId, b.row, b.col));
+    const source = await db.seats.get(aSeatId);
+    const target = await db.seats.get(bSeatId);
     if (!source || !target || source.studentId === null) return;
-    if (source.studentId !== expectedStudentId) return;
-    await db.seats.put({ layoutId, row: a.row, col: a.col, studentId: target.studentId });
-    await db.seats.put({ layoutId, row: b.row, col: b.col, studentId: source.studentId });
+    // Two ids from two rooms would exchange pupils across classrooms. The UI
+    // cannot reach that today, but this is the public write API and the
+    // id-is-the-guard doctrine invites a caller to trust it.
+    if (source.layoutId !== target.layoutId) return;
+    await db.seats.put({ ...source, studentId: target.studentId });
+    await db.seats.put({ ...target, studentId: source.studentId });
   });
 }
 
-/** Empty a seat without removing it. */
-export async function clearSeat(
-  db: AppDatabase,
-  layoutId: string,
-  row: number,
-  col: number,
-): Promise<void> {
-  await db.seats.put({ layoutId, row, col, studentId: null });
-}
-
-/** Turn a gap back into an empty seat. */
-export async function makeSeat(
-  db: AppDatabase,
-  layoutId: string,
-  row: number,
-  col: number,
-): Promise<void> {
-  await db.seats.put({ layoutId, row, col, studentId: null });
-}
-
-/** Carve a cell out of the room entirely — an aisle, a doorway, a pillar. */
-export async function makeGap(
-  db: AppDatabase,
-  layoutId: string,
-  row: number,
-  col: number,
-): Promise<void> {
-  await db.seats.delete(seatKey(layoutId, row, col));
+/** Empty a table without removing it. */
+export async function clearSeat(db: AppDatabase, seatId: string): Promise<void> {
+  await db.transaction("rw", db.seats, async () => {
+    const seat = await db.seats.get(seatId);
+    if (!seat) return;
+    await db.seats.put({ ...seat, studentId: null });
+  });
 }
 
 /**
- * Resize the room, returning the pupils whose chair fell outside it.
+ * Put a new table down, or refuse.
  *
- * The old extent comes from the STORED layout, never from the seats that
- * happen to exist: inferring it meant a carved-away edge row lowered the
- * inferred extent, so the next resize saw that row as new growth and refilled
- * the aisle.
+ * Returns `null` rather than throwing: a refused placement is an ordinary
+ * outcome of a tap near another table, not an error worth a console entry.
  */
-export async function resizeLayout(
+export async function addTable(
   db: AppDatabase,
-  layout: SeatingLayout,
-  rows: number,
-  cols: number,
-): Promise<{ unseated: string[] }> {
-  // Read the seats inside the transaction, not from what the caller last
-  // rendered: a resize submitted from a stale grid would otherwise write back
-  // seats that another tab has already moved.
+  layoutId: string,
+  at: Position,
+): Promise<Seat | null> {
   return await db.transaction("rw", [db.seatingLayouts, db.seats], async () => {
-    const existing = await db.seats.where("layoutId").equals(layout.id).toArray();
-    const { seats: nextSeats, unseated } = resizeSeats(
-      existing,
-      layout.id,
-      rows,
-      cols,
-      layout.rows,
-      layout.cols,
-    );
-    const keep = new Set(nextSeats.map((seat) => `${seat.row}:${seat.col}`));
-    const toDelete = existing
-      .filter((seat) => !keep.has(`${seat.row}:${seat.col}`))
-      .map((seat): [string, number, number] => [seat.layoutId, seat.row, seat.col]);
-
-    await db.seatingLayouts.update(layout.id, { rows, cols, updatedAt: Date.now() });
-    if (toDelete.length > 0) await db.seats.bulkDelete(toDelete);
-    await db.seats.bulkPut(nextSeats);
-    return { unseated };
+    const layout = await db.seatingLayouts.get(layoutId);
+    if (!layout) return null;
+    const existing = await db.seats.where("layoutId").equals(layoutId).toArray();
+    if (!canPlace(existing, at, layout)) return null;
+    const seat: Seat = {
+      id: crypto.randomUUID(),
+      layoutId,
+      x: at.x,
+      y: at.y,
+      studentId: null,
+    };
+    await db.seats.add(seat);
+    return seat;
   });
 }
 
-/** Every seat of a room, for a caller that needs them outside a live query. */
+/**
+ * Move a table, keeping its id and its occupant.
+ *
+ * The id survives, which is what lets the teacher keep holding the same table
+ * across the move and what keeps a pupil attached to their chair rather than
+ * to a coordinate.
+ */
+export async function moveTable(db: AppDatabase, seatId: string, to: Position): Promise<boolean> {
+  return await db.transaction("rw", [db.seatingLayouts, db.seats], async () => {
+    const seat = await db.seats.get(seatId);
+    if (!seat) return false;
+    const layout = await db.seatingLayouts.get(seat.layoutId);
+    if (!layout) return false;
+    const others = (await db.seats.where("layoutId").equals(seat.layoutId).toArray()).filter(
+      (other) => other.id !== seatId,
+    );
+    if (!canPlace(others, to, layout)) return false;
+    await db.seats.put({ ...seat, x: to.x, y: to.y });
+    return true;
+  });
+}
+
+/**
+ * Nudge a table by a keyboard delta, one unit at a time.
+ *
+ * Unlike `moveTable`, the caller never supplies a position — only a delta.
+ * The current position is read and the target computed INSIDE the
+ * transaction, so a key held down fires several `keydown` events before any
+ * one write's live-query tick lands, and each nudge still starts from where
+ * the table actually is rather than from a snapshot the effect closed over
+ * when it subscribed. A position that crosses the closure boundary is a
+ * position that can go stale; a delta cannot.
+ */
+export async function nudgeTable(
+  db: AppDatabase,
+  seatId: string,
+  delta: Position,
+): Promise<boolean> {
+  return await db.transaction("rw", [db.seatingLayouts, db.seats], async () => {
+    const seat = await db.seats.get(seatId);
+    if (!seat) return false;
+    const layout = await db.seatingLayouts.get(seat.layoutId);
+    if (!layout) return false;
+    const to = { x: seat.x + delta.x, y: seat.y + delta.y };
+    const others = (await db.seats.where("layoutId").equals(seat.layoutId).toArray()).filter(
+      (other) => other.id !== seatId,
+    );
+    if (!canPlace(others, to, layout)) return false;
+    await db.seats.put({ ...seat, x: to.x, y: to.y });
+    return true;
+  });
+}
+
+/**
+ * Take a table out of the room entirely — an aisle, a doorway, a pillar.
+ *
+ * Its occupant is unseated by the removal itself: with no row there is no
+ * seat, and `unseatedStudentIds` puts them back in the rail on the next
+ * render. There is no separate "clear then remove" to get half-done.
+ */
+export async function removeTable(db: AppDatabase, seatId: string): Promise<void> {
+  await db.seats.delete(seatId);
+}
+
+/**
+ * Stamp a template over the room.
+ *
+ * Destructive to the TABLES and deliberately not to the ARRANGEMENT: the
+ * pupils who were seated are poured back in reading order, so a grid restamped
+ * as an arc keeps the front row in front. Whoever no longer fits is returned
+ * as `overflow` for the caller to warn about before it commits.
+ */
+export async function applyTemplate(
+  db: AppDatabase,
+  layoutId: string,
+  shape: RoomShape,
+): Promise<{ overflow: string[] }> {
+  return await db.transaction("rw", [db.seatingLayouts, db.seats], async () => {
+    // Guarded like `addTable` and `moveTable`: `seatingLayouts.update` on a
+    // missing id is a silent no-op, but `bulkAdd` would already have written a
+    // whole room's worth of seats under an orphan layoutId.
+    const layout = await db.seatingLayouts.get(layoutId);
+    if (!layout) return { overflow: [] };
+    const existing = await db.seats.where("layoutId").equals(layoutId).toArray();
+    const occupants = occupantsInReadingOrder(existing);
+    const { seats, overflow } = reseat(occupants, shape.positions);
+    await db.seats.where("layoutId").equals(layoutId).delete();
+    await db.seats.bulkAdd(
+      seats.map((seat) => ({
+        id: crypto.randomUUID(),
+        layoutId,
+        x: seat.x,
+        y: seat.y,
+        studentId: seat.studentId,
+      })),
+    );
+    await db.seatingLayouts.update(layoutId, {
+      width: shape.width,
+      height: shape.height,
+      updatedAt: Date.now(),
+    });
+    return { overflow };
+  });
+}
+
+/** Every table of a room, for a caller that needs them outside a live query. */
 export async function seatsForLayout(db: AppDatabase, layoutId: string): Promise<Seat[]> {
   return await db.seats.where("layoutId").equals(layoutId).toArray();
 }

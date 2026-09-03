@@ -124,26 +124,38 @@ export interface BehaviourEvent {
   createdAt: number;
 }
 
-/** The room. One per class. */
+/**
+ * The room. One per class, sized in half-tiles.
+ *
+ * `width`/`height` replace phase 5's `rows`/`cols`: a room is an extent a
+ * table may sit anywhere inside, not a count of cells.
+ */
 export interface SeatingLayout {
   id: string;
   classId: string;
-  rows: number;
-  cols: number;
+  width: number;
+  height: number;
   updatedAt: number;
 }
 
 /**
- * One cell of the room. Keyed [layoutId+row+col].
+ * One table, at a free position in half-tiles.
  *
- * Three states, and they must stay distinct: no row at all is a gap (an aisle
- * or a doorway), a row with `studentId: null` is an empty seat, and a row with
- * a `studentId` is an occupied one.
+ * Two states, not phase 5's three: a row with `studentId: null` is an empty
+ * table and a row with a `studentId` is an occupied one. There is no third
+ * "gap" state any more — an aisle is simply the absence of a table, which is
+ * the absence of a row.
+ *
+ * `id` is what everything addresses a table by. Coordinates identified a cell
+ * in phase 5 and that is exactly why `swapSeats` needed a guard against
+ * another tab: a coordinate is a position, and this codebase's standing rule
+ * is that state bound to a record is anchored to the record's identity.
  */
 export interface Seat {
+  id: string;
   layoutId: string;
-  row: number;
-  col: number;
+  x: number;
+  y: number;
   studentId: string | null;
 }
 

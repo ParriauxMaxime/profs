@@ -55,7 +55,7 @@ export type AppDatabase = Dexie & {
   attendance: Table<AttendanceRecord, [string, string]>;
   behaviourEvents: EntityTable<BehaviourEvent, "id">;
   seatingLayouts: EntityTable<SeatingLayout, "id">;
-  seats: Table<Seat, [string, number, number]>;
+  seats: EntityTable<Seat, "id">;
   rubricTemplates: EntityTable<RubricTemplate, "id">;
   rubricAssessments: EntityTable<RubricAssessment, "id">;
   rubricScores: Table<RubricScore, [string, string, string]>;
@@ -77,11 +77,6 @@ export function gradeKey(
 /** The compound primary key of one pupil's presence at one session. */
 export function attendanceKey(sessionId: string, studentId: string): [string, string] {
   return [sessionId, studentId];
-}
-
-/** The compound primary key of one cell of a room. */
-export function seatKey(layoutId: string, row: number, col: number): [string, number, number] {
-  return [layoutId, row, col];
 }
 
 /** The compound primary key of one rubric cell. */
@@ -144,6 +139,40 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
   // callback, so only the new store is listed here.
   db.version(6).stores({
     diaryEntries: "[classId+date], classId, date",
+  });
+  // v7 turns the room from a grid into free positions, and it takes TWO
+  // versions to do it. Every earlier bump in this file added a table, and
+  // "bump the version, write no upgrade" holds for that. Changing a table's
+  // PRIMARY KEY is different: Dexie refuses it outright with `UpgradeError:
+  // Not yet support for changing primary key`, thrown while opening. `init.ts`
+  // does not catch it, so a teacher with an existing workspace would get a
+  // blank screen — their pupils still in IndexedDB, and no route to the wipe
+  // in Réglages. Disposable must mean wiped on the next boot, never bricked.
+  //
+  // Dropping the store and recreating it is the whole of the migration: a v6
+  // seat keyed [layoutId+row+col] is garbage either way, and every other table
+  // is carried forward untouched.
+  //
+  // `seatingLayouts` goes with the seats, and it must. Its primary key never
+  // changed, so Dexie would happily carry a v6 room forward — but a v6 room
+  // carries `rows`/`cols` where the new one carries `width`/`height`, and a
+  // layout whose every seat was just discarded describes nothing anyway.
+  // Carried forward, `layout.width` is `undefined`: the room renders at
+  // `scale(NaN)`, `floorSlots` yields nothing, `addTable` refuses every
+  // placement, and a backup taken in that window exports the zombie row
+  // intact. Same doctrine as the seats — disposable, not migrated.
+  db.version(7).stores({
+    seats: null,
+    seatingLayouts: null,
+  });
+  // v8 lays the free-position room down in a fresh store. `&[layoutId+x+y]` is
+  // unique: it is the database's own guarantee that two tables never share a
+  // point, so a bug in `canPlace` surfaces as a rejected write rather than as
+  // a pupil nobody can tap. `seatingLayouts` is redeclared at its unchanged
+  // key so the empty store comes back for `getOrCreateLayout` to fill.
+  db.version(8).stores({
+    seats: "id, layoutId, studentId, &[layoutId+x+y]",
+    seatingLayouts: "id, classId",
   });
   return db;
 }

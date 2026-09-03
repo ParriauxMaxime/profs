@@ -1,6 +1,6 @@
 import type { Student } from "@db";
+import type { Held } from "@domain/room";
 import { fuzzyMatchAny } from "@domain/search";
-import type { Held } from "@domain/seating";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PupilName } from "../../design-system/components/pupil-name";
@@ -33,12 +33,20 @@ export function StudentRail({
   // The hint states the rule that actually applies, and the two are different:
   // a pupil held from a seat SWAPS with an occupant, a pupil held from the
   // rail DISPLACES them back into the rail.
-  const hint =
-    held === null
-      ? t("plan.hintPick")
-      : held.kind === "pool"
-        ? t("plan.hintPlaceFromRail")
-        : t("plan.hintPlaceFromSeat");
+  // A switch, not a ternary chain: an unhandled kind is then a compile error,
+  // the way `resolveDrop` already makes it. A third kind arrived silently
+  // sharing the seat hint once.
+  const hint = ((): string => {
+    if (held === null) return t("plan.hintPick");
+    switch (held.kind) {
+      case "pool":
+        return t("plan.hintPlaceFromRail");
+      case "seat":
+        return t("plan.hintPlaceFromSeat");
+      case "table":
+        return t("plan.hintPlaceTable");
+    }
+  })();
   const visible = showSearch
     ? students.filter((s) => fuzzyMatchAny([s.lastName, s.firstName], query))
     : students;

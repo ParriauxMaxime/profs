@@ -1,15 +1,28 @@
 import type { GroupMember, Student } from "@db";
 import { useDb } from "@db/provider";
-import { getOrCreateLayout, seatStudent, swapSeats } from "@db/seating";
+import {
+  addTable,
+  getOrCreateLayout,
+  moveTable,
+  nudgeTable,
+  seatStudent,
+  swapSeats,
+} from "@db/seating";
 import { createSession, getOrCreateTodaySession, sessionsForClass, startOfDay } from "@db/sessions";
 import { filterByGroup } from "@domain/group";
-import { type Held, resolveDrop, unseatedStudentIds } from "@domain/seating";
+import {
+  type Held,
+  type Position,
+  resolveDrop,
+  resolveFloorDrop,
+  unseatedStudentIds,
+} from "@domain/room";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEscape } from "../shared/use-escape";
-import { LayoutSizeForm } from "./components/layout-size-form";
-import { SeatGrid } from "./components/seat-grid";
+import { RoomTemplateForm } from "./components/room-template-form";
+import { RoomView } from "./components/room-view";
 import { SessionBar } from "./components/session-bar";
 import { StudentCard } from "./components/student-card";
 import { StudentRail } from "./components/student-rail";
@@ -40,8 +53,9 @@ export function PlanPage({
 }) {
   const { t } = useTranslation();
   const db = useDb();
-  // Who is in the teacher's hand: a pupil id from the rail, or a seat's
-  // coordinates. Never a list index — the rail reorders on every placement.
+  // Who is in the teacher's hand: a pupil id from the rail, or a table's id.
+  // Never a list index and never a coordinate — the rail reorders on every
+  // placement, and a table can be moved out from under a coordinate.
   const [held, setHeld] = useState<Held | null>(null);
   const [resizing, setResizing] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -128,6 +142,53 @@ export function PlanPage({
     void getOrCreateLayout(db, classId);
   }, [db, classId, layout]);
 
+  // Half-tile precision by keyboard. Tapping the floor is whole-tile only, so
+  // without this the odd coordinates an arc uses would be unreachable to
+  // anyone not using a pointer — and unreachable to everyone for fine
+  // adjustment. `nudgeTable` reads the seat's position fresh inside its own
+  // transaction rather than trusting a snapshot this closure captured, so a
+  // key held down (several `keydown`s firing before any one write's
+  // live-query tick lands) still walks the table one unit per press instead
+  // of rewriting the same square. `seats` is deliberately NOT a dependency:
+  // the effect no longer reads a position out of it, so there is nothing for
+  // a live-query tick to make stale, and re-subscribing on every tick would
+  // only reopen the door this exists to close. `nudgeTable` refuses a nudge
+  // that would overlap or leave the room, so a key held down against the
+  // wall writes nothing. Enter is deliberately not bound: the move has
+  // already been written by the time the key is released, so committing is
+  // releasing, and `useEscape` already clears the hold.
+  useEffect(() => {
+    if (held?.kind !== "table") return;
+    const heldSeatId = held.seatId;
+    const deltas: Record<string, Position> = {
+      ArrowLeft: { x: -1, y: 0 },
+      ArrowRight: { x: 1, y: 0 },
+      ArrowUp: { x: 0, y: -1 },
+      ArrowDown: { x: 0, y: 1 },
+    };
+    function onKeyDown(event: KeyboardEvent): void {
+      const delta = deltas[event.key];
+      if (!delta) return;
+      // The template form is on screen whenever a table can be held, so its
+      // number spinners are one Tab away from the room. Without this guard the
+      // nudge eats their arrow keys — and the `preventDefault` below cancels
+      // the input's own increment, so "Rangées" would refuse to count up while
+      // the table moved instead.
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLSelectElement ||
+        target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+      event.preventDefault();
+      void nudgeTable(db, heldSeatId, delta);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [db, held]);
+
   // The class, its pupils and its groups are the shell's — only this tab's own
   // reads can still be loading here.
   if (layout === undefined || seats === undefined || sessions === undefined) {
@@ -140,33 +201,55 @@ export function PlanPage({
   const unseatedStudents = unseated.map((id) => byId.get(id)).filter((s) => s !== undefined);
   const visibleUnseated = filterByGroup(unseatedStudents, memberships, selectedGroupId);
 
-  const onDrop = async (row: number, col: number): Promise<void> => {
+  const onDropSeat = async (seatId: string): Promise<void> => {
     if (held === null) return;
     // One drop per hold. `setHeld(null)` only lands after the await, and a
     // second tap runs a closure that already captured the old `held` — so
-    // holding seat A and tapping B then C would write swap(A,B) AND swap(A,C),
-    // moving a pupil the teacher never touched. Clearing the state earlier
-    // cannot fix that; only a ref read at call time can.
+    // holding table A and tapping B then C would write both swaps, moving a
+    // pupil the teacher never touched. Clearing the state earlier cannot fix
+    // that; only a ref read at call time can.
     if (dropping.current) return;
     dropping.current = true;
     try {
-      const target = seats.find((s) => s.row === row && s.col === col);
-      const action = resolveDrop(held, target, { row, col });
+      const action = resolveDrop(
+        held,
+        seats.find((s) => s.id === seatId),
+      );
       if (action.kind === "seat") {
-        await seatStudent(db, layout.id, action.row, action.col, action.studentId);
+        await seatStudent(db, action.seatId, action.studentId);
       } else if (action.kind === "swap") {
-        // A held seat is coordinates only, so tell the write which pupil we
-        // believe is sitting there: if another tab has moved them out and
-        // seated somebody else since, the swap must not move that stranger.
-        const source = seats.find((s) => s.row === action.from.row && s.col === action.from.col);
-        if (source?.studentId != null) {
-          await swapSeats(db, layout.id, action.from, action.to, source.studentId);
-        }
+        // No `expectedStudentId` guard: a table has an id now, so the id is
+        // the guard. A table another tab removed simply fails the read.
+        await swapSeats(db, action.fromSeatId, action.toSeatId);
       }
     } catch (error) {
       // No blocking dialog here — they are banned. A failed write must still
       // end the gesture rather than stranding a pupil in the teacher's hand;
       // the live query re-renders the room as it actually is.
+      console.error(error);
+    } finally {
+      setHeld(null);
+      dropping.current = false;
+    }
+  };
+
+  // Bare floor has two meanings, and `RoomView` reports only "tapped here" —
+  // this is where the gesture grammar decides which one applies, beside
+  // `resolveFloorDrop`. Nothing held: the floor button is a separate control
+  // that adds a table outright. A table held: it is an ordinary drop, and
+  // `resolveFloorDrop` turns it into a move. A refused placement (too close
+  // to a neighbour, or off the edge) is an ordinary outcome, not an error.
+  const onDropFloor = async (at: Position): Promise<void> => {
+    if (dropping.current) return;
+    dropping.current = true;
+    try {
+      if (held === null) {
+        await addTable(db, layout.id, at);
+        return;
+      }
+      const action = resolveFloorDrop(held, at);
+      if (action.kind === "moveTable") await moveTable(db, action.seatId, action.to);
+    } catch (error) {
       console.error(error);
     } finally {
       setHeld(null);
@@ -213,15 +296,15 @@ export function PlanPage({
       </div>
 
       {resizing && (
-        <LayoutSizeForm
+        <RoomTemplateForm
           key={layout.id}
           layout={layout}
           seats={seats}
           onDone={() => {
             // Save, Cancel and the form's own Escape all leave layout-edit
             // mode through here. Leaving must release the held pupil on EVERY
-            // exit path, not only the toolbar button — and a resize can move
-            // or unseat the very seat being held.
+            // exit path, not only the toolbar button — and a stamp replaces
+            // every table, so the very one being held ceases to exist.
             setHeld(null);
             setResizing(false);
           }}
@@ -250,13 +333,16 @@ export function PlanPage({
         </div>
 
         <div className="lg:order-1 lg:min-w-0 lg:flex-1">
-          <SeatGrid
+          <RoomView
             layout={layout}
             seats={seats}
             studentsById={byId}
             held={held}
-            onHoldSeat={(row, col) => setHeld({ kind: "seat", row, col })}
-            onDrop={(row, col) => void onDrop(row, col)}
+            onHoldSeat={(seatId) =>
+              setHeld(resizing ? { kind: "table", seatId } : { kind: "seat", seatId })
+            }
+            onDropSeat={(seatId) => void onDropSeat(seatId)}
+            onFloor={(at) => void onDropFloor(at)}
             onSelectStudent={setSelectedStudentId}
             editing={resizing}
           />
@@ -278,7 +364,7 @@ export function PlanPage({
                 const seat = seats.find((s) => s.studentId === student.id);
                 if (!seat) return;
                 setSelectedStudentId(null);
-                setHeld({ kind: "seat", row: seat.row, col: seat.col });
+                setHeld({ kind: "seat", seatId: seat.id });
               }}
             />
           );
