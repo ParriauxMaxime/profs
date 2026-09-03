@@ -1,7 +1,7 @@
 import type { Seat, SeatingLayout, Student } from "@db";
 import { useDb } from "@db/provider";
 import { clearSeat, removeTable } from "@db/seating";
-import { compareReadingOrder, type Held, TABLE } from "@domain/room";
+import { canPlace, compareReadingOrder, type Held, type Position, TABLE } from "@domain/room";
 import { SUBJECT_COLORS } from "@domain/subject";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -67,6 +67,26 @@ function PupilDisc({ student }: { student: Student }) {
 }
 
 /**
+ * Where a table could go.
+ *
+ * Whole-tile coordinates only (even x and y): tapping is a one-tile-precision
+ * gesture, and the odd coordinates an arc uses are reached with the arrow keys
+ * instead. Computing them from the pointer offset was the obvious alternative
+ * and is unreachable without a mouse.
+ *
+ * Bounded by the room the template actually stamped, never by ROOM_MAX.
+ */
+function floorSlots(layout: SeatingLayout, seats: Seat[]): Position[] {
+  const slots: Position[] = [];
+  for (let y = 0; y + TABLE <= layout.height; y += TABLE) {
+    for (let x = 0; x + TABLE <= layout.width; x += TABLE) {
+      if (canPlace(seats, { x, y }, layout)) slots.push({ x, y });
+    }
+  }
+  return slots;
+}
+
+/**
  * The room: tables at free positions, not a grid of cells.
  *
  * There is no gap branch any more. A cell no row existed for used to be an
@@ -81,6 +101,7 @@ export function RoomView({
   held,
   onHoldSeat,
   onDropSeat,
+  onFloor,
   onSelectStudent,
   editing,
 }: {
@@ -93,6 +114,12 @@ export function RoomView({
   onHoldSeat: (seatId: string) => void;
   /** Drop whoever is held onto this table. */
   onDropSeat: (seatId: string) => void;
+  /**
+   * The teacher tapped bare floor here. `RoomView` does not know whether that
+   * adds a table or moves the one in hand — `page.tsx` decides, beside
+   * `resolveFloorDrop`, where the rest of the gesture grammar already lives.
+   */
+  onFloor: (at: Position) => void;
   onSelectStudent: (studentId: string) => void;
   /**
    * Layout-edit mode. The controls that remove a table and empty a chair are
@@ -115,6 +142,18 @@ export function RoomView({
     height: TABLE * UNIT_PX,
   });
 
+  const positionStyle = (at: Position) => ({
+    left: at.x * UNIT_PX,
+    top: at.y * UNIT_PX,
+    width: TABLE * UNIT_PX,
+    height: TABLE * UNIT_PX,
+  });
+
+  // A held table excludes itself from the collision set, or the slot it
+  // currently sits on is the one place it can never move to.
+  const collisionSeats = held?.kind === "table" ? seats.filter((s) => s.id !== held.seatId) : seats;
+  const slots = editing ? floorSlots(layout, collisionSeats) : [];
+
   return (
     <div className="paper overflow-auto rounded-md border border-border p-2">
       <div
@@ -128,20 +167,39 @@ export function RoomView({
           {t("plan.board")}
         </div>
 
+        {slots.map((at) => (
+          <button
+            key={`floor-${at.x}-${at.y}`}
+            type="button"
+            title={held?.kind === "table" ? t("plan.moveHere") : t("plan.addTable")}
+            className="absolute flex min-h-11 min-w-11 items-center justify-center rounded-md border border-border border-dashed text-[11px] text-text-faint hover:bg-bg-hover"
+            style={positionStyle(at)}
+            onClick={() => onFloor(at)}
+          >
+            {held?.kind === "table" ? t("plan.moveHere") : t("plan.addTable")}
+          </button>
+        ))}
+
         {ordered.map((seat) => {
           if (seat.studentId === null) {
             return (
               <div key={seat.id} className="absolute" style={tableStyle(seat)}>
                 <button
                   type="button"
-                  disabled={held === null}
-                  title={held ? t("plan.moveHere") : undefined}
+                  disabled={held === null && !editing}
+                  title={held ? t("plan.moveHere") : editing ? t("plan.holdTable") : undefined}
                   className={`flex h-full w-full flex-col items-center justify-center rounded-md border text-[11px] text-text-muted disabled:cursor-default ${
                     held !== null
                       ? "border-accent border-dashed bg-accent/10 hover:bg-bg-hover"
                       : "border-border"
                   }`}
-                  onClick={() => onDropSeat(seat.id)}
+                  onClick={() => {
+                    // Nothing held, layout-edit mode: an empty table is
+                    // furniture like any other, and picking it up is the only
+                    // way to move a table nobody is sitting at yet.
+                    if (held) onDropSeat(seat.id);
+                    else if (editing) onHoldSeat(seat.id);
+                  }}
                 >
                   {t("plan.emptySeat")}
                 </button>
@@ -173,13 +231,14 @@ export function RoomView({
               <button
                 key={seat.id}
                 type="button"
-                title={held ? t("plan.moveHere") : undefined}
+                title={held ? t("plan.moveHere") : editing ? t("plan.holdTable") : undefined}
                 className={`absolute flex flex-col items-center justify-center rounded-md border text-[11px] text-text-muted hover:bg-bg-hover ${
                   held !== null ? "border-accent border-dashed bg-accent/10" : "border-border"
                 }`}
                 style={tableStyle(seat)}
                 onClick={() => {
                   if (held) onDropSeat(seat.id);
+                  else if (editing) onHoldSeat(seat.id);
                   else void clearSeat(db, seat.id);
                 }}
               >
@@ -195,7 +254,7 @@ export function RoomView({
             <div key={seat.id} className="absolute" style={tableStyle(seat)}>
               <button
                 type="button"
-                title={held ? t("plan.moveHere") : undefined}
+                title={held ? t("plan.moveHere") : editing ? t("plan.holdTable") : undefined}
                 // Only the table in hand is announced as pressed; the others
                 // are targets, not toggles, so they carry no state at all.
                 aria-pressed={isHeldSeat || undefined}
@@ -208,7 +267,9 @@ export function RoomView({
                 }`}
                 onClick={() => {
                   // Something held: this table is a target.
-                  // Nothing held, layout-edit mode: pick this pupil up.
+                  // Nothing held, layout-edit mode: pick the TABLE up, not the
+                  // pupil sitting at it — moving the pupil goes through the
+                  // pupil card's Déplacer button instead.
                   // Nothing held, normal mode: open their card. That last
                   // branch is the gesture of the lesson itself — attendance
                   // and behaviour — and it stays the bare tap.

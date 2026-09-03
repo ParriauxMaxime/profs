@@ -280,7 +280,9 @@
     "resizeWarning_other": "{{count}} students will lose their seat.",
     "editLayout": "Edit layout",
     "doneEditing": "Done",
-    "moveHere": "Move here"
+    "moveHere": "Move here",
+    "addTable": "Add a table",
+    "holdTable": "Move the table"
   },
   "behaviour": {
     "title": "Behaviour",

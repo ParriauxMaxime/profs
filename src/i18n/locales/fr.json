@@ -280,7 +280,9 @@
     "resizeWarning_other": "{{count}} élèves perdront leur place.",
     "editLayout": "Modifier le plan",
     "doneEditing": "Terminer",
-    "moveHere": "Déplacer ici"
+    "moveHere": "Déplacer ici",
+    "addTable": "Ajouter une table",
+    "holdTable": "Déplacer la table"
   },
   "behaviour": {
     "title": "Comportement",

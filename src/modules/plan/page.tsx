@@ -1,9 +1,15 @@
 import type { GroupMember, Student } from "@db";
 import { useDb } from "@db/provider";
-import { getOrCreateLayout, seatStudent, swapSeats } from "@db/seating";
+import { addTable, getOrCreateLayout, moveTable, seatStudent, swapSeats } from "@db/seating";
 import { createSession, getOrCreateTodaySession, sessionsForClass, startOfDay } from "@db/sessions";
 import { filterByGroup } from "@domain/group";
-import { type Held, resolveDrop, unseatedStudentIds } from "@domain/room";
+import {
+  type Held,
+  type Position,
+  resolveDrop,
+  resolveFloorDrop,
+  unseatedStudentIds,
+} from "@domain/room";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -129,6 +135,36 @@ export function PlanPage({
     void getOrCreateLayout(db, classId);
   }, [db, classId, layout]);
 
+  // Half-tile precision by keyboard. Tapping the floor is whole-tile only, so
+  // without this the odd coordinates an arc uses would be unreachable to
+  // anyone not using a pointer — and unreachable to everyone for fine
+  // adjustment. `moveTable` already refuses a nudge that would overlap or
+  // leave the room, so a key held down against the wall writes nothing.
+  // Enter is deliberately not bound: the move has already been written by the
+  // time the key is released, so committing is releasing, and `useEscape`
+  // already clears the hold.
+  useEffect(() => {
+    if (held?.kind !== "table" || seats === undefined) return;
+    const heldSeatId = held.seatId;
+    const currentSeats = seats;
+    const deltas: Record<string, Position> = {
+      ArrowLeft: { x: -1, y: 0 },
+      ArrowRight: { x: 1, y: 0 },
+      ArrowUp: { x: 0, y: -1 },
+      ArrowDown: { x: 0, y: 1 },
+    };
+    function onKeyDown(event: KeyboardEvent): void {
+      const delta = deltas[event.key];
+      if (!delta) return;
+      event.preventDefault();
+      const seat = currentSeats.find((s) => s.id === heldSeatId);
+      if (!seat) return;
+      void moveTable(db, seat.id, { x: seat.x + delta.x, y: seat.y + delta.y });
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [db, held, seats]);
+
   // The class, its pupils and its groups are the shell's — only this tab's own
   // reads can still be loading here.
   if (layout === undefined || seats === undefined || sessions === undefined) {
@@ -166,6 +202,30 @@ export function PlanPage({
       // No blocking dialog here — they are banned. A failed write must still
       // end the gesture rather than stranding a pupil in the teacher's hand;
       // the live query re-renders the room as it actually is.
+      console.error(error);
+    } finally {
+      setHeld(null);
+      dropping.current = false;
+    }
+  };
+
+  // Bare floor has two meanings, and `RoomView` reports only "tapped here" —
+  // this is where the gesture grammar decides which one applies, beside
+  // `resolveFloorDrop`. Nothing held: the floor button is a separate control
+  // that adds a table outright. A table held: it is an ordinary drop, and
+  // `resolveFloorDrop` turns it into a move. A refused placement (too close
+  // to a neighbour, or off the edge) is an ordinary outcome, not an error.
+  const onDropFloor = async (at: Position): Promise<void> => {
+    if (dropping.current) return;
+    dropping.current = true;
+    try {
+      if (held === null) {
+        await addTable(db, layout.id, at);
+        return;
+      }
+      const action = resolveFloorDrop(held, at);
+      if (action.kind === "moveTable") await moveTable(db, action.seatId, action.to);
+    } catch (error) {
       console.error(error);
     } finally {
       setHeld(null);
@@ -254,8 +314,11 @@ export function PlanPage({
             seats={seats}
             studentsById={byId}
             held={held}
-            onHoldSeat={(seatId) => setHeld({ kind: "seat", seatId })}
+            onHoldSeat={(seatId) =>
+              setHeld(resizing ? { kind: "table", seatId } : { kind: "seat", seatId })
+            }
             onDropSeat={(seatId) => void onDropSeat(seatId)}
+            onFloor={(at) => void onDropFloor(at)}
             onSelectStudent={setSelectedStudentId}
             editing={resizing}
           />
