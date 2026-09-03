@@ -15,6 +15,18 @@ import { PupilName } from "../../design-system/components/pupil-name";
  */
 const UNIT_PX = 36;
 
+/**
+ * The scale below which a table tile stops being tappable.
+ *
+ * `TABLE * UNIT_PX` is a tile's natural size in pixels (72); this is the
+ * scale factor at which that tile renders at exactly 44px — the live-entry
+ * floor. Below it, scale-to-fit would trade a gesture for a glance: the room
+ * would still be visible, but a teacher's thumb could no longer land on a
+ * seat. Derived from `TABLE` and `UNIT_PX` rather than written as `0.611` so
+ * the relationship survives anyone changing either constant.
+ */
+const MIN_SCALE = 44 / (TABLE * UNIT_PX);
+
 /** A stable colour for a pupil with no photo, picked from the id — not random. */
 function colorFor(studentId: string): string {
   let hash = 0;
@@ -87,12 +99,16 @@ function floorSlots(layout: SeatingLayout, seats: Seat[]): Position[] {
 }
 
 /**
- * Fit the room to the screen.
+ * Fit the room to the screen — down to a floor, not all the way to a dot.
  *
  * At ARC_SPACING = 5, an eighteen-seat arc is ninety units across — over
  * 3000px, which no tablet scrolls comfortably mid-lesson. Never scales ABOVE
  * 1: a four-table room stays its natural size rather than ballooning to fill
- * the screen.
+ * the screen. And never scales below `MIN_SCALE`: past that point a tile is
+ * no longer 44px, and a room you can see but cannot tap is a picture, not a
+ * seating plan. The wrapper already scrolls horizontally, so a room too wide
+ * even at `MIN_SCALE` stays reachable — fitting wins down to the touch
+ * floor, scrolling wins past it.
  */
 function useFitScale(roomWidthPx: number): [React.RefObject<HTMLDivElement | null>, number] {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -102,7 +118,8 @@ function useFitScale(roomWidthPx: number): [React.RefObject<HTMLDivElement | nul
     if (!element) return;
     const observer = new ResizeObserver(([entry]) => {
       const available = entry.contentRect.width;
-      setScale(available > 0 ? Math.min(1, available / roomWidthPx) : 1);
+      const fit = available > 0 ? available / roomWidthPx : 1;
+      setScale(Math.min(1, Math.max(MIN_SCALE, fit)));
     });
     observer.observe(element);
     return () => observer.disconnect();
