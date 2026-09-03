@@ -156,6 +156,37 @@ export async function moveTable(db: AppDatabase, seatId: string, to: Position): 
 }
 
 /**
+ * Nudge a table by a keyboard delta, one unit at a time.
+ *
+ * Unlike `moveTable`, the caller never supplies a position — only a delta.
+ * The current position is read and the target computed INSIDE the
+ * transaction, so a key held down fires several `keydown` events before any
+ * one write's live-query tick lands, and each nudge still starts from where
+ * the table actually is rather than from a snapshot the effect closed over
+ * when it subscribed. A position that crosses the closure boundary is a
+ * position that can go stale; a delta cannot.
+ */
+export async function nudgeTable(
+  db: AppDatabase,
+  seatId: string,
+  delta: Position,
+): Promise<boolean> {
+  return await db.transaction("rw", [db.seatingLayouts, db.seats], async () => {
+    const seat = await db.seats.get(seatId);
+    if (!seat) return false;
+    const layout = await db.seatingLayouts.get(seat.layoutId);
+    if (!layout) return false;
+    const to = { x: seat.x + delta.x, y: seat.y + delta.y };
+    const others = (await db.seats.where("layoutId").equals(seat.layoutId).toArray()).filter(
+      (other) => other.id !== seatId,
+    );
+    if (!canPlace(others, to, layout)) return false;
+    await db.seats.put({ ...seat, x: to.x, y: to.y });
+    return true;
+  });
+}
+
+/**
  * Take a table out of the room entirely — an aisle, a doorway, a pillar.
  *
  * Its occupant is unseated by the removal itself: with no row there is no

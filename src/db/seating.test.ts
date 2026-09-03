@@ -1,4 +1,5 @@
 import "fake-indexeddb/auto";
+import { PITCH } from "@domain/room";
 import { buildRoom } from "@domain/room-templates";
 import { openWorkspaceDb } from ".";
 import {
@@ -7,6 +8,7 @@ import {
   clearSeat,
   getOrCreateLayout,
   moveTable,
+  nudgeTable,
   removeTable,
   seatStudent,
   seatsForLayout,
@@ -237,6 +239,93 @@ describe("moveTable", () => {
     const seats = await seatsForLayout(db, layout.id);
     expect(await moveTable(db, seats[0].id, { x: seats[1].x, y: seats[1].y })).toBe(false);
     expect(await db.seats.get(seats[0].id)).toMatchObject({ x: seats[0].x, y: seats[0].y });
+    db.close();
+  });
+});
+
+describe("nudgeTable", () => {
+  it("moves by the delta and keeps the seat's id", async () => {
+    const db = freshDb("nudge");
+    const layout = await getOrCreateLayout(db, "c1");
+    const seats = await seatsForLayout(db, layout.id);
+    const [a] = seats;
+    expect(await nudgeTable(db, a.id, { x: 0, y: -1 })).toBe(true);
+    const moved = await db.seats.get(a.id);
+    expect(moved).toMatchObject({ id: a.id, x: a.x, y: a.y - 1 });
+    db.close();
+  });
+
+  it("carries its occupant along", async () => {
+    const db = freshDb("nudge-occupied");
+    const layout = await getOrCreateLayout(db, "c1");
+    const seats = await seatsForLayout(db, layout.id);
+    const [a] = seats;
+    await seatStudent(db, a.id, "p1");
+    await nudgeTable(db, a.id, { x: 0, y: -1 });
+    expect((await db.seats.get(a.id))?.studentId).toBe("p1");
+    db.close();
+  });
+
+  it("refuses a nudge into a neighbouring table and leaves the seat where it was", async () => {
+    const db = freshDb("nudge-overlap");
+    const layout = await getOrCreateLayout(db, "c1");
+    const seats = await seatsForLayout(db, layout.id);
+    const [a, ...rest] = seats;
+    // A controlled neighbour, one PITCH away in x: closing the gap by 2 units
+    // (leaving only 1) overlaps its footprint, regardless of where the
+    // template happened to put the rest of the room.
+    for (const other of rest) await removeTable(db, other.id);
+    await db.seatingLayouts.put({ ...layout, width: layout.width + 10 });
+    const neighbour = await addTable(db, layout.id, { x: a.x + PITCH, y: a.y });
+    expect(neighbour).not.toBeNull();
+    expect(await nudgeTable(db, a.id, { x: PITCH - 1, y: 0 })).toBe(false);
+    expect(await db.seats.get(a.id)).toMatchObject({ x: a.x, y: a.y });
+    db.close();
+  });
+
+  it("refuses a nudge that would leave the room", async () => {
+    const db = freshDb("nudge-outside");
+    const layout = await getOrCreateLayout(db, "c1");
+    const seats = await seatsForLayout(db, layout.id);
+    const [a] = seats;
+    expect(await nudgeTable(db, a.id, { x: layout.width, y: 0 })).toBe(false);
+    expect(await db.seats.get(a.id)).toMatchObject({ x: a.x, y: a.y });
+    db.close();
+  });
+
+  it("returns false when the seat is gone", async () => {
+    const db = freshDb("nudge-gone");
+    const layout = await getOrCreateLayout(db, "c1");
+    const seats = await seatsForLayout(db, layout.id);
+    const [a] = seats;
+    await removeTable(db, a.id);
+    expect(await nudgeTable(db, a.id, { x: 1, y: 0 })).toBe(false);
+    db.close();
+  });
+
+  it("moves a table two units when two nudges are applied in sequence without an intervening read", async () => {
+    // The bug this pins: page.tsx used to read the seat's position once when
+    // the keyboard effect subscribed and compute every keypress's target off
+    // that same stale snapshot, so two fast presses both landed on
+    // base + 1 rather than base and base + 2. nudgeTable reads the seat
+    // fresh inside its own transaction, so awaiting two calls in a row must
+    // actually walk the table two units — not silently rewrite the same
+    // square twice. This would pass trivially if nudgeTable took an
+    // absolute position instead of a delta, so the assertion is the whole
+    // point: two AWAITED calls, no read in between, must sum their deltas.
+    const db = freshDb("nudge-sequence");
+    const layout = await getOrCreateLayout(db, "c1");
+    const seats = await seatsForLayout(db, layout.id);
+    const [a, ...rest] = seats;
+    // Clear every other table, and grow the room to the right, so two
+    // 1-unit nudges have room regardless of where the template put `a`.
+    for (const other of rest) await removeTable(db, other.id);
+    await db.seatingLayouts.put({ ...layout, width: layout.width + 10 });
+    const base = { x: a.x, y: a.y };
+    await nudgeTable(db, a.id, { x: 1, y: 0 });
+    await nudgeTable(db, a.id, { x: 1, y: 0 });
+    const moved = await db.seats.get(a.id);
+    expect(moved).toMatchObject({ x: base.x + 2, y: base.y });
     db.close();
   });
 });

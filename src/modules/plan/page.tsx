@@ -1,6 +1,13 @@
 import type { GroupMember, Student } from "@db";
 import { useDb } from "@db/provider";
-import { addTable, getOrCreateLayout, moveTable, seatStudent, swapSeats } from "@db/seating";
+import {
+  addTable,
+  getOrCreateLayout,
+  moveTable,
+  nudgeTable,
+  seatStudent,
+  swapSeats,
+} from "@db/seating";
 import { createSession, getOrCreateTodaySession, sessionsForClass, startOfDay } from "@db/sessions";
 import { filterByGroup } from "@domain/group";
 import {
@@ -138,15 +145,21 @@ export function PlanPage({
   // Half-tile precision by keyboard. Tapping the floor is whole-tile only, so
   // without this the odd coordinates an arc uses would be unreachable to
   // anyone not using a pointer — and unreachable to everyone for fine
-  // adjustment. `moveTable` already refuses a nudge that would overlap or
-  // leave the room, so a key held down against the wall writes nothing.
-  // Enter is deliberately not bound: the move has already been written by the
-  // time the key is released, so committing is releasing, and `useEscape`
-  // already clears the hold.
+  // adjustment. `nudgeTable` reads the seat's position fresh inside its own
+  // transaction rather than trusting a snapshot this closure captured, so a
+  // key held down (several `keydown`s firing before any one write's
+  // live-query tick lands) still walks the table one unit per press instead
+  // of rewriting the same square. `seats` is deliberately NOT a dependency:
+  // the effect no longer reads a position out of it, so there is nothing for
+  // a live-query tick to make stale, and re-subscribing on every tick would
+  // only reopen the door this exists to close. `nudgeTable` refuses a nudge
+  // that would overlap or leave the room, so a key held down against the
+  // wall writes nothing. Enter is deliberately not bound: the move has
+  // already been written by the time the key is released, so committing is
+  // releasing, and `useEscape` already clears the hold.
   useEffect(() => {
-    if (held?.kind !== "table" || seats === undefined) return;
+    if (held?.kind !== "table") return;
     const heldSeatId = held.seatId;
-    const currentSeats = seats;
     const deltas: Record<string, Position> = {
       ArrowLeft: { x: -1, y: 0 },
       ArrowRight: { x: 1, y: 0 },
@@ -157,13 +170,11 @@ export function PlanPage({
       const delta = deltas[event.key];
       if (!delta) return;
       event.preventDefault();
-      const seat = currentSeats.find((s) => s.id === heldSeatId);
-      if (!seat) return;
-      void moveTable(db, seat.id, { x: seat.x + delta.x, y: seat.y + delta.y });
+      void nudgeTable(db, heldSeatId, delta);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [db, held, seats]);
+  }, [db, held]);
 
   // The class, its pupils and its groups are the shell's — only this tab's own
   // reads can still be loading here.
