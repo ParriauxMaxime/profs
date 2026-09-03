@@ -1,4 +1,5 @@
 import { ATTENDANCE_VALUES } from "@domain/attendance";
+import { avatarSvg, hasAvatar } from "@domain/avatar";
 import { BEHAVIOUR_TYPES } from "@domain/behaviour";
 import { defaultGradebookName } from "@domain/gradebook/naming";
 import { DEFAULT_PERIOD_NAMES } from "@domain/gradebook/period";
@@ -188,11 +189,18 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
   const students: Student[] = [];
   classes.forEach((schoolClass, classIndex) => {
     for (let i = 0; i < sizes[classIndex]; i++) {
+      const studentId = id();
       students.push({
-        id: id(),
+        id: studentId,
         classId: schoolClass.id,
         lastName: LAST_NAMES[(i + classIndex * 7) % LAST_NAMES.length],
         firstName: FIRST_NAMES[(i * 5 + classIndex * 3) % FIRST_NAMES.length],
+        // A drawing, not a photograph — see `@domain/avatar`. About a third of
+        // the roster has none, which is both what mid-September looks like and
+        // what keeps the initials fallback on screen.
+        photo: hasAvatar(studentId)
+          ? new Blob([avatarSvg(studentId)], { type: "image/svg+xml" })
+          : undefined,
         createdAt: now,
         updatedAt: now,
       });
@@ -327,8 +335,13 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
   }
 
   // Classroom data: a seating plan, three lessons, attendance for each and a
-  // scattering of behaviour events. No photo is ever seeded here — a
-  // fabricated Blob would be a fabricated photograph of a fictional child.
+  // scattering of behaviour events.
+  //
+  // Photos are seeded above, and the rule they used to break still stands: a
+  // fabricated Blob must not be a fabricated *photograph* of a fictional
+  // child. What `@domain/avatar` draws is flat vector shapes with no shading
+  // and no likeness, which is what makes seeding it acceptable — it exercises
+  // the photo path without depicting anybody.
   const seatingLayouts: SeatingLayout[] = [];
   const seats: Seat[] = [];
   const sessions: Session[] = [];
