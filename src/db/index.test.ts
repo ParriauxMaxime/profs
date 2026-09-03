@@ -1,4 +1,5 @@
 import "fake-indexeddb/auto";
+import Dexie from "dexie";
 import { attendanceKey, groupMemberKey, openWorkspaceDb, rubricScoreKey } from ".";
 
 describe("schema v2", () => {
@@ -85,5 +86,59 @@ describe("schema v2", () => {
       studentId: "p1",
     });
     db.close();
+  });
+});
+
+describe("schema v7 — the grid store is dropped, not re-keyed", () => {
+  /** The v2..v6 schema exactly as it shipped, so we can build a real old database. */
+  function openOldDb(name: string) {
+    const db = new Dexie(`profs-${name}`);
+    db.version(2).stores({
+      classes: "id, name",
+      students: "id, classId, lastName",
+      subjects: "id, name",
+      gradebooks: "id, classId, subjectId",
+      periods: "id, gradebookId, order",
+      columns: "id, gradebookId, periodId, order",
+      grades: "[gradebookId+columnId+studentId], gradebookId, columnId, studentId",
+      sessions: "id, classId, date, [classId+date], subjectId",
+      attendance: "[sessionId+studentId], sessionId, studentId",
+      behaviourEvents: "id, sessionId, studentId, classId, createdAt",
+      seatingLayouts: "id, classId",
+      seats: "[layoutId+row+col], layoutId, studentId",
+    });
+    db.version(3).stores({
+      rubricTemplates: "id, name",
+      rubricAssessments: "id, gradebookId, periodId, date",
+      rubricScores: "[assessmentId+criterionId+studentId], assessmentId, criterionId, studentId",
+    });
+    db.version(4).stores({
+      studentGroups: "id, classId",
+      groupMembers: "[groupId+studentId], groupId, studentId",
+    });
+    db.version(5).stores({ scheduleEntries: "id, classId, weekday, gradebookId" });
+    db.version(6).stores({ diaryEntries: "[classId+date], classId, date" });
+    return db;
+  }
+
+  it("opens a workspace built at the old schema still opens with the new code", async () => {
+    const name = `repro-${crypto.randomUUID()}`;
+    const old = openOldDb(name);
+    await old.open();
+    await old.table("classes").add({ id: "c1", name: "3°B", createdAt: 1, updatedAt: 1 });
+    await old
+      .table("seatingLayouts")
+      .add({ id: "l1", classId: "c1", rows: 5, cols: 6, updatedAt: 1 });
+    await old.table("seats").add({ layoutId: "l1", row: 0, col: 0, studentId: "p1" });
+    old.close();
+
+    const fresh = openWorkspaceDb(name);
+    await fresh.open();
+    // The class survives; the grid's seats are gone, which is what "disposable" means.
+    expect(await fresh.classes.count()).toBe(1);
+    expect(await fresh.seats.count()).toBe(0);
+    await fresh.seats.add({ id: "t1", layoutId: "l1", x: 0, y: 0, studentId: null });
+    expect(await fresh.seats.get("t1")).toMatchObject({ x: 0, y: 0 });
+    fresh.close();
   });
 });

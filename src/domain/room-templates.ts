@@ -23,8 +23,13 @@ export type RoomTemplate =
   | { id: "islands"; islands: number; perIsland: number }
   | { id: "u"; cols: number; rows: number };
 
-/** Every parameter's floor and ceiling, beside the generators that read them. */
-const LIMITS = {
+/**
+ * Every parameter's floor and ceiling, beside the generators that read them.
+ *
+ * Exported so a form's `min`/`max` are the same numbers `clampTemplate`
+ * enforces: a spinner that runs past the clamp silently corrects the teacher.
+ */
+export const TEMPLATE_LIMITS = {
   rows: { rows: [1, 20], cols: [1, 20] },
   arc: { perRow: [1, 20], rows: [1, 4], curve: [1, 5] },
   islands: { islands: [1, 12], perIsland: [2, 8] },
@@ -76,8 +81,8 @@ export function clampTemplate(template: RoomTemplate): RoomTemplate {
     case "rows":
       clamped = {
         id: "rows",
-        rows: clampValue(template.rows, LIMITS.rows.rows),
-        cols: clampValue(template.cols, LIMITS.rows.cols),
+        rows: clampValue(template.rows, TEMPLATE_LIMITS.rows.rows),
+        cols: clampValue(template.cols, TEMPLATE_LIMITS.rows.cols),
       };
       while (seatCount(clamped) > MAX_POSITIONS && clamped.id === "rows" && clamped.rows > 1) {
         clamped = { ...clamped, rows: clamped.rows - 1 };
@@ -86,15 +91,15 @@ export function clampTemplate(template: RoomTemplate): RoomTemplate {
     case "arc":
       return {
         id: "arc",
-        perRow: clampValue(template.perRow, LIMITS.arc.perRow),
-        rows: clampValue(template.rows, LIMITS.arc.rows),
-        curve: clampValue(template.curve, LIMITS.arc.curve),
+        perRow: clampValue(template.perRow, TEMPLATE_LIMITS.arc.perRow),
+        rows: clampValue(template.rows, TEMPLATE_LIMITS.arc.rows),
+        curve: clampValue(template.curve, TEMPLATE_LIMITS.arc.curve),
       };
     case "islands":
       clamped = {
         id: "islands",
-        islands: clampValue(template.islands, LIMITS.islands.islands),
-        perIsland: clampValue(template.perIsland, LIMITS.islands.perIsland),
+        islands: clampValue(template.islands, TEMPLATE_LIMITS.islands.islands),
+        perIsland: clampValue(template.perIsland, TEMPLATE_LIMITS.islands.perIsland),
       };
       while (
         seatCount(clamped) > MAX_POSITIONS &&
@@ -107,8 +112,8 @@ export function clampTemplate(template: RoomTemplate): RoomTemplate {
     case "u":
       return {
         id: "u",
-        cols: clampValue(template.cols, LIMITS.u.cols),
-        rows: clampValue(template.rows, LIMITS.u.rows),
+        cols: clampValue(template.cols, TEMPLATE_LIMITS.u.cols),
+        rows: clampValue(template.rows, TEMPLATE_LIMITS.u.rows),
       };
   }
 }

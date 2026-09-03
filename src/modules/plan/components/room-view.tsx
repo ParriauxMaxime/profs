@@ -223,18 +223,38 @@ export function RoomView({
                 </span>
               </button>
               {editing && (
-                <button
-                  type="button"
-                  aria-label={t("plan.removeTable")}
-                  title={t("plan.removeTable")}
-                  className="-right-2 -top-2 absolute flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg text-sm text-text-muted leading-none hover:text-danger"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void removeTable(db, seat.id);
-                  }}
-                >
-                  ×
-                </button>
+                <>
+                  {/* Two different gestures, so two controls. `×` takes the
+                      TABLE out of the room; this one frees the PLACE and
+                      leaves the table standing. After a stamp fills every
+                      table there may be no empty one to drop a pupil onto, and
+                      without this the only way to unseat somebody would be to
+                      remove their table and put a new one back. */}
+                  <button
+                    type="button"
+                    aria-label={t("plan.freeSeat")}
+                    title={t("plan.freeSeat")}
+                    className="-left-2 -top-2 absolute flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg text-sm text-text-muted leading-none hover:text-accent"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void clearSeat(db, seat.id);
+                    }}
+                  >
+                    ↩
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={t("plan.removeTable")}
+                    title={t("plan.removeTable")}
+                    className="-right-2 -top-2 absolute flex h-7 w-7 items-center justify-center rounded-full border border-border bg-bg text-sm text-text-muted leading-none hover:text-danger"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void removeTable(db, seat.id);
+                    }}
+                  >
+                    ×
+                  </button>
+                </>
               )}
             </div>
           );

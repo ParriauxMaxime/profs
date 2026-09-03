@@ -87,7 +87,7 @@ describe("workspace backup", () => {
 
     await expect(
       importWorkspace(db, {
-        version: 8,
+        version: 9,
         exportedAt: 0,
         classes: [],
         students: [],
@@ -230,7 +230,7 @@ describe("workspace backup", () => {
     });
     await db.groupMembers.put({ groupId: "g1", studentId: "p1" });
     const backup = await exportWorkspace(db);
-    expect(backup.version).toBe(7);
+    expect(backup.version).toBe(8);
     expect(backup.sessions).toHaveLength(1);
     expect(backup.attendance).toHaveLength(1);
     expect(backup.rubricTemplates).toHaveLength(1);
@@ -614,7 +614,7 @@ describe("class-size ceiling on import", () => {
   /** A minimal, schema-valid backup carrying `count` pupils in one class. */
   function backupWithRoster(count: number) {
     return {
-      version: 7,
+      version: 8,
       exportedAt: Date.now(),
       classes: [{ id: "c1", name: "3°B", createdAt: 1, updatedAt: 1 }],
       students: Array.from({ length: count }, (_, i) => ({

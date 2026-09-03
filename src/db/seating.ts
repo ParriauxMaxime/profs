@@ -87,6 +87,10 @@ export async function swapSeats(db: AppDatabase, aSeatId: string, bSeatId: strin
     const source = await db.seats.get(aSeatId);
     const target = await db.seats.get(bSeatId);
     if (!source || !target || source.studentId === null) return;
+    // Two ids from two rooms would exchange pupils across classrooms. The UI
+    // cannot reach that today, but this is the public write API and the
+    // id-is-the-guard doctrine invites a caller to trust it.
+    if (source.layoutId !== target.layoutId) return;
     await db.seats.put({ ...source, studentId: target.studentId });
     await db.seats.put({ ...target, studentId: source.studentId });
   });
@@ -176,6 +180,11 @@ export async function applyTemplate(
   shape: RoomShape,
 ): Promise<{ overflow: string[] }> {
   return await db.transaction("rw", [db.seatingLayouts, db.seats], async () => {
+    // Guarded like `addTable` and `moveTable`: `seatingLayouts.update` on a
+    // missing id is a silent no-op, but `bulkAdd` would already have written a
+    // whole room's worth of seats under an orphan layoutId.
+    const layout = await db.seatingLayouts.get(layoutId);
+    if (!layout) return { overflow: [] };
     const existing = await db.seats.where("layoutId").equals(layoutId).toArray();
     const occupants = occupantsInReadingOrder(existing);
     const { seats, overflow } = reseat(occupants, shape.positions);

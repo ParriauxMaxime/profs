@@ -7,9 +7,11 @@ import {
   DEFAULT_TEMPLATE,
   type RoomTemplate,
   seatCount,
+  TEMPLATE_LIMITS,
 } from "@domain/room-templates";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ConfirmButton } from "../../design-system/components/confirm-button";
 import { useEscape } from "../../shared/use-escape";
 
 /** The `rows` template is the only one this form offers until Task 7. */
@@ -24,7 +26,14 @@ function colsOf(template: RoomTemplate): number {
 /**
  * Stamp a template over the room.
  *
- * Reduced to the `rows` template for now — the full picker is the next task.
+ * Deliberately NOT a `<form>`, and the stamp is a `ConfirmButton` rather than a
+ * submit. A stamp replaces every table in the room, and with `autoFocus` on a
+ * number input, Enter would submit it — so a teacher who opened layout-edit
+ * mode to remove one table and pressed Enter would have a hand-built arc
+ * replaced by a 5 × 6 grid. The `resizeWarning` line is no defence: it only
+ * appears when pupils would be unseated, and a 24-table arc holding 24 pupils
+ * restamps as 30 tables with nothing to warn about.
+ *
  * Keyed on `layout.id` by the caller so switching rooms cannot leave stale
  * parameters captured at mount.
  */
@@ -64,7 +73,8 @@ export function RoomTemplateForm({
   };
 
   // `clampTemplate` runs on every keystroke, so a typed value can never leave
-  // the form outside its own range or past the class ceiling.
+  // the form outside its own range or past the class ceiling. The inputs carry
+  // the same numbers as `min`/`max` so the spinner stops where the clamp does.
   const update = (patch: Partial<{ rows: number; cols: number }>): void =>
     setTemplate((current) =>
       clampTemplate({
@@ -74,23 +84,15 @@ export function RoomTemplateForm({
       }),
     );
 
-  const rows = rowsOf(template);
-  const cols = colsOf(template);
-
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        void apply();
-      }}
-      className="flex flex-wrap items-end gap-3 rounded-md border border-border p-3"
-    >
+    <div className="flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
       <label className="flex flex-col gap-1 text-sm">
         {t("plan.rows")}
         <input
           type="number"
-          min={1}
-          value={rows}
+          min={TEMPLATE_LIMITS.rows.rows[0]}
+          max={TEMPLATE_LIMITS.rows.rows[1]}
+          value={rowsOf(template)}
           // biome-ignore lint/a11y/noAutofocus: opens ready to use — one-handed, mid-lesson, no spare tap to reach the field.
           autoFocus
           className="field w-20"
@@ -101,8 +103,9 @@ export function RoomTemplateForm({
         {t("plan.cols")}
         <input
           type="number"
-          min={1}
-          value={cols}
+          min={TEMPLATE_LIMITS.rows.cols[0]}
+          max={TEMPLATE_LIMITS.rows.cols[1]}
+          value={colsOf(template)}
           className="field w-20"
           onChange={(e) => update({ cols: Number(e.target.value) })}
         />
@@ -113,13 +116,22 @@ export function RoomTemplateForm({
       )}
 
       <div className="flex gap-2">
-        <button type="submit" className="btn btn-primary" disabled={saving}>
-          {t("common.save")}
-        </button>
+        {saving ? (
+          <button type="button" className="btn btn-primary" disabled>
+            {t("plan.stamp")}
+          </button>
+        ) : (
+          <ConfirmButton
+            label={t("plan.stamp")}
+            confirmLabel={t("plan.confirmStamp")}
+            danger
+            onConfirm={apply}
+          />
+        )}
         <button type="button" className="btn" disabled={saving} onClick={onDone}>
-          {t("common.cancel")}
+          {t("common.close")}
         </button>
       </div>
-    </form>
+    </div>
   );
 }
