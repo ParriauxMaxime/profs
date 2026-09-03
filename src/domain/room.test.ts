@@ -4,11 +4,17 @@ import {
   compareReadingOrder,
   fitsRoom,
   frame,
+  type Held,
   MAX_POSITIONS,
+  occupantsInReadingOrder,
   overlaps,
   PITCH,
   type Position,
   ROOM_MAX,
+  reseat,
+  resolveDrop,
+  resolveFloorDrop,
+  type Seated,
   TABLE,
 } from "./room";
 
@@ -143,5 +149,119 @@ describe("frame", () => {
         expect(fitsRoom(position, shape)).toBe(true);
       }
     }
+  });
+});
+
+const seat = (id: string, x: number, y: number, studentId: string | null = null): Seated => ({
+  id,
+  x,
+  y,
+  studentId,
+});
+
+describe("occupantsInReadingOrder", () => {
+  it("reads the room front to back, then left to right, skipping empty tables", () => {
+    expect(
+      occupantsInReadingOrder([
+        seat("c", 6, 3, "p3"),
+        seat("a", 0, 0, "p1"),
+        seat("b", 3, 0, "p2"),
+        seat("d", 0, 3, null),
+      ]),
+    ).toEqual(["p1", "p2", "p3"]);
+  });
+});
+
+describe("reseat", () => {
+  it("pours pupils into the new positions in order, so the front row stays in front", () => {
+    const { seats, overflow } = reseat(
+      ["p1", "p2"],
+      [
+        { x: 1, y: 1 },
+        { x: 4, y: 1 },
+        { x: 7, y: 1 },
+      ],
+    );
+    expect(seats).toEqual([
+      { x: 1, y: 1, studentId: "p1" },
+      { x: 4, y: 1, studentId: "p2" },
+      { x: 7, y: 1, studentId: null },
+    ]);
+    expect(overflow).toEqual([]);
+  });
+
+  it("returns the pupils who no longer fit rather than dropping them", () => {
+    const { seats, overflow } = reseat(["p1", "p2", "p3"], [{ x: 1, y: 1 }]);
+    expect(seats).toEqual([{ x: 1, y: 1, studentId: "p1" }]);
+    expect(overflow).toEqual(["p2", "p3"]);
+  });
+
+  it("leaves an empty room empty", () => {
+    expect(reseat([], [])).toEqual({ seats: [], overflow: [] });
+  });
+});
+
+describe("resolveDrop", () => {
+  const held: Record<string, Held> = {
+    pool: { kind: "pool", studentId: "p1" },
+    seat: { kind: "seat", seatId: "s1" },
+    table: { kind: "table", seatId: "s1" },
+  };
+
+  it("does nothing when the target table is gone", () => {
+    expect(resolveDrop(held.pool, undefined)).toEqual({ kind: "none" });
+    expect(resolveDrop(held.seat, undefined)).toEqual({ kind: "none" });
+  });
+
+  it("seats a pupil held from the rail, displacing whoever is there", () => {
+    expect(resolveDrop(held.pool, seat("s2", 4, 1, "p9"))).toEqual({
+      kind: "seat",
+      studentId: "p1",
+      seatId: "s2",
+    });
+  });
+
+  it("swaps a pupil held from a table", () => {
+    expect(resolveDrop(held.seat, seat("s2", 4, 1, "p9"))).toEqual({
+      kind: "swap",
+      fromSeatId: "s1",
+      toSeatId: "s2",
+    });
+  });
+
+  it("degrades a swap onto an empty table to a move", () => {
+    expect(resolveDrop(held.seat, seat("s2", 4, 1, null))).toEqual({
+      kind: "swap",
+      fromSeatId: "s1",
+      toSeatId: "s2",
+    });
+  });
+
+  it("does nothing when a held pupil is dropped back on their own table", () => {
+    expect(resolveDrop(held.seat, seat("s1", 0, 0, "p1"))).toEqual({ kind: "none" });
+  });
+
+  it("does nothing when a held TABLE is dropped on another table", () => {
+    // Furniture is moved onto floor, never onto furniture.
+    expect(resolveDrop(held.table, seat("s2", 4, 1, null))).toEqual({ kind: "none" });
+  });
+});
+
+describe("resolveFloorDrop", () => {
+  it("moves a held table to the floor tapped", () => {
+    expect(resolveFloorDrop({ kind: "table", seatId: "s1" }, { x: 6, y: 6 })).toEqual({
+      kind: "moveTable",
+      seatId: "s1",
+      to: { x: 6, y: 6 },
+    });
+  });
+
+  it("does nothing when a pupil is dropped on bare floor", () => {
+    expect(resolveFloorDrop({ kind: "pool", studentId: "p1" }, { x: 6, y: 6 })).toEqual({
+      kind: "none",
+    });
+    expect(resolveFloorDrop({ kind: "seat", seatId: "s1" }, { x: 6, y: 6 })).toEqual({
+      kind: "none",
+    });
   });
 });

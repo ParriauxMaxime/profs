@@ -114,3 +114,90 @@ export function frame(positions: Position[]): RoomShape {
   const height = Math.max(...shifted.map((p) => p.y)) + TABLE + 1;
   return { width, height, positions: shifted };
 }
+
+/**
+ * The shape of a table as the domain needs to see it.
+ *
+ * Structural, not the `Seat` row itself, so `src/domain/` keeps importing
+ * nothing from `src/db/`.
+ */
+export interface Seated {
+  id: string;
+  x: number;
+  y: number;
+  studentId: string | null;
+}
+
+/** Who is sitting where, read front-to-back. Empty tables contribute nothing. */
+export function occupantsInReadingOrder(seats: Seated[]): string[] {
+  return [...seats]
+    .sort(compareReadingOrder)
+    .map((seat) => seat.studentId)
+    .filter((studentId): studentId is string => studentId !== null);
+}
+
+/**
+ * Pour pupils into a freshly stamped room.
+ *
+ * A template stamp destroys the tables, and this is what stops it destroying
+ * the *arrangement*: pupils go back in reading order, so a grid restamped as
+ * an arc keeps the front row in front. Whoever no longer fits comes back as
+ * `overflow` for the caller to warn about — never silently dropped.
+ */
+export function reseat(
+  occupants: string[],
+  positions: Position[],
+): { seats: { x: number; y: number; studentId: string | null }[]; overflow: string[] } {
+  const ordered = [...positions].sort(compareReadingOrder);
+  const seats = ordered.map((position, i) => ({
+    x: position.x,
+    y: position.y,
+    studentId: occupants[i] ?? null,
+  }));
+  return { seats, overflow: occupants.slice(ordered.length) };
+}
+
+/**
+ * Who is in the teacher's hand.
+ *
+ * Anchored to an id in every case. Phase 5 anchored a held seat to its
+ * coordinates, which is why `swapSeats` needed an `expectedStudentId` to
+ * survive another tab moving that pupil away; an id needs no such guard.
+ */
+export type Held =
+  | { kind: "pool"; studentId: string }
+  | { kind: "seat"; seatId: string }
+  | { kind: "table"; seatId: string };
+
+/** What a drop resolves to. The caller turns it into exactly one write. */
+export type DropAction =
+  | { kind: "none" }
+  | { kind: "seat"; studentId: string; seatId: string }
+  | { kind: "swap"; fromSeatId: string; toSeatId: string }
+  | { kind: "moveTable"; seatId: string; to: Position };
+
+/**
+ * Dropping on a TABLE.
+ *
+ * A pupil from the rail seats and displaces; a pupil from a table swaps, which
+ * degrades to a move when the target is empty; furniture is never dropped onto
+ * furniture.
+ */
+export function resolveDrop(held: Held, target: Seated | undefined): DropAction {
+  if (target === undefined) return { kind: "none" };
+  switch (held.kind) {
+    case "pool":
+      return { kind: "seat", studentId: held.studentId, seatId: target.id };
+    case "seat":
+      if (held.seatId === target.id) return { kind: "none" };
+      return { kind: "swap", fromSeatId: held.seatId, toSeatId: target.id };
+    case "table":
+      return { kind: "none" };
+  }
+}
+
+/** Dropping on bare FLOOR. Only furniture goes there. */
+export function resolveFloorDrop(held: Held, at: Position): DropAction {
+  if (held.kind !== "table") return { kind: "none" };
+  return { kind: "moveTable", seatId: held.seatId, to: at };
+}
