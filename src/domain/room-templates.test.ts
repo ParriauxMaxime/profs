@@ -108,3 +108,50 @@ describe("rows", () => {
     }
   });
 });
+
+describe("arc", () => {
+  it("curves: the ends of a row sit closer to the board than its middle", () => {
+    const shape = buildRoom({ id: "arc", perRow: 9, rows: 1, curve: 5 });
+    const ys = shape.positions.map((p) => p.y);
+    const middle = ys[Math.floor(ys.length / 2)];
+    expect(ys[0]).toBeLessThan(middle);
+    expect(ys[ys.length - 1]).toBeLessThan(middle);
+  });
+
+  it("is symmetric about the middle of the row", () => {
+    const shape = buildRoom({ id: "arc", perRow: 9, rows: 1, curve: 4 });
+    const ys = shape.positions.map((p) => p.y);
+    for (let i = 0; i < ys.length; i += 1) {
+      expect(ys[i]).toBe(ys[ys.length - 1 - i]);
+    }
+  });
+
+  it("puts the back row further from the board than the front", () => {
+    const shape = buildRoom({ id: "arc", perRow: 6, rows: 3, curve: 3 });
+    const rowStarts = [0, 6, 12].map((i) => shape.positions[i].y);
+    expect(rowStarts[0]).toBeLessThan(rowStarts[1]);
+    expect(rowStarts[1]).toBeLessThan(rowStarts[2]);
+  });
+
+  it("emits positions in reading order", () => {
+    const shape = buildRoom({ id: "arc", perRow: 5, rows: 2, curve: 3 });
+    const front = shape.positions.slice(0, 5);
+    expect([...front].sort((a, b) => a.x - b.x)).toEqual(front);
+  });
+
+  it("is well formed across its ENTIRE parameter range, not a sample", () => {
+    for (let perRow = 1; perRow <= 20; perRow += 1) {
+      for (let rows = 1; rows <= 4; rows += 1) {
+        for (let curve = 1; curve <= 5; curve += 1) {
+          expectWellFormed(clampTemplate({ id: "arc", perRow, rows, curve }));
+        }
+      }
+    }
+  });
+
+  it("is wider when the curve is shallow — which is why ROOM_MAX is 120", () => {
+    const shallow = buildRoom({ id: "arc", perRow: 20, rows: 1, curve: 1 });
+    const deep = buildRoom({ id: "arc", perRow: 20, rows: 1, curve: 5 });
+    expect(shallow.width).toBeGreaterThan(deep.width);
+  });
+});

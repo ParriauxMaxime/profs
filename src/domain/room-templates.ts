@@ -1,4 +1,4 @@
-import { frame, MAX_POSITIONS, PITCH, type Position, type RoomShape } from "./room";
+import { ARC_SPACING, frame, MAX_POSITIONS, PITCH, type Position, type RoomShape } from "./room";
 
 /**
  * The four room templates.
@@ -124,12 +124,58 @@ function buildRows(rows: number, cols: number): Position[] {
   return positions;
 }
 
+/**
+ * The angular span of the arc, from the curve parameter: 15° at 1, 75° at 5.
+ *
+ * A shallow arc needs a huge radius to hold the same tables, so it comes out
+ * WIDER than a deep one. That is not a bug and it is the reason ROOM_MAX is
+ * 120 rather than the 60 a straight row of twenty would need.
+ */
+function arcSpan(curve: number): number {
+  return (curve * Math.PI) / 12;
+}
+
+/**
+ * Rows on concentric circles centred on the board.
+ *
+ * The radius comes OUT of the spacing rather than the other way round: fixing
+ * the arc step at ARC_SPACING and solving `R = ARC_SPACING * (n - 1) / theta`
+ * is what makes non-overlap arithmetic rather than a repair pass. A repair
+ * pass that nudges colliding seats apart terminates on most inputs and
+ * produces a visibly lumpy arc on the rest — the failure that ships, because
+ * it still looks like an arc.
+ *
+ * Rows step by ARC_SPACING too, not by PITCH: at the ends of the arc the
+ * radial direction is diagonal, so a radial gap of 3 lands as barely 2.4 on
+ * its widest axis and rounding then eats it.
+ */
+function buildArc(perRow: number, rows: number, curve: number): Position[] {
+  const theta = arcSpan(curve);
+  // A single-seat row has no gap to hold open; give it any radius that keeps
+  // the rows apart.
+  const baseRadius = perRow > 1 ? (ARC_SPACING * (perRow - 1)) / theta : ARC_SPACING * rows;
+  const positions: Position[] = [];
+  for (let row = 0; row < rows; row += 1) {
+    const radius = baseRadius + row * ARC_SPACING;
+    for (let i = 0; i < perRow; i += 1) {
+      // Angles run left to right so a row comes out in reading order.
+      const angle = perRow > 1 ? -theta / 2 + (theta * i) / (perRow - 1) : 0;
+      positions.push({
+        x: Math.round(radius * Math.sin(angle)),
+        y: Math.round(radius * Math.cos(angle)),
+      });
+    }
+  }
+  return positions;
+}
+
 export function buildRoom(template: RoomTemplate): RoomShape {
   const t = clampTemplate(template);
   switch (t.id) {
     case "rows":
       return frame(buildRows(t.rows, t.cols));
     case "arc":
+      return frame(buildArc(t.perRow, t.rows, t.curve));
     case "islands":
     case "u":
       throw new Error(`room template not implemented: ${t.id}`);
