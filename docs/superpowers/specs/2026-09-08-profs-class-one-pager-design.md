@@ -1,6 +1,6 @@
 # profs — the class as one page (design)
 
-Status: agreed, not implemented.
+Status: implemented.
 Supersedes the tab structure described in
 `2026-09-02-profs-phase6-class-hub.md` and the day-keyed journal in
 `2026-09-02-profs-phase4b-diary-calendar.md`.
