@@ -1057,7 +1057,7 @@ Create `src/modules/class/components/carnets-panel.tsx`:
 ```tsx
 import type { Gradebook } from "@db";
 import { useDb } from "@db/provider";
-import { classStats } from "@domain/gradebook/stats";
+import { classStats, studentAverage } from "@domain/gradebook/average";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useTranslation } from "react-i18next";
@@ -1075,13 +1075,23 @@ export function CarnetsPanel({ classId, gradebooks }: { classId: string; gradebo
   const { t } = useTranslation();
   const db = useDb();
 
+  // `studentAverage` takes the FULL column list plus a periodId and filters
+  // internally — passing an already-filtered list changes results silently.
+  // `classStats` then takes the pupils' averages as plain numbers.
   const averages = useLiveQuery(async () => {
+    const students = await db.students.where("classId").equals(classId).toArray();
     const entries = await Promise.all(
       gradebooks.map(async (book) => {
         const columns = await db.columns.where("gradebookId").equals(book.id).toArray();
         const grades = await db.grades.where("gradebookId").equals(book.id).toArray();
-        const students = await db.students.where("classId").equals(classId).toArray();
-        return [book.id, classStats(students, columns, grades, null).mean] as const;
+        const byStudent = new Map<string, typeof grades>();
+        for (const grade of grades) {
+          byStudent.set(grade.studentId, [...(byStudent.get(grade.studentId) ?? []), grade]);
+        }
+        const values = students
+          .map((student) => studentAverage(byStudent.get(student.id) ?? [], columns))
+          .filter((value): value is number => value !== null);
+        return [book.id, classStats(values)?.mean ?? null] as const;
       }),
     );
     return Object.fromEntries(entries);
@@ -1115,9 +1125,16 @@ export function CarnetsPanel({ classId, gradebooks }: { classId: string; gradebo
 }
 ```
 
-Check `classStats`'s real signature in `src/domain/gradebook/stats.ts` before
-writing this — it takes the FULL column list and filters by period internally,
-and passing an already-filtered list changes the result silently.
+`classStats` lives in `src/domain/gradebook/average.ts` and takes
+`values: number[]`, returning `ClassStats | null`. Format the mean through
+`formatDecimal` with the app locale — never `toFixed`, and never
+`formatDecimalExact`, which is for seeding an editor.
+
+Three keys this panel needs do NOT exist yet and must be added to BOTH locale
+files: `class.books` ("Carnets" / "Gradebooks"), `gradebook.none` ("Aucun
+carnet pour cette classe." / "No gradebook for this class yet."), and
+`gradebook.open` ("Ouvrir" / "Open"). The i18n parity test fails until both
+files carry all three.
 
 - [ ] **Step 5: Assemble the page**
 
@@ -1212,7 +1229,7 @@ export function RosterRegister({
               <span
                 className={mark === undefined ? "text-text-faint text-sm" : "text-danger text-sm"}
               >
-                {mark === undefined ? "" : t(`gradebook.attendance.${mark}`)}
+                {mark === undefined ? "" : t(`attendance.${mark}`)}
               </span>
             </button>
           </li>
@@ -1226,6 +1243,11 @@ export function RosterRegister({
 Nothing is rendered for an unmarked pupil: a missing row means *not recorded*,
 never *present*, and `domain/attendance.ts` refuses a default value for exactly
 that reason.
+
+The attendance labels live at the top-level `attendance.*` namespace —
+`attendance.present`, `.absent`, `.late`, `.excused` — not under
+`gradebook.attendance.*`, which CLAUDE.md names but the locale files do not
+have.
 
 - [ ] **Step 2: Verify with no salle**
 
