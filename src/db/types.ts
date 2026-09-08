@@ -133,6 +133,16 @@ export interface BehaviourEvent {
 export interface SeatingLayout {
   id: string;
   classId: string;
+  /**
+   * What the teacher calls this arrangement — "Contrôle", "Travail de groupe".
+   *
+   * Optional, and it must stay optional: the layout a class gets on its first
+   * visit is created by `getOrCreateLayout` before anybody has named anything,
+   * and a *translated* default written into the row would be a stored label
+   * that stops matching the interface language. The UI renders
+   * `plan.layouts.unnamed` when this is absent.
+   */
+  name?: string;
   width: number;
   height: number;
   updatedAt: number;

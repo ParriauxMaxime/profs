@@ -280,7 +280,16 @@
     "moveHere": "Move here",
     "addTable": "Add a table",
     "holdTable": "Move the table",
-    "emptyRoom": "This room has no tables. Pick a layout to fill it."
+    "emptyRoom": "This room has no tables. Pick a layout to fill it.",
+    "layouts": {
+      "label": "Rooms for this class",
+      "unnamed": "Main plan",
+      "add": "New room",
+      "namePlaceholder": "Room name",
+      "rename": "Rename",
+      "delete": "Delete room",
+      "deleteConfirm": "Delete “{{name}}” and the arrangement in it"
+    }
   },
   "behaviour": {
     "title": "Behaviour",

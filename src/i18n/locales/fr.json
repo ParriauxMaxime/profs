@@ -280,7 +280,16 @@
     "moveHere": "Déplacer ici",
     "addTable": "Ajouter une table",
     "holdTable": "Déplacer la table",
-    "emptyRoom": "Cette salle n'a aucune table. Choisissez une disposition pour la remplir."
+    "emptyRoom": "Cette salle n'a aucune table. Choisissez une disposition pour la remplir.",
+    "layouts": {
+      "label": "Salles de cette classe",
+      "unnamed": "Plan principal",
+      "add": "Nouvelle salle",
+      "namePlaceholder": "Nom de la salle",
+      "rename": "Renommer",
+      "delete": "Supprimer la salle",
+      "deleteConfirm": "Supprimer « {{name}} » et le placement qu'elle contient"
+    }
   },
   "behaviour": {
     "title": "Comportement",

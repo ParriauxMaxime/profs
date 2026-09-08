@@ -84,13 +84,36 @@ other event types.
 
 ## 4. Multiple seating layouts per class
 
-Phase 2A ships exactly one `SeatingLayout` per class (created lazily on first
-visit to the plan page). iDoceo's "a room can have several layouts (exam,
-group work)" was explicitly deferred: it needs a layout switcher in the UI and
-a decision on which layout attendance/behaviour attach to when more than one
-exists for the same session. `deleteSeatingLayout` in `src/db/cascade.ts`
-already supports removing one of several, so the schema is not the blocker —
-the UI and the "which layout is active" question are.
+**Status: delivered, phase 8.** `listLayouts` / `createLayout` / `renameLayout`
+in `src/db/seating.ts`, `LayoutBar` in `src/modules/plan/components/`, and the
+selection in `src/domain/active-layout.ts`.
+
+The blocker this entry named — "which layout attendance/behaviour attach to
+when more than one exists for the same session" — dissolved rather than being
+answered. **A layout is a view, never a record.** Attendance is already keyed
+`[sessionId+studentId]` and a `BehaviourEvent` already carries a `sessionId`,
+so neither has ever referred to a layout; switching rooms mid-lesson changes
+where a pupil is drawn, not what was recorded. That is the same invariant
+phase 2A set when it refused attendance as a column type.
+
+Decisions taken while building it:
+
+- **The selection is device-local**, in `localStorage` keyed by class, not a
+  field on `SchoolClass`. A selection is not a property of the school: two
+  devices would fight over it, and a backup would carry one device's view onto
+  another. It is held as an id and resolved through `resolveActiveLayout`, so a
+  deleted room falls back to the first instead of retargeting onto its
+  neighbour.
+- **The first room stays unnamed.** `getOrCreateLayout` runs before anybody has
+  named anything, and a translated default written into the row would be a
+  stored label that stops matching the interface language. The UI renders
+  `plan.layouts.unnamed`.
+- **The picker only appears once there are two.** One room is not a choice.
+- **Rename and delete live in layout-edit mode**, not beside the picker: the
+  lesson's gesture is placing pupils, and a delete within reach during a lesson
+  is a mis-tap that costs an arrangement. The last room is never deletable —
+  the class would be handed a fresh default on the next render, so the delete
+  would read as "reset" while destroying the arrangement.
 
 ## 4b. Named, reusable rooms
 

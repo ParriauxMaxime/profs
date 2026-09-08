@@ -58,6 +58,27 @@ Every template parameter counts TABLES, never pupils, and `TEMPLATE_LIMITS` plus
 
 `swapSeats` takes no `expectedStudentId`. A table has an id now, and the id is the guard — reading a removed or reassigned table by id simply fails, so the write never happens.
 
+A class may hold **several rooms** — the ordinary arrangement, one for
+assessments, one for group work. Which one is on screen is device-local
+(`src/domain/active-layout.ts`, `localStorage`), not a field on `SchoolClass`:
+a selection is not a property of the school, two devices would fight over it,
+and a backup would carry one device's view onto another. It is held as an id
+and resolved through `resolveActiveLayout`, so a deleted room falls back to the
+first rather than retargeting onto its neighbour.
+
+**A layout is a view, never a record.** Attendance is keyed
+`[sessionId+studentId]` and a `BehaviourEvent` carries a `sessionId`, so
+neither has ever referred to a layout; switching rooms mid-lesson changes where
+a pupil is drawn, not what was recorded. Do not add a `layoutId` to either.
+
+`SeatingLayout.name` is optional and must stay so: `getOrCreateLayout` runs
+before anybody has named anything, and a *translated* default written into the
+row would be a stored label that stops matching the interface language — the UI
+renders `plan.layouts.unnamed` instead. The picker appears only once there are
+two rooms, rename and delete only in layout-edit mode, and the last room is
+never deletable, since the class would be handed a fresh default on the next
+render and the delete would read as "reset".
+
 ### The class is the page
 
 A teacher thinks in 3°B, not in carnets and rosters, so a class is **one page with four tabs** — Plan de table, Élèves, Carnets, Journal — with a route per tab (`src/modules/class/page.tsx` is the shell, `tabs/` holds the four). `ClassPage` loads the class, its pupils, its groups and their memberships **once** and passes them down as `ClassTabProps`; a tab that re-queried would flash "Chargement…" over a class already on screen. The grid stays a full-screen route outside the tabs, because a tab bar above a wide scrolling table costs vertical space on the one screen with none to spare.

@@ -6,10 +6,13 @@ import {
   addTable,
   applyTemplate,
   clearSeat,
+  createLayout,
   getOrCreateLayout,
+  listLayouts,
   moveTable,
   nudgeTable,
   removeTable,
+  renameLayout,
   seatStudent,
   seatsForLayout,
   swapSeats,
@@ -402,6 +405,76 @@ describe("applyTemplate", () => {
       width: shape.width,
       height: shape.height,
     });
+    db.close();
+  });
+});
+
+describe("several rooms for one class", () => {
+  it("lists only the asked-for class's rooms", async () => {
+    const db = freshDb("layouts");
+    const first = await getOrCreateLayout(db, "c1");
+    const second = await createLayout(db, "c1", "Contrôle");
+    await getOrCreateLayout(db, "c2");
+
+    const layouts = await listLayouts(db, "c1");
+    expect(layouts.map((l) => l.id)).toEqual([first.id, second.id]);
+    db.close();
+  });
+
+  it("gives a created room its own tables, not the first room's", async () => {
+    const db = freshDb("layouts");
+    const first = await getOrCreateLayout(db, "c1");
+    const second = await createLayout(db, "c1", "Contrôle");
+
+    await seatStudent(db, (await seatsForLayout(db, first.id))[0].id, "s1");
+
+    const secondSeats = await seatsForLayout(db, second.id);
+    expect(secondSeats).toHaveLength(30);
+    expect(secondSeats.every((seat) => seat.studentId === null)).toBe(true);
+    // Seating a pupil in one room must not touch the other.
+    expect((await seatsForLayout(db, first.id)).filter((s) => s.studentId === "s1")).toHaveLength(
+      1,
+    );
+    db.close();
+  });
+
+  it("leaves the first room unnamed and names the ones a teacher adds", async () => {
+    // A translated default written into the row would stop matching the
+    // interface language; the UI renders the fallback instead.
+    const db = freshDb("layouts");
+    const first = await getOrCreateLayout(db, "c1");
+    const second = await createLayout(db, "c1", "Travail de groupe");
+    expect(first.name).toBeUndefined();
+    expect(second.name).toBe("Travail de groupe");
+    db.close();
+  });
+
+  it("renames one room without disturbing its tables or its siblings", async () => {
+    const db = freshDb("layouts");
+    const first = await getOrCreateLayout(db, "c1");
+    const second = await createLayout(db, "c1", "Contrôle");
+    await renameLayout(db, first.id, "Habituel");
+
+    const layouts = await listLayouts(db, "c1");
+    expect(layouts.find((l) => l.id === first.id)?.name).toBe("Habituel");
+    expect(layouts.find((l) => l.id === second.id)?.name).toBe("Contrôle");
+    expect(await seatsForLayout(db, first.id)).toHaveLength(30);
+    db.close();
+  });
+
+  it("returns an empty list for a class that has never been looked at", async () => {
+    const db = freshDb("layouts");
+    expect(await listLayouts(db, "never")).toEqual([]);
+    db.close();
+  });
+
+  it("does not hand a second room out of getOrCreateLayout", async () => {
+    // getOrCreateLayout is still "the class's first room", not "a new room".
+    const db = freshDb("layouts");
+    const first = await getOrCreateLayout(db, "c1");
+    const again = await getOrCreateLayout(db, "c1");
+    expect(again.id).toBe(first.id);
+    expect(await listLayouts(db, "c1")).toHaveLength(1);
     db.close();
   });
 });

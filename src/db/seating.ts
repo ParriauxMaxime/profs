@@ -48,6 +48,52 @@ export async function getOrCreateLayout(db: AppDatabase, classId: string): Promi
   });
 }
 
+/** Every room a class has, oldest first, so the list does not reshuffle. */
+export async function listLayouts(db: AppDatabase, classId: string): Promise<SeatingLayout[]> {
+  const layouts = await db.seatingLayouts.where("classId").equals(classId).toArray();
+  return layouts.sort((a, b) => a.updatedAt - b.updatedAt || a.id.localeCompare(b.id));
+}
+
+/**
+ * A second (or third) room for a class, stamped from the default template.
+ *
+ * Named on creation, unlike the one `getOrCreateLayout` makes: a teacher who
+ * deliberately adds an arrangement has a reason for it, and an unnamed list of
+ * three rooms is a list nobody can use.
+ */
+export async function createLayout(
+  db: AppDatabase,
+  classId: string,
+  name: string,
+): Promise<SeatingLayout> {
+  const shape = buildRoom(DEFAULT_TEMPLATE);
+  return await db.transaction("rw", [db.seatingLayouts, db.seats], async () => {
+    const layout: SeatingLayout = {
+      id: crypto.randomUUID(),
+      classId,
+      name,
+      width: shape.width,
+      height: shape.height,
+      updatedAt: Date.now(),
+    };
+    await db.seatingLayouts.add(layout);
+    await db.seats.bulkAdd(
+      shape.positions.map((position) => ({
+        id: crypto.randomUUID(),
+        layoutId: layout.id,
+        x: position.x,
+        y: position.y,
+        studentId: null,
+      })),
+    );
+    return layout;
+  });
+}
+
+export async function renameLayout(db: AppDatabase, layoutId: string, name: string): Promise<void> {
+  await db.seatingLayouts.update(layoutId, { name });
+}
+
 /**
  * Seat a pupil, clearing whatever table they held before.
  *
