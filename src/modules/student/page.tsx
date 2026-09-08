@@ -3,6 +3,14 @@ import { useDb } from "@db/provider";
 import { sessionsForClass } from "@db/sessions";
 import { ATTENDANCE_VALUES } from "@domain/attendance";
 import { BEHAVIOUR_COLORS, BEHAVIOUR_TYPES, countByType } from "@domain/behaviour";
+import {
+  BEHAVIOUR_RANGES,
+  type BehaviourRange,
+  DEFAULT_BEHAVIOUR_RANGE,
+  rangeStart,
+  withinRange,
+} from "@domain/behaviour-range";
+import { readTermStart } from "@domain/term";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useState } from "react";
@@ -14,6 +22,10 @@ import { PupilName } from "../design-system/components/pupil-name";
 export function StudentPage({ studentId }: { studentId: string }) {
   const { t, i18n } = useTranslation();
   const db = useDb();
+  // Counts only. The timeline below stays complete: a behaviour log is a
+  // record of what was observed when, and hiding entries from it would be a
+  // different claim than summarising a window of them.
+  const [range, setRange] = useState<BehaviourRange>(DEFAULT_BEHAVIOUR_RANGE);
 
   // An explicit null distinguishes "no such pupil" from "still loading":
   // useLiveQuery gives undefined for both, and the page would otherwise sit
@@ -56,7 +68,10 @@ export function StudentPage({ studentId }: { studentId: string }) {
   }
 
   const sessionById = new Map(sessions.map((session) => [session.id, session]));
-  const counts = countByType(events);
+  // "Now" is read once for the whole render: a bound recomputed per event
+  // could straddle midnight in a long list and drop one.
+  const countedEvents = withinRange(events, rangeStart(range, readTermStart(), Date.now()));
+  const counts = countByType(countedEvents);
   const dateFormatter = new Intl.DateTimeFormat(i18n.language, { dateStyle: "long" });
 
   const attendanceCounts = Object.fromEntries(
@@ -87,7 +102,23 @@ export function StudentPage({ studentId }: { studentId: string }) {
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className="font-medium text-sm text-text-muted">{t("behaviour.title")}</span>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="font-medium text-sm text-text-muted">{t("behaviour.title")}</span>
+          <fieldset className="m-0 flex flex-wrap gap-1 border-0 p-0">
+            <legend className="sr-only">{t("behaviour.rangeLabel")}</legend>
+            {BEHAVIOUR_RANGES.map((option) => (
+              <button
+                key={option}
+                type="button"
+                className={option === range ? "btn btn-primary" : "btn"}
+                aria-pressed={option === range}
+                onClick={() => setRange(option)}
+              >
+                {t(`behaviour.range.${option}`)}
+              </button>
+            ))}
+          </fieldset>
+        </div>
         <div className="flex flex-wrap gap-2">
           {BEHAVIOUR_TYPES.map((type) => (
             <div

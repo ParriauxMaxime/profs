@@ -317,7 +317,13 @@
     "note": "Observation",
     "comment": "Commentaire",
     "none": "Aucun événement",
-    "confirmDelete": "Supprimer cet événement ?"
+    "confirmDelete": "Supprimer cet événement ?",
+    "rangeLabel": "Période des compteurs",
+    "range": {
+      "all": "Tout",
+      "days30": "30 jours",
+      "term": "Depuis la rentrée"
+    }
   },
   "rubric": {
     "title": "Grilles d'évaluation",

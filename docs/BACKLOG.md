@@ -145,14 +145,43 @@ Consequences of that framing, all inherited rather than invented:
 - **Saving happens in the plan, managing in Réglages.** There is nothing to
   *create* in Réglages, since a room with no tables is a shape nobody drew.
 
-## 5. Behaviour counts by period
+## 5. Behaviour counts by period — delivered as counts by DATE
 
-The pupil page's behaviour counts (`countByType`) are deliberately computed
-over **all** events, with no period filter, by design in phase 2A. A
-teacher reporting "three warnings this trimestre" needs the count scoped to a
-period, which requires deciding how a session (dated, not period-bound) maps
-to a gradebook period. Left for a later pass rather than invented during
-phase 2A.
+**Status: delivered, phase 8**, and deliberately not as this entry asked.
+`src/domain/behaviour-range.ts`, with the selector on the pupil page.
+
+This entry said the blocker was "deciding how a session (dated, not
+period-bound) maps to a gradebook period". That mapping was not made, because
+it cannot be made honestly. A `Period` is `{ id, gradebookId, name, order }` —
+it carries **no dates** — and it belongs to a gradebook, so a class with three
+gradebooks has three period calendars that need not agree, while a `Session` is
+simply dated. Any mapping would be invented.
+
+Giving `Period` dates was the alternative and was rejected: periods are what
+`studentAverage` filters a bulletin by, and making them mean a span of time as
+well as a set of columns would change marking everywhere in order to put a
+filter on one count. The blast radius is not worth it, and the failure mode —
+a silently wrong bulletin — is the one this app cannot afford.
+
+So the counts filter by **date**, over three windows that need no boundary
+anyone invented: everything (the default, so the page keeps the behaviour it
+had), the last 30 days, and since the term anchor the app already keeps in
+`localStorage` for A/B week parity. "Ce trimestre" is deliberately absent:
+nothing in the app knows when a trimestre ends, and a guess printed beside a
+count of red cards is worse than an honest "depuis la rentrée".
+
+Two details worth keeping:
+
+- **The bound walks the calendar, never `30 * 86_400_000`.** Subtracting
+  milliseconds is an hour out after each clock change and, from a morning,
+  lands on the day *before* the intended one — silently dropping a day of
+  events from a count a teacher may repeat to a parent. A test walks 400 days,
+  both clock changes included, and asserts the bound is local midnight exactly
+  30 calendar days back, making no assumption about the suite's timezone. Same
+  discipline as `weekParity` and `monthGrid`.
+- **Only the counts are filtered; the timeline below stays complete.** A
+  behaviour log is a record of what was observed when, and hiding entries from
+  it would be a different claim than summarising a window of them.
 
 ## Source
 

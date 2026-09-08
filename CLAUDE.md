@@ -250,7 +250,7 @@ Destructive actions go through `ConfirmButton` (two-step, in place). Its confirm
 ## Known gaps
 
 - No sync of any kind. JSON export/import in Réglages is the only way to move data between devices, and it omits student photos (`Blob`s cannot survive `JSON.stringify`); both documents say so, and any change must keep them accurate. `Student.notes` — which can carry accommodations such as PAP, PPRE, tiers-temps — **is** included, and `PRIVACY.md` says so explicitly.
-- Behaviour counts on the pupil page cover all events, with no period filter (`docs/BACKLOG.md` #5) — a deliberate scope cut.
+- Behaviour counts on the pupil page filter by **date**, not by gradebook period, and that is deliberate: a `Period` carries no dates and belongs to a gradebook, so a class with three gradebooks has three period calendars that need not agree, while a `Session` is simply dated. Giving `Period` dates would change what marking filters by in order to fix one count. The windows are everything (default), 30 days, and the term anchor — no "trimestre", because nothing knows when one ends. `rangeStart` walks the calendar rather than subtracting milliseconds, for the `weekParity` reason. Only the counts narrow; the timeline stays complete.
 - One seating layout per class (`docs/BACKLOG.md` #4) — the schema supports several, the UI does not. A room cannot yet be saved as a named layout reusable by another class.
 - A gradebook cannot be renamed after creation, and periods cannot be reordered.
 - `src/modules/classes/page.tsx` imports `ClassForm` from the class module, crossing the boundary described above. An accepted exception, since both screens create classes.
