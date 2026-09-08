@@ -1,35 +1,19 @@
-import type { DiaryEntry, ScheduleEntry, SchoolClass } from "@db";
+import type { SchoolClass, Session } from "@db";
 import { useDb } from "@db/provider";
-import { startOfDay } from "@db/sessions";
-import {
-  agendaDays,
-  daysInRange,
-  monthGrid,
-  nextDay,
-  previousDay,
-  startOfIsoWeek,
-  weekDays,
-} from "@domain/calendar";
-import { entriesForDate, formatTimeRange } from "@domain/schedule";
+import { sessionsInRange, startOfDay } from "@db/sessions";
+import { monthGrid, nextDay, previousDay, startOfIsoWeek, weekDays } from "@domain/calendar";
+import { minutesToHm } from "@domain/schedule";
 import { fuzzyMatchAny } from "@domain/search";
-import { readTermStart } from "@domain/term";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { ToggleGroup, ToggleOption } from "../design-system/components/primitives";
-import { useRoomNames } from "../rooms/use-room-names";
-import { DayEntry } from "./components/day-entry";
+import { SeanceNote } from "./components/seance-note";
 
 const VIEWS = ["agenda", "week", "month"] as const;
 type View = (typeof VIEWS)[number];
-
-/** A lesson on a concrete day: a schedule entry resolved against a date. */
-interface Lesson {
-  entry: ScheduleEntry;
-  date: number;
-}
 
 /**
  * The journal, read through a calendar.
@@ -41,6 +25,11 @@ interface Lesson {
  * teacher who installed a local-only app does not need telling it is not the
  * ENT. PRIVACY.md and README.md carry the statement in full.
  *
+ * A day holds one entry per séance, so this reads `Session` rather than a
+ * day-keyed diary entry: a class taught twice in one day carries two notes,
+ * and a class never opened that day carries none — the archive shows only
+ * lessons that actually happened, never a prediction from the timetable.
+ *
  * With the class filter off and the week mode on, this is what was scoped as
  * the 4c planner. A second calendar rendering the same tables would have been
  * one more thing to keep in sync.
@@ -48,7 +37,6 @@ interface Lesson {
 export function DiaryPage({ classId: pinnedClassId }: { classId?: string } = {}) {
   const { t, i18n } = useTranslation();
   const db = useDb();
-  const termStart = readTermStart();
 
   const [view, setView] = useState<View>("agenda");
   // Held as a class id, never an index into the list.
@@ -64,12 +52,11 @@ export function DiaryPage({ classId: pinnedClassId }: { classId?: string } = {})
   const { from, to } = windowFor(view, anchor);
 
   const data = useLiveQuery(async () => {
-    const [classes, schedule, entries] = await Promise.all([
+    const [classes, sessions] = await Promise.all([
       db.classes.toArray(),
-      db.scheduleEntries.toArray(),
-      db.diaryEntries.where("date").between(from, to, true, true).toArray(),
+      sessionsInRange(db, from, to),
     ]);
-    return { classes, schedule, entries };
+    return { classes, sessions };
   }, [db, from, to]);
 
   if (!data) return <p className="text-text-muted">{t("common.loading")}</p>;
@@ -78,30 +65,17 @@ export function DiaryPage({ classId: pinnedClassId }: { classId?: string } = {})
     classId === null ? data.classes : data.classes.filter((c) => c.id === classId);
   const visibleClassIds = new Set(visibleClasses.map((c) => c.id));
 
-  const schedule = data.schedule.filter((e) => visibleClassIds.has(e.classId));
-  const entries = data.entries.filter((e) => visibleClassIds.has(e.classId));
-
-  // Resolve the recurring timetable against every day of the window. Without a
-  // term start, only the lessons that run every week can be placed: an A/B
-  // lesson has no meaningful parity, and showing it on the wrong week is worse
-  // than not showing it.
-  const lessons: Lesson[] = daysInRange(from, to).flatMap((date) => {
-    const forDay =
-      termStart === null
-        ? schedule.filter((e) => e.weekCycle === "all" && e.weekday === isoWeekday(date))
-        : entriesForDate(schedule, termStart, date);
-    return forDay.map((entry) => ({ entry, date }));
-  });
+  const sessions = data.sessions.filter((s) => visibleClassIds.has(s.classId));
 
   const className = (id: string) => data.classes.find((c) => c.id === id)?.name ?? "";
 
   // Search filters the days shown, not the text inside them: a teacher looking
-  // for "fractions" wants the days they taught fractions, with the whole entry
-  // readable, not a highlighted fragment.
-  const matching = (entry: DiaryEntry) =>
-    fuzzyMatchAny([entry.text, className(entry.classId)], query);
+  // for "fractions" wants the days they taught fractions, with the whole
+  // séance readable, not a highlighted fragment.
+  const matching = (session: Session) =>
+    fuzzyMatchAny([session.note, className(session.classId)], query);
   const searching = query.trim() !== "";
-  const searchedEntries = searching ? entries.filter(matching) : entries;
+  const searchedSessions = searching ? sessions.filter(matching) : sessions;
 
   return (
     <div className="flex flex-col gap-4">
@@ -180,22 +154,9 @@ export function DiaryPage({ classId: pinnedClassId }: { classId?: string } = {})
         </p>
       )}
 
-      {termStart === null && schedule.some((e) => e.weekCycle !== "all") && (
-        <p className="text-sm text-text-muted">
-          {t("diary.needsTermStart")}{" "}
-          <Link to={Router.Settings()} className="underline">
-            {t("nav.settings")}
-          </Link>
-        </p>
-      )}
-
       {view === "agenda" && (
         <AgendaView
-          from={from}
-          to={to}
-          lessons={lessons}
-          entries={searchedEntries}
-          classes={visibleClasses}
+          sessions={searchedSessions}
           locale={i18n.language}
           className={className}
           searching={searching}
@@ -206,8 +167,7 @@ export function DiaryPage({ classId: pinnedClassId }: { classId?: string } = {})
         <GridView
           days={weekDays(anchor).map((date) => ({ date, inMonth: true }))}
           columns={7}
-          lessons={lessons}
-          entries={searchedEntries}
+          sessions={searchedSessions}
           locale={i18n.language}
           className={className}
           onPick={(date) => {
@@ -221,8 +181,7 @@ export function DiaryPage({ classId: pinnedClassId }: { classId?: string } = {})
         <GridView
           days={monthGrid(new Date(anchor).getFullYear(), new Date(anchor).getMonth()).flat()}
           columns={7}
-          lessons={lessons}
-          entries={searchedEntries}
+          sessions={searchedSessions}
           locale={i18n.language}
           className={className}
           onPick={(date) => {
@@ -235,18 +194,12 @@ export function DiaryPage({ classId: pinnedClassId }: { classId?: string } = {})
   );
 }
 
-/** ISO weekday, 1 = Monday. */
-function isoWeekday(ms: number): number {
-  const day = new Date(ms).getDay();
-  return day === 0 ? 7 : day;
-}
-
 /**
  * The visible span for a view.
  *
  * Agenda shows a month at a time rather than the whole year: an unbounded
- * range would read every entry ever written on every keystroke of the search
- * box, and paging is cheap.
+ * range would read every session ever recorded on every keystroke of the
+ * search box, and paging is cheap.
  */
 function windowFor(view: View, anchor: number): { from: number; to: number } {
   if (view === "week") {
@@ -292,45 +245,41 @@ function windowLabel(view: View, anchor: number, locale: string): string {
   );
 }
 
+/** A séance's start time, formatted in the app locale. `formatTimeRange` is
+ * not right here — a séance has a start only, never an end. */
+function formatSeanceTime(startsAt: number, locale: string): string {
+  const { hours, minutes } = minutesToHm(startsAt);
+  return new Intl.DateTimeFormat(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(2000, 0, 1, hours, minutes));
+}
+
 function AgendaView({
-  from,
-  to,
-  lessons,
-  entries,
-  classes,
+  sessions,
   locale,
   className,
   searching,
 }: {
-  from: number;
-  to: number;
-  lessons: Lesson[];
-  entries: DiaryEntry[];
-  classes: SchoolClass[];
+  sessions: Session[];
   locale: string;
   className: (id: string) => string;
   searching: boolean;
 }) {
-  const roomNames = useRoomNames();
   const { t } = useTranslation();
-  // While searching, only the days whose entries matched are worth showing —
-  // every lesson of the month would bury the three days being looked for. But
-  // those days keep THEIR lessons: dropping lessons wholesale made a matched
-  // day read "pas de cours prévu" while the timetable plainly had one, which
-  // is the UI stating something false rather than merely showing less.
-  const matchedDays = new Set(entries.map((entry) => entry.date));
-  const visibleLessons = searching
-    ? lessons.filter((lesson) => matchedDays.has(lesson.date))
-    : lessons;
 
-  const days = agendaDays(
-    from,
-    to,
-    visibleLessons,
-    (lesson) => lesson.date,
-    entries,
-    (entry) => entry.date,
-  );
+  // `sessions` arrives newest day first with each day's séances already
+  // earliest-first — the order `sessionsInRange` documents as "the order the
+  // journal reads them in" — so grouping only needs to preserve it.
+  const byDay = new Map<number, Session[]>();
+  for (const session of sessions) {
+    const day = byDay.get(session.date) ?? [];
+    day.push(session);
+    byDay.set(session.date, day);
+  }
+  const days = [...byDay.entries()];
+
   const dayFormat = new Intl.DateTimeFormat(locale, {
     weekday: "long",
     day: "numeric",
@@ -343,57 +292,36 @@ function AgendaView({
 
   return (
     <ul className="flex flex-col gap-4">
-      {days.map((day) => {
-        // Which classes get a box on this day: those with a lesson, plus any
-        // that already have an entry — a cover class, or a plan written before
-        // the timetable knew about it, must not lose its text.
-        const withLesson = new Set(day.lessons.map((l) => l.entry.classId));
-        const withEntry = new Set(day.entries.map((e) => e.classId));
-        const ids = [...new Set([...withLesson, ...withEntry])];
-
-        return (
-          <li key={day.date} className="flex flex-col gap-2">
-            <h3 className="font-medium text-sm text-text-muted">
-              {dayFormat.format(new Date(day.date))}
-            </h3>
-            {ids.map((id) => {
-              const lessonsHere = day.lessons.filter((l) => l.entry.classId === id);
-              const entry = day.entries.find((e) => e.classId === id) ?? null;
-              return (
-                <div
-                  key={id}
-                  className="paper flex flex-col gap-2 rounded border border-border p-3"
-                >
-                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <span className="font-medium">{className(id)}</span>
-                    {lessonsHere.map((lesson) => (
-                      <span key={lesson.entry.id} className="text-sm text-text-muted">
-                        {formatTimeRange(lesson.entry.startMinute, lesson.entry.endMinute, locale)}
-                        {lesson.entry.roomId && roomNames.has(lesson.entry.roomId)
-                          ? ` · ${roomNames.get(lesson.entry.roomId)}`
-                          : ""}
-                      </span>
-                    ))}
-                    {lessonsHere.length === 0 && (
-                      <span className="text-sm text-text-faint">{t("diary.noLesson")}</span>
-                    )}
-                  </div>
-                  <DayEntry
-                    // Anchored to the class AND the day: switching either must
-                    // reset the draft, never carry one lesson's text onto
-                    // another.
-                    key={`${id}:${day.date}`}
-                    classId={id}
-                    date={day.date}
-                    entry={entry}
-                  />
-                </div>
-              );
-            })}
-          </li>
-        );
-      })}
-      {classes.length === 0 && <li className="text-text-muted">{t("diary.empty")}</li>}
+      {days.map(([date, daySessions]) => (
+        <li key={date} className="flex flex-col gap-2">
+          <h3 className="font-medium text-sm text-text-muted">
+            {dayFormat.format(new Date(date))}
+          </h3>
+          {daySessions.map((session) => (
+            <div
+              key={session.id}
+              className="paper flex flex-col gap-2 rounded border border-border p-3"
+            >
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="font-medium">{className(session.classId)}</span>
+                <span className="text-sm text-text-muted">
+                  {session.startsAt === undefined
+                    ? t("diary.unscheduled")
+                    : t("diary.seanceAt", { time: formatSeanceTime(session.startsAt, locale) })}
+                </span>
+              </div>
+              <SeanceNote
+                // Anchored to the séance itself, never to its position in the
+                // list: two lessons for the same class on the same day must
+                // keep separate drafts.
+                key={session.id}
+                sessionId={session.id}
+                text={session.note ?? ""}
+              />
+            </div>
+          ))}
+        </li>
+      ))}
     </ul>
   );
 }
@@ -401,16 +329,14 @@ function AgendaView({
 function GridView({
   days,
   columns,
-  lessons,
-  entries,
+  sessions,
   locale,
   className,
   onPick,
 }: {
   days: { date: number; inMonth: boolean }[];
   columns: number;
-  lessons: Lesson[];
-  entries: DiaryEntry[];
+  sessions: Session[];
   locale: string;
   className: (id: string) => string;
   onPick: (date: number) => void;
@@ -436,8 +362,8 @@ function GridView({
         style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
       >
         {days.map((day) => {
-          const dayLessons = lessons.filter((l) => l.date === day.date);
-          const dayEntries = entries.filter((e) => e.date === day.date);
+          const daySessions = sessions.filter((s) => s.date === day.date);
+          const hasNote = daySessions.some((s) => s.note !== undefined);
           return (
             <button
               key={day.date}
@@ -452,14 +378,14 @@ function GridView({
               )}
             >
               <span className="text-xs tabular-nums">{new Date(day.date).getDate()}</span>
-              {dayLessons.map((lesson) => (
-                <span key={lesson.entry.id} className="w-full truncate text-[10px] text-text-muted">
-                  {className(lesson.entry.classId)}
+              {daySessions.map((session) => (
+                <span key={session.id} className="w-full truncate text-[10px] text-text-muted">
+                  {className(session.classId)}
                 </span>
               ))}
-              {/* The text does not fit in a cell, so a day carrying an entry
-                  is marked rather than quoted. */}
-              {dayEntries.length > 0 && (
+              {/* The note does not fit in a cell, so a day carrying one is
+                  marked rather than quoted. */}
+              {hasNote && (
                 <span className="text-[10px] text-accent" title={t("diary.hasEntry")}>
                   ●<span className="sr-only">{t("diary.hasEntry")}</span>
                 </span>

@@ -126,6 +126,26 @@ export async function sessionsForDay(
 }
 
 /**
+ * Every class's séances between two days, newest day first and earliest
+ * lesson first within a day — the order the journal reads them in.
+ */
+export async function sessionsInRange(
+  db: AppDatabase,
+  from: number,
+  to: number,
+): Promise<Session[]> {
+  const rows = await db.sessions
+    .where("date")
+    .between(startOfDay(from), startOfDay(to), true, true)
+    .toArray();
+  return rows.sort(
+    (a, b) =>
+      b.date - a.date ||
+      (a.startsAt ?? Number.MAX_SAFE_INTEGER) - (b.startsAt ?? Number.MAX_SAFE_INTEGER),
+  );
+}
+
+/**
  * The séance for one slot, created if absent.
  *
  * A slot is a class, a day, and — when the lesson has one — a start time.

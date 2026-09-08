@@ -1,35 +1,33 @@
-import type { DiaryEntry } from "@db";
-import { setDiaryEntry } from "@db/diary";
 import { useDb } from "@db/provider";
+import { setSessionNote } from "@db/sessions";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 /**
- * One day's journal box for one class.
+ * One séance's note.
  *
  * Saved on blur rather than behind a button: this is written mid-lesson or at
  * 21h, and a save button is one more thing to forget. The three outcomes match
- * the rest of the app — text stores, blank clears the row, and nothing is ever
- * half-written.
+ * the rest of the app — text stores, blank clears the field, and nothing is
+ * ever half-written.
  *
- * Keyed by its caller on `${classId}:${date}`, so switching day or class
- * resets the draft instead of carrying one lesson's text onto another. That is
- * the identity-anchoring rule this codebase has broken in six disguises.
+ * Anchored to `sessionId` rather than to a day or a class: two lessons on one
+ * day are two séances, each with its own note, and a caller must key this
+ * component by `sessionId` so switching séance resets the draft instead of
+ * carrying one lesson's text onto another.
  */
-export function DayEntry({
-  classId,
-  date,
-  entry,
-  placeholder,
+export function SeanceNote({
+  sessionId,
+  text,
+  readOnly = false,
 }: {
-  classId: string;
-  date: number;
-  entry: DiaryEntry | null;
-  placeholder?: string;
+  sessionId: string;
+  text: string;
+  readOnly?: boolean;
 }) {
   const { t } = useTranslation();
   const db = useDb();
-  const [text, setText] = useState(entry?.text ?? "");
+  const [draft, setDraft] = useState(text);
   const focused = useRef(false);
 
   // A live query can bring in a change made in another tab. Accept it only
@@ -37,29 +35,30 @@ export function DayEntry({
   // mid-sentence.
   useEffect(() => {
     if (focused.current) return;
-    setText(entry?.text ?? "");
-  }, [entry?.text]);
+    setDraft(text);
+  }, [text]);
 
   return (
     <textarea
       // The one surface in the app a teacher writes prose on, and so the only
       // one that is ruled. `.carreaux` locks line-height to the grid pitch, so
       // `rows` counts real ruled lines rather than arbitrary ones.
-      className="field carreaux min-h-24 w-full"
+      className="carreaux field min-h-24 w-full"
       rows={3}
-      value={text}
-      placeholder={placeholder ?? t("diary.placeholder")}
+      value={draft}
+      readOnly={readOnly}
+      placeholder={t("diary.noNote")}
       aria-label={t("diary.entryLabel")}
-      onChange={(e) => setText(e.target.value)}
+      onChange={(e) => setDraft(e.target.value)}
       onFocus={() => {
         focused.current = true;
       }}
       onBlur={() => {
         focused.current = false;
         // Nothing typed and nothing stored: no write at all, so an idle focus
-        // does not touch updatedAt.
-        if (text === (entry?.text ?? "")) return;
-        void setDiaryEntry(db, classId, date, text);
+        // does not touch the séance.
+        if (draft === text) return;
+        void setSessionNote(db, sessionId, draft);
       }}
     />
   );

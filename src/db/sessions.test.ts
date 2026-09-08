@@ -6,6 +6,7 @@ import {
   getOrCreateTodaySession,
   sessionsForClass,
   sessionsForDay,
+  sessionsInRange,
   setSessionNote,
   startOfDay,
 } from "./sessions";
@@ -188,6 +189,23 @@ describe("sessionsForDay", () => {
 
     const day = await sessionsForDay(db, "c1", date);
     expect(day.map((s) => s.startsAt)).toEqual([600, 840, undefined]);
+    db.close();
+  });
+});
+
+describe("sessionsInRange", () => {
+  it("returns every class's séances in the window, newest day first", async () => {
+    const db = freshDb("range");
+    const day = 86_400_000;
+    const today = startOfDay(Date.now());
+    await createSession(db, "c1", today, { startsAt: 600 });
+    await createSession(db, "c2", today, { startsAt: 840 });
+    await createSession(db, "c1", today - day);
+    await createSession(db, "c1", today - 30 * day);
+
+    const range = await sessionsInRange(db, today - day, today);
+    expect(range).toHaveLength(3);
+    expect(range[0].date).toBe(today);
     db.close();
   });
 });
