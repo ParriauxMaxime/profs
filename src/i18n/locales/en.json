@@ -93,7 +93,9 @@
       "diary": "Journal"
     },
     "openCard": "Open the pupil card",
-    "books": "Gradebooks"
+    "books": "Gradebooks",
+    "actions": "Class actions",
+    "openActions": "More actions"
   },
   "group": {
     "title": "Groups",

@@ -1,5 +1,4 @@
 import type { ScheduleEntry, Session } from "@db";
-import { deleteClass } from "@db/cascade";
 import { useDb } from "@db/provider";
 import { listRooms } from "@db/rooms";
 import { getOrCreateSessionAt, sessionsForClass, sessionsForDay, startOfDay } from "@db/sessions";
@@ -12,12 +11,12 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
-import { ConfirmButton } from "../design-system/components/confirm-button";
 import { SeanceNote } from "../diary/components/seance-note";
 import { StudentCard } from "../plan/components/student-card";
 import { PlanPage } from "../plan/page";
 import { CarnetsPanel } from "./components/carnets-panel";
 import { ClassForm } from "./components/class-form";
+import { ClassMenu } from "./components/class-menu";
 import { GroupFilter } from "./components/group-filter";
 import { RosterRegister } from "./components/roster-register";
 import { SeanceStrip } from "./components/seance-strip";
@@ -268,13 +267,16 @@ export function ClassPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-baseline gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="flex flex-wrap items-baseline gap-2">
+          {/* The page had no way back to the list except the drawer. */}
+          <Link to={Router.Classes()} className="text-accent text-sm">
+            {t("nav.classes")}
+          </Link>
+          <span className="text-sm text-text-faint">/</span>
           <h2 className="font-semibold text-lg">{schoolClass.name}</h2>
-          {schoolClass.level && (
-            <span className="text-sm text-text-muted">{schoolClass.level}</span>
-          )}
-          <span className="text-sm text-text-faint">
+          <span className="text-sm text-text-muted">
+            {schoolClass.level ? `${schoolClass.level} \u00b7 ` : ""}
             {t("dashboard.studentCount", { count: students.length })}
           </span>
         </div>
@@ -287,22 +289,7 @@ export function ClassPage({
           <Link to={Router.ClassDiary({ classId })} className="text-accent text-sm">
             {t("class.tab.diary")}
           </Link>
-          <button type="button" className="btn" onClick={() => setRenaming(true)}>
-            {t("class.rename")}
-          </button>
-          <ConfirmButton
-            danger
-            label={t("class.deleteClass")}
-            confirmLabel={t("class.confirmDeleteClass")}
-            body={t("class.confirmDeleteClassBody")}
-            onConfirm={async () => {
-              await deleteClass(db, classId);
-              // The class page cannot survive its own class: without this the
-              // route would render "Classe introuvable" instead of going back
-              // to a list the teacher can act on.
-              Router.push("Home");
-            }}
-          />
+          <ClassMenu schoolClass={schoolClass} onRename={() => setRenaming(true)} />
         </div>
       </div>
 

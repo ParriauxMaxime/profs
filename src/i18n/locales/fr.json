@@ -93,7 +93,9 @@
       "diary": "Journal"
     },
     "openCard": "Ouvrir la fiche de l'élève",
-    "books": "Carnets"
+    "books": "Carnets",
+    "actions": "Actions de la classe",
+    "openActions": "Autres actions"
   },
   "group": {
     "title": "Groupes",
