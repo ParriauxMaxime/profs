@@ -71,6 +71,7 @@ export function RecoveryShell({ error }: { error: unknown }) {
               danger
               label={t("recovery.discard")}
               confirmLabel={t("recovery.discardConfirm", { name: active.name })}
+              body={t("recovery.discardConfirmBody")}
               onConfirm={discard}
             />
           )}

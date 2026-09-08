@@ -16,9 +16,12 @@ import {
   reseat,
   resolvePlacement,
   type Seated,
+  snapCell,
+  snapToPlace,
   TABLE,
   tableGroups,
 } from "./room";
+import { buildRoom, defaultTemplate, TEMPLATE_IDS } from "./room-templates";
 
 describe("constants", () => {
   it("gives a table one unit of air at pitch", () => {
@@ -444,5 +447,97 @@ describe("resolvePlacement", () => {
       deskId: "d1",
       displaced: null,
     });
+  });
+});
+
+describe("snapCell", () => {
+  it("rounds to the nearest half-tile, which is the room's own unit", () => {
+    expect(snapCell(2.4, 5.6)).toEqual({ x: 2, y: 6 });
+    expect(snapCell(2.5, 3.49)).toEqual({ x: 3, y: 3 });
+  });
+
+  it("never returns a square outside the wall it was measured from", () => {
+    expect(snapCell(-3, -0.4)).toEqual({ x: 0, y: 0 });
+  });
+
+  /**
+   * The regression this exists for.
+   *
+   * The floor used to snap to whole TABLES, while the generators step rows by
+   * `TABLE + ROW_GAP` — so half of every room's rows sat on ODD coordinates the
+   * snap could not express. A table lifted out of one of those rows could never
+   * be dropped back onto its own square: it landed a unit high or low, out of
+   * line with its row and unable to re-form the table it came from. The arrow
+   * keys could reach those squares; the gesture that lifted it could not.
+   */
+  it("can express every square a template puts a table on", () => {
+    for (const id of TEMPLATE_IDS) {
+      for (const position of buildRoom(defaultTemplate(id)).positions) {
+        expect(snapCell(position.x, position.y)).toEqual(position);
+      }
+    }
+  });
+});
+
+describe("snapToPlace", () => {
+  const room = { width: 20, height: 15 };
+  /** The seeded grid: pairs at x 2/4, 8/10, 14/16, rows every three units. */
+  const grid = (): { id: string; x: number; y: number }[] => {
+    const desks = [];
+    for (const y of [2, 5, 8, 11])
+      for (const x of [2, 4, 8, 10, 14, 16]) desks.push({ id: `${x},${y}`, x, y });
+    return desks;
+  };
+
+  it("takes the nearest square on open floor", () => {
+    expect(snapToPlace({ x: 6.4, y: 13.2 }, grid(), room)).toEqual({ x: 6, y: 13 });
+  });
+
+  /**
+   * The bug this exists for.
+   *
+   * A table lifted out of a pair leaves a notch, and the eight squares around
+   * that notch are legal too — so an aim that was a unit off dropped the table
+   * BESIDE its old place, never back in it, and the pair could not re-form. The
+   * grid had to stay one unit to reach the rows the generators use, so the pull
+   * has to come from the furniture instead.
+   */
+  it("pulls into a notch a table was lifted out of", () => {
+    const taken = grid().filter((d) => !(d.x === 4 && d.y === 5));
+    for (const aim of [
+      { x: 4.5, y: 5 },
+      { x: 4, y: 5.4 },
+      { x: 3.7, y: 4.6 },
+      { x: 4.4, y: 5.4 },
+    ]) {
+      expect(snapToPlace(aim, taken, room)).toEqual({ x: 4, y: 5 });
+    }
+  });
+
+  it("still lets go of a table aimed clear of the notch", () => {
+    const taken = grid().filter((d) => !(d.x === 4 && d.y === 5));
+    expect(snapToPlace({ x: 5.6, y: 5 }, taken, room)).toEqual({ x: 6, y: 5 });
+  });
+
+  /**
+   * The magnet must not fight the generators' own row pitch. Rows sit three
+   * units apart, which is NOT abutment, so aiming at a new row must not stick
+   * the table to the row above it.
+   */
+  it("leaves a row at its natural pitch rather than snapping it to the row above", () => {
+    const taken = [{ id: "a", x: 2, y: 2 }];
+    expect(snapToPlace({ x: 2, y: 5 }, taken, room)).toEqual({ x: 2, y: 5 });
+    expect(snapToPlace({ x: 2.1, y: 4.9 }, taken, room)).toEqual({ x: 2, y: 5 });
+  });
+
+  it("refuses when nothing within reach is legal", () => {
+    const taken = grid();
+    // Dead centre of an occupied pair, hemmed in on every side.
+    expect(snapToPlace({ x: 9, y: 8 }, taken, room)).toBeNull();
+  });
+
+  it("never returns a square that hangs over the wall", () => {
+    const at = snapToPlace({ x: 19.4, y: 14.2 }, [], room);
+    expect(at).toEqual({ x: 18, y: 13 });
   });
 });

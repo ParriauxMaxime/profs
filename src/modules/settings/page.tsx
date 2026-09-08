@@ -404,6 +404,7 @@ export function SettingsPage() {
                   if (!armed) onCancelImport();
                 }}
                 confirmLabel={t("settings.importConfirm")}
+                body={t("settings.importConfirmBody")}
                 onConfirm={onConfirmImport}
               />
             </div>
@@ -426,6 +427,7 @@ export function SettingsPage() {
             className="self-start"
             label={t("settings.wipe")}
             confirmLabel={t("settings.wipeConfirm")}
+            body={t("settings.wipeConfirmBody")}
             onConfirm={onWipe}
           />
         </div>

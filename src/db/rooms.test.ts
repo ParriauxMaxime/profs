@@ -1,21 +1,9 @@
 import "fake-indexeddb/auto";
-import { TABLE } from "@domain/room";
+import { draftFrom, moveInDraft, removeFromDraft, renameDraft } from "@domain/room-draft";
 import { buildRoom } from "@domain/room-templates";
 import { type AppDatabase, openWorkspaceDb } from ".";
 import { applyPlacement, assignmentsForPlan, getOrCreatePlan } from "./plans";
-import {
-  addDesk,
-  applyShape,
-  createRoom,
-  desksForRoom,
-  listRooms,
-  moveDesk,
-  nudgeDesk,
-  removeDesk,
-  renameRoom,
-  resizeRoom,
-  stampOverflow,
-} from "./rooms";
+import { createRoom, desksForRoom, listRooms, saveRoomDraft } from "./rooms";
 
 let db: AppDatabase;
 
@@ -60,282 +48,144 @@ describe("listRooms", () => {
   });
 });
 
-describe("renameRoom", () => {
-  it("renames without disturbing the furniture", async () => {
+describe("saveRoomDraft", () => {
+  /** Seat `student` at `desk` in a plan for `classId`, and hand back the plan. */
+  async function seat(roomId: string, classId: string, deskId: string, studentId: string) {
+    const plan = await getOrCreatePlan(db, classId, roomId);
+    await applyPlacement(db, plan.id, { kind: "place", studentId, deskId, displaced: null });
+    return plan;
+  }
+
+  it("writes the name and the floor", async () => {
     const room = await createRoom(db, "204", SHAPE);
-    await renameRoom(db, room.id, "Salle 204");
-    expect((await db.rooms.get(room.id))?.name).toBe("Salle 204");
+    const draft = draftFrom(room, await desksForRoom(db, room.id));
+
+    expect(await saveRoomDraft(db, room.id, { ...renameDraft(draft, "B12"), height: 14 })).toBe(
+      true,
+    );
+
+    const after = await db.rooms.get(room.id);
+    expect(after).toMatchObject({ name: "B12", height: 14 });
+  });
+
+  it("trims the name, and refuses a blank one without writing anything", async () => {
+    const room = await createRoom(db, "204", SHAPE);
+    const draft = draftFrom(room, await desksForRoom(db, room.id));
+
+    expect(await saveRoomDraft(db, room.id, renameDraft(draft, "  B12  "))).toBe(true);
+    expect((await db.rooms.get(room.id))?.name).toBe("B12");
+
+    expect(await saveRoomDraft(db, room.id, renameDraft(draft, "   "))).toBe(false);
+    expect((await db.rooms.get(room.id))?.name).toBe("B12");
+  });
+
+  /**
+   * The reason the commit is a diff rather than a delete-and-recreate. An
+   * `Assignment` names a desk id, so a table that MOVES has to arrive at its
+   * new square as the same row — otherwise rearranging 204 empties the
+   * seating plan of every class taught in it.
+   */
+  it("keeps a moved table's occupants, in every class taught in the salle", async () => {
+    const room = await createRoom(db, "204", SHAPE);
+    const desks = await desksForRoom(db, room.id);
+    const a = await seat(room.id, "c1", desks[0].id, "s1");
+    const b = await seat(room.id, "c2", desks[0].id, "s9");
+
+    const draft = draftFrom(room, desks);
+    const moved = moveInDraft(draft, desks[0].id, { x: 0, y: 4 });
+    expect(moved).not.toBeNull();
+    expect(moved && (await saveRoomDraft(db, room.id, moved))).toBe(true);
+
+    expect(await db.desks.get(desks[0].id)).toMatchObject({ x: 0, y: 4 });
+    expect(await assignmentsForPlan(db, a.id)).toEqual([
+      { planId: a.id, deskId: desks[0].id, studentId: "s1" },
+    ]);
+    expect(await assignmentsForPlan(db, b.id)).toHaveLength(1);
+  });
+
+  /**
+   * Two tables swapping keeps every id and every square in the room. Written
+   * as in-place updates it would abort: `&[roomId+x+y]` admits no two desks on
+   * one square, and whichever moved first would land on the other.
+   */
+  it("survives two tables swapping places", async () => {
+    const room = await createRoom(db, "204", SHAPE);
+    const [first, second] = await desksForRoom(db, room.id);
+    const draft = draftFrom(room, await desksForRoom(db, room.id));
+    const swapped = {
+      ...draft,
+      desks: draft.desks.map((desk) => {
+        if (desk.id === first.id) return { ...desk, x: second.x, y: second.y };
+        if (desk.id === second.id) return { ...desk, x: first.x, y: first.y };
+        return desk;
+      }),
+    };
+
+    expect(await saveRoomDraft(db, room.id, swapped)).toBe(true);
+
+    expect(await db.desks.get(first.id)).toMatchObject({ x: second.x, y: second.y });
+    expect(await db.desks.get(second.id)).toMatchObject({ x: first.x, y: first.y });
     expect(await desksForRoom(db, room.id)).toHaveLength(6);
   });
-});
 
-describe("resizeRoom", () => {
-  it("grows the floor without moving a table", async () => {
+  it("takes a removed table's assignments with it, across every class", async () => {
     const room = await createRoom(db, "204", SHAPE);
-    const before = await desksForRoom(db, room.id);
+    const desks = await desksForRoom(db, room.id);
+    const a = await seat(room.id, "c1", desks[0].id, "s1");
+    const b = await seat(room.id, "c2", desks[0].id, "s9");
 
-    const size = await resizeRoom(db, room.id, { width: 40, height: 30 });
-
-    expect(size).toEqual({ width: 40, height: 30 });
-    expect(await desksForRoom(db, room.id)).toEqual(before);
-  });
-
-  it("refuses to shrink under the furniture, returning what it actually wrote", async () => {
-    const room = await createRoom(db, "204", SHAPE);
-    const furthest = (await desksForRoom(db, room.id)).reduce((a, b) => (a.x > b.x ? a : b));
-
-    const size = await resizeRoom(db, room.id, { width: 4, height: 4 });
-
-    // A desk outside the walls fails `fitsRoom`, so `moveDesk` would refuse
-    // every attempt to bring it back — furniture visible and untouchable.
-    expect(size?.width).toBeGreaterThan(furthest.x + TABLE);
-    const stored = await db.rooms.get(room.id);
-    expect(stored?.width).toBe(size?.width);
-  });
-
-  it("lets an emptied salle shrink to the floor", async () => {
-    const room = await createRoom(db, "204", SHAPE);
-    for (const desk of await desksForRoom(db, room.id)) await removeDesk(db, desk.id);
-
-    const size = await resizeRoom(db, room.id, { width: 0, height: 0 });
-
-    expect(size?.width).toBeLessThan(room.width);
-    expect(size?.width).toBeGreaterThan(0);
-  });
-
-  it("is null for a salle that is gone", async () => {
-    expect(await resizeRoom(db, "no-such-room", { width: 20, height: 20 })).toBeNull();
-  });
-});
-
-describe("addDesk", () => {
-  it("places a desk on free floor", async () => {
-    const room = await createRoom(db, "204", SHAPE);
-    expect(await addDesk(db, room.id, { x: 0, y: 0 })).toBe(true);
-    expect(await desksForRoom(db, room.id)).toHaveLength(7);
-  });
-
-  it("refuses a position that overlaps an existing desk", async () => {
-    const room = await createRoom(db, "204", SHAPE);
-    const first = (await desksForRoom(db, room.id))[0];
-    expect(await addDesk(db, room.id, { x: first.x, y: first.y })).toBe(false);
-    expect(await desksForRoom(db, room.id)).toHaveLength(6);
-  });
-
-  it("allows a position exactly TABLE away — adjacency is legal, and merges", async () => {
-    const room = await createRoom(db, "204", SHAPE);
-    const first = (await desksForRoom(db, room.id))[0];
-    expect(await addDesk(db, room.id, { x: first.x, y: first.y + TABLE })).toBe(true);
-  });
-
-  it("refuses a position outside the room", async () => {
-    const room = await createRoom(db, "204", SHAPE);
-    expect(await addDesk(db, room.id, { x: room.width, y: 0 })).toBe(false);
-  });
-});
-
-describe("moveDesk", () => {
-  it("moves onto free floor", async () => {
-    const room = await createRoom(db, "204", SHAPE);
-    const desk = (await desksForRoom(db, room.id))[0];
-    expect(await moveDesk(db, desk.id, { x: 0, y: 0 })).toBe(true);
-    expect((await db.desks.get(desk.id))?.x).toBe(0);
-  });
-
-  it("refuses a move onto a neighbour", async () => {
-    const room = await createRoom(db, "204", SHAPE);
-    const [a, b] = await desksForRoom(db, room.id);
-    expect(await moveDesk(db, a.id, { x: b.x, y: b.y })).toBe(false);
-    expect((await db.desks.get(a.id))?.x).toBe(a.x);
-  });
-
-  it("lets a desk move onto the square it already occupies", async () => {
-    // It excludes itself from the collision set, or its own square would be
-    // the one place it could never go.
-    const room = await createRoom(db, "204", SHAPE);
-    const desk = (await desksForRoom(db, room.id))[0];
-    expect(await moveDesk(db, desk.id, { x: desk.x, y: desk.y })).toBe(true);
-  });
-
-  it("keeps the pupil sitting at it", async () => {
-    const room = await createRoom(db, "204", SHAPE);
-    const plan = await getOrCreatePlan(db, "c1", room.id);
-    const desk = (await desksForRoom(db, room.id))[0];
-    await applyPlacement(db, plan.id, {
-      kind: "place",
-      studentId: "s1",
-      deskId: desk.id,
-      displaced: null,
-    });
-    await moveDesk(db, desk.id, { x: 0, y: 0 });
-    expect((await assignmentsForPlan(db, plan.id))[0]).toMatchObject({
-      deskId: desk.id,
-      studentId: "s1",
-    });
-  });
-});
-
-describe("nudgeDesk", () => {
-  it("walks a desk one unit at a time", async () => {
-    const room = await createRoom(db, "204", SHAPE);
-    const desk = (await desksForRoom(db, room.id))[0];
-    await nudgeDesk(db, desk.id, { x: 0, y: 1 });
-    await nudgeDesk(db, desk.id, { x: 0, y: 1 });
-    expect((await db.desks.get(desk.id))?.y).toBe(desk.y + 2);
-  });
-
-  it("refuses a nudge into a wall, writing nothing", async () => {
-    const room = await createRoom(db, "204", SHAPE);
-    const desk = (await desksForRoom(db, room.id))[0];
-    await moveDesk(db, desk.id, { x: 0, y: 0 });
-    expect(await nudgeDesk(db, desk.id, { x: -1, y: 0 })).toBe(false);
-    expect((await db.desks.get(desk.id))?.x).toBe(0);
-  });
-});
-
-describe("removeDesk", () => {
-  it("takes the desk and every assignment naming it, across every class", async () => {
-    const room = await createRoom(db, "204", SHAPE);
-    const a = await getOrCreatePlan(db, "c1", room.id);
-    const b = await getOrCreatePlan(db, "c2", room.id);
-    const desk = (await desksForRoom(db, room.id))[0];
-    for (const [plan, student] of [
-      [a, "s1"],
-      [b, "s9"],
-    ] as const) {
-      await applyPlacement(db, plan.id, {
-        kind: "place",
-        studentId: student,
-        deskId: desk.id,
-        displaced: null,
-      });
-    }
-
-    await removeDesk(db, desk.id);
+    const draft = draftFrom(room, desks);
+    expect(await saveRoomDraft(db, room.id, removeFromDraft(draft, desks[0].id))).toBe(true);
 
     expect(await desksForRoom(db, room.id)).toHaveLength(5);
     expect(await assignmentsForPlan(db, a.id)).toEqual([]);
     expect(await assignmentsForPlan(db, b.id)).toEqual([]);
   });
-});
 
-describe("applyShape", () => {
-  it("replaces every desk", async () => {
+  it("adds a table the teacher put down", async () => {
     const room = await createRoom(db, "204", SHAPE);
-    const before = (await desksForRoom(db, room.id)).map((d) => d.id);
-    await applyShape(db, room.id, buildRoom({ id: "rows", rows: 2, tables: 2, perTable: 2 }));
-    const after = await desksForRoom(db, room.id);
-    expect(after).toHaveLength(8);
-    expect(after.some((d) => before.includes(d.id))).toBe(false);
+    const draft = draftFrom(room, await desksForRoom(db, room.id));
+    const added = { ...draft, desks: [...draft.desks, { id: "new", x: 0, y: 4 }] };
+
+    expect(await saveRoomDraft(db, room.id, added)).toBe(true);
+
+    expect(await desksForRoom(db, room.id)).toHaveLength(7);
+    expect(await db.desks.get("new")).toMatchObject({ roomId: room.id, x: 0, y: 4 });
   });
 
-  it("pours each plan's pupils into the new positions in reading order", async () => {
+  /**
+   * Refused WHOLE, and before anything is written: a half-saved room — the new
+   * name kept, the tables not — is worse than a rejected one.
+   */
+  it("refuses a draft whose tables overlap, and writes nothing at all", async () => {
     const room = await createRoom(db, "204", SHAPE);
-    const plan = await getOrCreatePlan(db, "c1", room.id);
     const desks = await desksForRoom(db, room.id);
-    for (const [i, student] of ["s1", "s2", "s3"].entries()) {
-      await applyPlacement(db, plan.id, {
-        kind: "place",
-        studentId: student,
-        deskId: desks[i].id,
-        displaced: null,
-      });
-    }
+    const draft = draftFrom(room, desks);
+    const overlapping = {
+      ...renameDraft(draft, "B12"),
+      desks: draft.desks.map((desk) =>
+        desk.id === desks[1].id ? { ...desk, x: desks[0].x + 1, y: desks[0].y } : desk,
+      ),
+    };
 
-    await applyShape(db, room.id, buildRoom({ id: "rows", rows: 2, tables: 2, perTable: 2 }));
+    expect(await saveRoomDraft(db, room.id, overlapping)).toBe(false);
 
-    const newDesks = await desksForRoom(db, room.id);
-    const byDesk = new Map(
-      (await assignmentsForPlan(db, plan.id)).map((a) => [a.deskId, a.studentId]),
-    );
-    expect(newDesks.slice(0, 3).map((d) => byDesk.get(d.id))).toEqual(["s1", "s2", "s3"]);
+    expect((await db.rooms.get(room.id))?.name).toBe("204");
+    expect(await db.desks.get(desks[1].id)).toMatchObject({ x: desks[1].x, y: desks[1].y });
   });
 
-  it("reseats every class taught in the salle, not just one", async () => {
+  it("refuses a draft whose tables sit outside the floor", async () => {
     const room = await createRoom(db, "204", SHAPE);
-    const a = await getOrCreatePlan(db, "c1", room.id);
-    const b = await getOrCreatePlan(db, "c2", room.id);
-    const desks = await desksForRoom(db, room.id);
-    await applyPlacement(db, a.id, {
-      kind: "place",
-      studentId: "s1",
-      deskId: desks[0].id,
-      displaced: null,
-    });
-    await applyPlacement(db, b.id, {
-      kind: "place",
-      studentId: "s9",
-      deskId: desks[0].id,
-      displaced: null,
-    });
+    const draft = draftFrom(room, await desksForRoom(db, room.id));
 
-    await applyShape(db, room.id, buildRoom({ id: "rows", rows: 2, tables: 2, perTable: 2 }));
-
-    expect((await assignmentsForPlan(db, a.id)).map((x) => x.studentId)).toEqual(["s1"]);
-    expect((await assignmentsForPlan(db, b.id)).map((x) => x.studentId)).toEqual(["s9"]);
+    expect(await saveRoomDraft(db, room.id, { ...draft, width: 4, height: 4 })).toBe(false);
   });
 
-  it("returns whoever no longer fits rather than dropping them", async () => {
+  it("refuses a salle that no longer exists", async () => {
     const room = await createRoom(db, "204", SHAPE);
-    const plan = await getOrCreatePlan(db, "c1", room.id);
-    const desks = await desksForRoom(db, room.id);
-    for (const [i, student] of ["s1", "s2", "s3"].entries()) {
-      await applyPlacement(db, plan.id, {
-        kind: "place",
-        studentId: student,
-        deskId: desks[i].id,
-        displaced: null,
-      });
-    }
+    const draft = draftFrom(room, await desksForRoom(db, room.id));
+    await db.rooms.delete(room.id);
 
-    const { overflow } = await applyShape(
-      db,
-      room.id,
-      buildRoom({ id: "rows", rows: 1, tables: 1, perTable: 1 }),
-    );
-
-    expect(overflow[plan.id]).toEqual(["s2", "s3"]);
-    expect(await assignmentsForPlan(db, plan.id)).toHaveLength(1);
-  });
-
-  it("reports no overflow when everyone fits", async () => {
-    const room = await createRoom(db, "204", SHAPE);
-    const plan = await getOrCreatePlan(db, "c1", room.id);
-    const desks = await desksForRoom(db, room.id);
-    await applyPlacement(db, plan.id, {
-      kind: "place",
-      studentId: "s1",
-      deskId: desks[0].id,
-      displaced: null,
-    });
-    const { overflow } = await applyShape(db, room.id, SHAPE);
-    expect(overflow).toEqual({});
-  });
-});
-
-describe("stampOverflow", () => {
-  it("counts the loss before the write, per plan", async () => {
-    const room = await createRoom(db, "204", SHAPE);
-    const plan = await getOrCreatePlan(db, "c1", room.id);
-    const desks = await desksForRoom(db, room.id);
-    for (const [i, student] of ["s1", "s2", "s3"].entries()) {
-      await applyPlacement(db, plan.id, {
-        kind: "place",
-        studentId: student,
-        deskId: desks[i].id,
-        displaced: null,
-      });
-    }
-
-    const overflow = await stampOverflow(
-      db,
-      room.id,
-      buildRoom({ id: "rows", rows: 1, tables: 1, perTable: 1 }),
-    );
-
-    expect(overflow[plan.id]).toEqual(["s2", "s3"]);
-    // And nothing was written: the warning must precede the destruction.
-    expect(await assignmentsForPlan(db, plan.id)).toHaveLength(3);
-    expect(await desksForRoom(db, room.id)).toHaveLength(6);
+    expect(await saveRoomDraft(db, room.id, draft)).toBe(false);
   });
 });

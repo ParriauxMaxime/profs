@@ -143,6 +143,7 @@ export function PeriodBar({
               danger
               label={t("gradebook.deletePeriod")}
               confirmLabel={t("gradebook.confirmDeletePeriod", { name: activePeriod.name })}
+              body={t("gradebook.confirmDeletePeriodBody")}
               onConfirm={async () => {
                 const next = periodAfterDeleting(activePeriod.id);
                 await deletePeriod(db, activePeriod.id);

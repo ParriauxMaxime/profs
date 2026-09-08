@@ -1,17 +1,19 @@
 import { deleteRoom } from "@db/cascade";
 import { plansForRoom } from "@db/plans";
 import { useDb } from "@db/provider";
+import { desksForRoom, saveRoomDraft } from "@db/rooms";
+import { minimumExtent, type Position, ROOM_MAX, snapCell, snapToPlace, TABLE } from "@domain/room";
 import {
-  addDesk,
-  applyShape,
-  desksForRoom,
-  moveDesk,
-  nudgeDesk,
-  removeDesk,
-  renameRoom,
-  resizeRoom,
-} from "@db/rooms";
-import { minimumExtent, type Position, ROOM_MAX, TABLE } from "@domain/room";
+  addToDraft,
+  draftChanged,
+  draftFrom,
+  moveInDraft,
+  nudgeInDraft,
+  type RoomDraft,
+  removeFromDraft,
+  renameDraft,
+  resizeDraft,
+} from "@domain/room-draft";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -19,8 +21,8 @@ import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { ConfirmButton } from "../design-system/components/confirm-button";
 import { useEscape } from "../shared/use-escape";
-import { RoomCanvas } from "./components/room-canvas";
-import { TemplateForm } from "./components/template-form";
+import { type FloorHandle, RoomCanvas } from "./components/room-canvas";
+import { usePointerDrag } from "./use-pointer-drag";
 
 /**
  * Furnishing a salle. One mode, because there are no pupils on this screen.
@@ -30,16 +32,40 @@ import { TemplateForm } from "./components/template-form";
  * a pupil to mean "pick up the table underneath them", which is where the
  * grammar came apart.
  *
- * Drag is the primary gesture and TAP IS KEPT as its equivalent, sharing one
- * `heldDeskId`. CLAUDE.md rules drag out because the browser automation cannot
- * drive it and there are no component tests — but that ruling was written for
- * the plan a teacher taps mid-lesson, and this screen is used once, sitting
- * down. Keeping the tap path costs nothing, leaves the screen driveable, and
- * supplies the keyboard equivalent the ruling asks for regardless.
+ * Every gesture edits a DRAFT and nothing else writes. The screen used to
+ * commit each drag, nudge and removal on its own, so rearranging a room was
+ * twenty-four transactions with no way back and no moment where the teacher
+ * decided they were done. `saveRoomDraft` writes the lot as one diff, and the
+ * ids in the draft are what keep every class's seating attached to the tables
+ * that merely moved.
+ *
+ * The cost, stated plainly because nothing on screen can state it: leaving the
+ * page loses an unsaved arrangement. The two mechanisms that would warn —
+ * Chicane's `useBlocker` and `beforeunload` — both raise a blocking browser
+ * dialog, which this codebase bans because it freezes the automation these
+ * pages are verified with. So the unsaved marker sits beside the button, and
+ * *Annuler* is there to make abandoning deliberate.
+ *
+ * Drag and tap are one gesture with two entrances, and `held` is the whole of
+ * it: a table is in the teacher's hand whether they picked it up with a tap,
+ * with the keyboard, or by pressing and moving. Both entrances end in the same
+ * `place`, so nothing on this screen can mean one thing to a finger and
+ * another to a mouse.
+ *
+ * The drag runs on POINTER events (`usePointerDrag`) rather than HTML5 drag
+ * and drop, because a finger never fires a drag event: on a tablet the old
+ * implementation left tap as the only gesture and made the table palette,
+ * which was drag-only, unable to add a table at all.
  */
 
-/** What is being dragged: an existing desk, or a new one from the palette. */
-type Dragging = { kind: "desk"; deskId: string } | { kind: "new" } | null;
+/** What is in hand: a table already in the room, or a new one from the palette. */
+type Held = { kind: "desk"; deskId: string } | { kind: "new" } | null;
+
+/** Where a table would land, and whether the floor will take it. */
+interface Ghost {
+  at: Position;
+  allowed: boolean;
+}
 
 /**
  * One dimension of the floor, in whole tiles.
@@ -91,16 +117,25 @@ export function RoomEditorPage({ roomId }: { roomId: string }) {
   const { t } = useTranslation();
   const db = useDb();
 
-  // Anchored to the desk's id, never to its position: a live query tick can
-  // move a desk out from under a coordinate between the pick-up and the drop.
-  const [heldDeskId, setHeldDeskId] = useState<string | null>(null);
+  // Anchored to the desk's id, never to its position: a re-render can move a
+  // desk out from under a coordinate between the pick-up and the drop.
+  const [held, setHeld] = useState<Held>(null);
   const [selectedDeskId, setSelectedDeskId] = useState<string | null>(null);
-  const dragging = useRef<Dragging>(null);
-  const [renaming, setRenaming] = useState<string | null>(null);
+  const [draft, setDraft] = useState<RoomDraft | null>(null);
+  const [saving, setSaving] = useState(false);
+  // Where the table in hand would land, while a pointer drag is in flight.
+  const [target, setTarget] = useState<Ghost | null>(null);
+  const floor = useRef<FloorHandle>(null);
+  // A drag ends in a `click` as well as a `pointerup`; without this the drop
+  // would be undone by the tap handler firing straight after it.
+  const dropped = useRef(false);
+
+  const heldDeskId = held?.kind === "desk" ? held.deskId : null;
 
   const release = useCallback(() => {
-    setHeldDeskId(null);
+    setHeld(null);
     setSelectedDeskId(null);
+    setTarget(null);
   }, []);
   useEscape(release);
 
@@ -115,12 +150,103 @@ export function RoomEditorPage({ roomId }: { roomId: string }) {
       return classes.filter((c) => c !== undefined).map((c) => c.name);
     }, [db, roomId]) ?? [];
 
-  // Half-tile precision by keyboard, and the only way to reach the odd
-  // coordinates an arc uses. `nudgeDesk` reads the position fresh inside its
-  // own transaction rather than trusting a snapshot this closure captured, so
-  // a key held down walks the desk one unit per press instead of rewriting the
-  // same square. `desks` is deliberately not a dependency: the effect reads no
-  // position out of it, so a live-query tick has nothing to make stale.
+  const saved = room && desks ? draftFrom(room, desks) : null;
+  // What the screen shows: the draft while one is open, the salle otherwise.
+  const current = draft ?? saved;
+
+  /**
+   * Apply an edit to the draft, opening one from the saved salle if needed.
+   *
+   * A refusal — a table dropped where it does not fit — returns null and the
+   * room simply does not change, exactly as the per-gesture writes used to
+   * behave. It must not open an empty draft either, or a mis-aimed drop would
+   * arm the Save button with nothing in it.
+   */
+  const edit = useCallback(
+    (apply: (draft: RoomDraft) => RoomDraft | null): boolean => {
+      if (!saved) return false;
+      const next = apply(draft ?? saved);
+      if (next === null) return false;
+      setDraft(next);
+      return true;
+    },
+    [draft, saved],
+  );
+
+  /**
+   * Put what is in hand onto the floor, and say whether it landed.
+   *
+   * The single ending for every input path — a tap on the floor, a pointer
+   * drag released over it, the keyboard's "put it down there". A refusal (too
+   * close to a neighbour, or past the wall) returns false and the room simply
+   * does not change.
+   */
+  const place = useCallback(
+    (what: Held, at: Position): boolean => {
+      if (what === null) return false;
+      if (what.kind === "new") return edit((draft) => addToDraft(draft, at, crypto.randomUUID()));
+      return edit((draft) => moveInDraft(draft, what.deskId, at));
+    },
+    [edit],
+  );
+
+  /**
+   * Where the table in hand would land, and whether it may.
+   *
+   * The canvas reports where the pointer IS; which square that becomes depends
+   * on the furniture, so it is resolved here, where the draft and the table in
+   * hand are both known. A moving table is excluded from its own collision
+   * set — the square it already occupies would otherwise be the one place it
+   * could never go back to.
+   *
+   * When nothing within reach can hold a table, the raw square comes back
+   * marked refused, so the ghost can say so in red rather than vanishing and
+   * leaving the teacher to guess why nothing is happening.
+   */
+  const resolveDrop = useCallback(
+    (what: Held, at: { clientX: number; clientY: number }): Ghost | null => {
+      const point = floor.current?.pointAtClient(at.clientX, at.clientY) ?? null;
+      if (point === null || current === null) return null;
+      const taken =
+        what?.kind === "desk"
+          ? current.desks.filter((desk) => desk.id !== what.deskId)
+          : current.desks;
+      const cell = snapToPlace(point, taken, current);
+      return cell === null
+        ? { at: snapCell(point.x, point.y), allowed: false }
+        : { at: cell, allowed: true };
+    },
+    [current],
+  );
+
+  const { begin, dragging } = usePointerDrag<Held>({
+    onStart: (payload, at) => {
+      dropped.current = false;
+      setHeld(payload);
+      if (payload?.kind === "desk") setSelectedDeskId(payload.deskId);
+      setTarget(resolveDrop(payload, at));
+    },
+    onMove: (payload, at) => setTarget(resolveDrop(payload, at)),
+    onDrop: (payload, at) => {
+      const cell = resolveDrop(payload, at);
+      setTarget(null);
+      // A drag ends in a click as well as a pointerup. The flag swallows that
+      // click, and clears on the next macrotask so a gesture that fires no
+      // click cannot swallow the following tap instead.
+      dropped.current = true;
+      setTimeout(() => {
+        dropped.current = false;
+      }, 0);
+      if (cell?.allowed && place(payload, cell.at)) setHeld(null);
+    },
+    // The hold SURVIVES a cancel, as it survives a refusal: the browser taking
+    // the gesture is not the teacher letting go.
+    onCancel: () => setTarget(null),
+  });
+
+  // The keyboard's half-tile step. It is no longer the ONLY way to reach the
+  // odd coordinates the generators use — `snapCell` put the pointer on the
+  // same grid — but it is still how a table is placed precisely without one.
   useEffect(() => {
     if (heldDeskId === null) return;
     const deskId = heldDeskId;
@@ -133,9 +259,8 @@ export function RoomEditorPage({ roomId }: { roomId: string }) {
     function onKeyDown(event: KeyboardEvent): void {
       const delta = deltas[event.key];
       if (!delta) return;
-      // The template form's number spinners are one Tab away; without this the
-      // nudge eats their arrow keys, and the preventDefault below cancels the
-      // input's own increment.
+      // The name field is one Tab away; without this the nudge eats its arrow
+      // keys, and the preventDefault below cancels the caret's own move.
       const target = event.target;
       if (
         target instanceof HTMLInputElement ||
@@ -145,235 +270,248 @@ export function RoomEditorPage({ roomId }: { roomId: string }) {
         return;
       }
       event.preventDefault();
-      void nudgeDesk(db, deskId, delta);
+      edit((current) => nudgeInDraft(current, deskId, delta));
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [db, heldDeskId]);
+  }, [edit, heldDeskId]);
 
-  if (room === undefined || desks === undefined) {
+  if (room === undefined || desks === undefined || !saved || !current) {
     return <p className="text-text-muted">{t("common.loading")}</p>;
   }
   if (room === null) return <p className="text-text-muted">{t("rooms.notFound")}</p>;
 
   /**
-   * The floor received something.
+   * The floor was tapped: put down whatever is in hand.
    *
-   * One handler for both input paths, because both end here: a drag reports
-   * the cell under the pointer, a tap reports the cell tapped, and a held desk
-   * with neither is the keyboard's "put it down there".
+   * The hold survives a REFUSAL. Tapping somewhere a table does not fit — too
+   * close to a neighbour, or past the wall — is an ordinary mis-aim, and
+   * dropping the table out of the teacher's hand for it would make them pick
+   * it up again with nothing on screen to say why.
    */
-  const onFloor = (at: Position): void => {
-    const drag = dragging.current;
-    dragging.current = null;
-    if (drag?.kind === "new") {
-      void addDesk(db, roomId, at);
-      return;
-    }
-    const deskId = drag?.kind === "desk" ? drag.deskId : heldDeskId;
-    if (deskId === null) return;
-    // The hold survives a REFUSAL. Tapping somewhere a table does not fit —
-    // too close to a neighbour, or past the wall — is an ordinary mis-aim, and
-    // dropping the table out of the teacher's hand for it would make them pick
-    // it up again with nothing on screen to say why.
-    void moveDesk(db, deskId, at).then((moved) => {
-      if (moved) setHeldDeskId(null);
-    });
+  const onFloor = (point: Position): void => {
+    if (dropped.current || held === null) return;
+    const taken =
+      held.kind === "desk"
+        ? current.desks.filter((desk) => desk.id !== held.deskId)
+        : current.desks;
+    const cell = snapToPlace(point, taken, current);
+    if (cell !== null && place(held, cell)) setHeld(null);
   };
 
   // In TILES, since that is what the steppers count. A room whose extent is
-  // not a whole number of tiles (an arc's frame need not be) rounds up, so the
-  // floor never reports a size that would clip a desk.
-  const minExtent = minimumExtent(desks);
+  // not a whole number of tiles — an arc's frame need not be — rounds UP, so
+  // the floor never reports a size that would clip a desk, and stepping from
+  // there lands on whole tiles from then on.
+  const minExtent = minimumExtent(current.desks);
   const minTiles = {
     width: Math.ceil(minExtent.width / TABLE),
     height: Math.ceil(minExtent.height / TABLE),
   };
 
-  const resize = async (width: number, height: number): Promise<void> => {
-    await resizeRoom(db, roomId, { width, height });
+  const dirty = draft !== null && draftChanged(saved, draft);
+  const canSave = dirty && draft.name.trim() !== "" && !saving;
+
+  const save = async (): Promise<void> => {
+    if (draft === null) return;
+    setSaving(true);
+    // The draft is deliberately KEPT on success. It now equals what is stored,
+    // so `draftChanged` goes false on its own and the button disables — while
+    // dropping it would render the live query's previous answer for a frame
+    // and flash the tables back to where they were.
+    await saveRoomDraft(db, roomId, draft);
+    setSaving(false);
   };
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="text-text-faint text-xs">
-        <Link to={Router.Rooms()}>{t("rooms.title")}</Link> / {room.name}
-      </div>
-
+      {/* One toolbar row: where the salle is, and everything you can do to it.
+          The save pair and the delete used to sit on the row below, beside the
+          name field, which put the primary action of the screen in the middle
+          of a form. */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-text-muted">{t("rooms.name")}</span>
-          <input
-            className="field font-semibold"
-            style={{ width: "12rem" }}
-            value={renaming ?? room.name}
-            onChange={(e) => setRenaming(e.target.value)}
-            onBlur={() => {
-              const next = (renaming ?? "").trim();
-              if (next !== "" && next !== room.name) void renameRoom(db, roomId, next);
-              setRenaming(null);
-            }}
-          />
-          <span className="text-sm text-text-faint">
-            {t("rooms.deskCount", { count: desks.length })}
+        <nav className="text-sm text-text-muted" aria-label={t("rooms.breadcrumb")}>
+          <Link to={Router.Rooms()}>{t("rooms.title")}</Link> <span aria-hidden="true">/</span>{" "}
+          <span className="font-semibold text-text" aria-current="page">
+            {current.name}
           </span>
-        </div>
-        {/* Two-step, in place. This was a bare button: one click destroyed
-            the salle, its furniture and every class's arrangement in it, with
-            nothing in between. The confirm names the classes that lose one,
-            exactly as the list's does — a salle is shared, so the cost of
-            deleting it reaches past the screen it is deleted from. */}
-        <ConfirmButton
-          label={t("rooms.delete")}
-          confirmLabel={
-            usedBy.length === 0
-              ? t("rooms.confirmDelete", { name: room.name })
-              : t("rooms.confirmDeleteUsed", { name: room.name, classes: usedBy.join(", ") })
-          }
-          danger
-          onConfirm={() => deleteRoom(db, roomId).then(() => Router.push("Rooms"))}
-        />
-      </div>
+        </nav>
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        <div className="flex flex-col gap-3 lg:order-2 lg:w-60 lg:shrink-0">
-          <div className="flex flex-col gap-2 rounded-md border border-border p-3">
-            <h3 className="font-medium text-text-muted text-xs uppercase tracking-wider">
-              {t("rooms.addFurniture")}
-            </h3>
-            {/* Drawn as the thing it becomes, so the drag has a before and an
-                after that look alike. */}
-            <button
-              type="button"
-              draggable
-              onDragStart={() => {
-                dragging.current = { kind: "new" };
-              }}
-              onDragEnd={() => {
-                dragging.current = null;
-              }}
-              className="flex h-[72px] items-center justify-center rounded font-bold text-xs uppercase tracking-wide"
-              style={{
-                background: "var(--wood)",
-                color: "var(--wood-ink)",
-                border: "2px solid var(--wood-edge)",
-                boxShadow: "inset 0 3px 0 var(--wood-hi), 0 4px 0 var(--wood-edge)",
-              }}
-            >
-              {t("rooms.table")}
-            </button>
-            <p className="text-text-faint text-xs">{t("rooms.dragHint")}</p>
-          </div>
-
-          <TemplateForm
-            roomId={roomId}
-            onApply={async (shape) => {
-              await applyShape(db, roomId, shape);
+        <div className="flex flex-wrap items-center gap-2">
+          {/* The only warning there is. A blocking dialog on the way out is
+              banned here, so an unsaved arrangement has to announce itself
+              while the teacher is still looking at it. */}
+          {dirty ? <span className="text-danger text-sm">{t("rooms.unsaved")}</span> : null}
+          <button
+            type="button"
+            className="btn"
+            disabled={!dirty || saving}
+            onClick={() => {
+              setDraft(null);
               release();
             }}
+          >
+            {t("common.cancel")}
+          </button>
+          <button type="button" className="btn btn-primary" disabled={!canSave} onClick={save}>
+            {t("common.save")}
+          </button>
+          {/* The confirm names the classes that lose an arrangement — a salle
+              is shared, so the cost of deleting it reaches past the screen it
+              is deleted from. */}
+          <ConfirmButton
+            label={t("rooms.delete")}
+            confirmLabel={t("rooms.confirmDelete", { name: room.name })}
+            body={
+              usedBy.length === 0
+                ? t("rooms.confirmDeleteBody")
+                : t("rooms.confirmDeleteUsedBody", { classes: usedBy.join(", ") })
+            }
+            danger
+            onConfirm={() => deleteRoom(db, roomId).then(() => Router.push("Rooms"))}
           />
-
-          <p className="text-text-faint text-xs">{t("rooms.keyboardHint")}</p>
         </div>
+      </div>
 
-        <div className="flex flex-col gap-2 lg:order-1 lg:min-w-0 lg:flex-1">
-          {/* Above the plan, because it is about the FLOOR rather than about
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-text-muted">{t("rooms.name")}</span>
+        <input
+          className="field font-semibold"
+          style={{ width: "12rem" }}
+          value={current.name}
+          onChange={(e) => {
+            const name = e.target.value;
+            edit((draft) => renameDraft(draft, name));
+          }}
+        />
+        <span className="text-sm text-text-faint">
+          {t("rooms.deskCount", { count: current.desks.length })}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {/* Above the plan, because it is about the FLOOR rather than about
               any table on it. In tiles, not half-tiles: a teacher counts
               places across the room, and the half-tile only exists so an arc
               can sit between two of them. */}
-          <div className="flex flex-wrap items-center gap-3 rounded-md border border-border px-3 py-2">
-            <span className="text-sm text-text-muted">{t("rooms.floor")}</span>
-            <SizeStepper
-              label={t("rooms.cols")}
-              tiles={room.width / TABLE}
-              min={minTiles.width}
-              onChange={(cols) => void resize(cols * TABLE, room.height)}
-            />
-            <SizeStepper
-              label={t("rooms.rows")}
-              tiles={room.height / TABLE}
-              min={minTiles.height}
-              onChange={(rows) => void resize(room.width, rows * TABLE)}
-            />
-            <span className="text-text-faint text-xs">
-              {t("rooms.floorMin", { cols: minTiles.width, rows: minTiles.height })}
-            </span>
-          </div>
-
-          <RoomCanvas
-            room={room}
-            desks={desks}
-            onFloor={onFloor}
-            emptyHint={t("rooms.emptyRoom")}
-            renderPlace={(desk) => (
-              <span className="text-[11px]" style={{ color: "var(--wood-ink)", opacity: 0.7 }}>
-                {heldDeskId === desk.id ? t("rooms.inHand") : ""}
-              </span>
-            )}
-            placeProps={(desk) => ({
-              draggable: true,
-              tabIndex: 0,
-              role: "button",
-              "aria-pressed": heldDeskId === desk.id || undefined,
-              title: t("rooms.holdTable"),
-              className:
-                heldDeskId === desk.id
-                  ? "outline-2 outline-accent outline-offset-2"
-                  : selectedDeskId === desk.id
-                    ? "outline-2 outline-accent"
-                    : "",
-              onDragStart: () => {
-                dragging.current = { kind: "desk", deskId: desk.id };
-                setHeldDeskId(desk.id);
-              },
-              onDragEnd: () => {
-                dragging.current = null;
-              },
-              onClick: () => {
-                // Tap: pick up, or put down onto a desk that is not this one —
-                // which is refused, since furniture never lands on furniture.
-                if (heldDeskId === desk.id) {
-                  setHeldDeskId(null);
-                  return;
-                }
-                if (heldDeskId !== null) return;
-                setHeldDeskId(desk.id);
-                setSelectedDeskId(desk.id);
-              },
-              onKeyDown: (e) => {
-                if (e.key !== " " && e.key !== "Enter") return;
-                e.preventDefault();
-                setHeldDeskId((current) => (current === desk.id ? null : desk.id));
-                setSelectedDeskId(desk.id);
-              },
-            })}
-            renderTableOverlay={(group) => {
-              // Only the SELECTED table carries controls. Stamped on all
-              // twenty-four they were most of the clutter, and a destructive
-              // control beside every place is a mis-tap waiting to happen.
-              const selected = group.desks.find((d) => d.id === selectedDeskId);
-              if (!selected) return null;
-              return (
-                <button
-                  key={`x-${selected.id}`}
-                  type="button"
-                  aria-label={t("rooms.removeTable")}
-                  title={t("rooms.removeTable")}
-                  className="-top-3 absolute flex h-[30px] w-[30px] items-center justify-center rounded-full border-2 border-danger bg-bg text-danger text-[15px] leading-none"
-                  style={{ left: "calc(100% - 15px)" }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedDeskId(null);
-                    setHeldDeskId(null);
-                    void removeDesk(db, selected.id);
-                  }}
-                >
-                  ×
-                </button>
-              );
-            }}
+        <div className="flex flex-wrap items-center gap-3 rounded-md border border-border px-3 py-2">
+          <span className="text-sm text-text-muted">{t("rooms.floor")}</span>
+          <SizeStepper
+            label={t("rooms.cols")}
+            tiles={Math.ceil(current.width / TABLE)}
+            min={minTiles.width}
+            onChange={(cols) =>
+              edit((draft) => resizeDraft(draft, { width: cols * TABLE, height: draft.height }))
+            }
           />
+          <SizeStepper
+            label={t("rooms.rows")}
+            tiles={Math.ceil(current.height / TABLE)}
+            min={minTiles.height}
+            onChange={(rows) =>
+              edit((draft) => resizeDraft(draft, { width: draft.width, height: rows * TABLE }))
+            }
+          />
+          {/* The table palette, in the header rather than a column of its
+                own. It was a panel holding one control and two paragraphs of
+                instructions, and it cost the plan a quarter of the screen. */}
+          <button
+            type="button"
+            aria-pressed={held?.kind === "new"}
+            aria-label={t("rooms.addTable")}
+            onPointerDown={(e) => begin(e, { kind: "new" })}
+            onClick={() => {
+              if (dropped.current) return;
+              setHeld((current) => (current?.kind === "new" ? null : { kind: "new" }));
+            }}
+            className={`btn h-9 min-h-9 gap-1 font-medium ${
+              held?.kind === "new" ? "border-accent text-accent" : ""
+            }`}
+            style={held?.kind === "new" ? { outline: "2px solid var(--color-accent)" } : undefined}
+          >
+            <span aria-hidden="true">+</span> {t("rooms.table")}
+          </button>
+          <span className="text-text-faint text-xs">
+            {t("rooms.floorMin", { cols: minTiles.width, rows: minTiles.height })}
+          </span>
         </div>
+
+        <RoomCanvas
+          room={current}
+          desks={current.desks.map((desk) => ({ ...desk, roomId }))}
+          onFloor={onFloor}
+          ghost={held === null ? null : target}
+          floorRef={floor}
+          liftedDeskId={heldDeskId}
+          emptyHint={t("rooms.emptyRoom")}
+          // Nothing is written on a table. What is in hand is said by the
+          // lift, and where it will land by the ghost.
+          renderPlace={() => null}
+          placeProps={(desk) => ({
+            tabIndex: 0,
+            role: "button",
+            "aria-pressed": heldDeskId === desk.id || undefined,
+            // The screen carries no instructions any more, so the keyboard
+            // path lives in the accessible name, where it costs no pixels.
+            "aria-keyshortcuts": "Space",
+            title: t("rooms.holdTable"),
+            "aria-label": t("rooms.holdTable"),
+            // Only the SELECTED table is outlined, to anchor its × control.
+            // The held one needs no outline: it is the one off the floor.
+            className:
+              selectedDeskId === desk.id && heldDeskId !== desk.id
+                ? "outline-2 outline-accent"
+                : "",
+            onPointerDown: (e) => begin(e, { kind: "desk", deskId: desk.id }),
+            onClick: () => {
+              // Tap: pick up, or put down onto a desk that is not this one —
+              // which is refused, since furniture never lands on furniture.
+              if (dropped.current) return;
+              if (heldDeskId === desk.id) {
+                setHeld(null);
+                return;
+              }
+              if (held !== null) return;
+              setHeld({ kind: "desk", deskId: desk.id });
+              setSelectedDeskId(desk.id);
+            },
+            onKeyDown: (e) => {
+              if (e.key !== " " && e.key !== "Enter") return;
+              e.preventDefault();
+              setHeld((current) =>
+                current?.kind === "desk" && current.deskId === desk.id
+                  ? null
+                  : { kind: "desk", deskId: desk.id },
+              );
+              setSelectedDeskId(desk.id);
+            },
+          })}
+          renderTableOverlay={(group) => {
+            // Only the SELECTED table carries controls. Stamped on all
+            // twenty-four they were most of the clutter, and a destructive
+            // control beside every place is a mis-tap waiting to happen.
+            const selected = group.desks.find((d) => d.id === selectedDeskId);
+            if (!selected) return null;
+            return (
+              <button
+                key={`x-${selected.id}`}
+                type="button"
+                aria-label={t("rooms.removeTable")}
+                title={t("rooms.removeTable")}
+                className="-top-3 absolute flex h-[30px] w-[30px] items-center justify-center rounded-full border-2 border-danger bg-bg text-danger text-[15px] leading-none"
+                style={{ left: "calc(100% - 15px)" }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedDeskId(null);
+                  setHeld(null);
+                  edit((draft) => removeFromDraft(draft, selected.id));
+                }}
+              >
+                ×
+              </button>
+            );
+          }}
+        />
       </div>
     </div>
   );
