@@ -161,4 +161,16 @@ describe("createSession with a time", () => {
     expect("startsAt" in session).toBe(false);
     db.close();
   });
+
+  it("guards createdAt collision even when passed a non-midnight timestamp", async () => {
+    const db = freshDb("collision");
+    // Create two sessions on the same day, both with mid-afternoon timestamps.
+    // Without normalisation in the query, the collision guard is defeated.
+    const afternoon = startOfDay(Date.now()) + 14 * 60 * 60 * 1000; // 2pm
+    const session1 = await createSession(db, "c1", afternoon);
+    const session2 = await createSession(db, "c1", afternoon + 1000); // 1 second later
+    // The second must have a strictly greater createdAt, enforced by the guard.
+    expect(session2.createdAt).toBeGreaterThan(session1.createdAt);
+    db.close();
+  });
 });

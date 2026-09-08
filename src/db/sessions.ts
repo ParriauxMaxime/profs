@@ -23,18 +23,19 @@ export async function createSession(
   date: number,
   options: { subjectId?: string; startsAt?: number } = {},
 ): Promise<Session> {
+  const day = startOfDay(date);
   // A forced second session can land in the same millisecond as the first in
   // a fast test run (or on a fast machine). `createdAt` is what determines
   // "most recent" in getOrCreateTodaySession, so it must strictly increase
   // relative to any sibling already recorded today for this class.
-  const todays = await db.sessions.where({ classId, date }).toArray();
+  const todays = await db.sessions.where({ classId, date: day }).toArray();
   const latestExisting = todays.reduce((max, s) => Math.max(max, s.createdAt), 0);
   const session: Session = {
     id: crypto.randomUUID(),
     classId,
     ...(options.subjectId === undefined ? {} : { subjectId: options.subjectId }),
     ...(options.startsAt === undefined ? {} : { startsAt: options.startsAt }),
-    date: startOfDay(date),
+    date: day,
     createdAt: Math.max(Date.now(), latestExisting + 1),
   };
   await db.sessions.add(session);
@@ -96,7 +97,8 @@ export async function setSessionNote(
 ): Promise<void> {
   const text = note.trim();
   if (text === "") {
-    // `delete` is Dexie's own sentinel for removing a key in an update.
+    // Dexie removes a key whose value is `undefined` in an update, which is
+    // how the field is cleared rather than set to an empty string.
     await db.sessions.update(sessionId, { note: undefined });
     return;
   }
