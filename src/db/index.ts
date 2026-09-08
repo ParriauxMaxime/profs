@@ -1,7 +1,9 @@
 import Dexie, { type EntityTable, type Table } from "dexie";
 import type {
+  Assignment,
   AttendanceRecord,
   BehaviourEvent,
+  Desk,
   DiaryEntry,
   Grade,
   Gradebook,
@@ -14,8 +16,7 @@ import type {
   RubricTemplate,
   ScheduleEntry,
   SchoolClass,
-  Seat,
-  SeatingLayout,
+  SeatingPlan,
   Session,
   Student,
   StudentGroup,
@@ -23,8 +24,10 @@ import type {
 } from "./types";
 
 export type {
+  Assignment,
   AttendanceRecord,
   BehaviourEvent,
+  Desk,
   DiaryEntry,
   Grade,
   Gradebook,
@@ -37,8 +40,7 @@ export type {
   RubricTemplate,
   ScheduleEntry,
   SchoolClass,
-  Seat,
-  SeatingLayout,
+  SeatingPlan,
   Session,
   Student,
   StudentGroup,
@@ -56,8 +58,10 @@ export type AppDatabase = Dexie & {
   sessions: EntityTable<Session, "id">;
   attendance: Table<AttendanceRecord, [string, string]>;
   behaviourEvents: EntityTable<BehaviourEvent, "id">;
-  seatingLayouts: EntityTable<SeatingLayout, "id">;
-  seats: EntityTable<Seat, "id">;
+  rooms: EntityTable<Room, "id">;
+  desks: EntityTable<Desk, "id">;
+  seatingPlans: EntityTable<SeatingPlan, "id">;
+  assignments: Table<Assignment, [string, string]>;
   rubricTemplates: EntityTable<RubricTemplate, "id">;
   rubricAssessments: EntityTable<RubricAssessment, "id">;
   rubricScores: Table<RubricScore, [string, string, string]>;
@@ -65,7 +69,6 @@ export type AppDatabase = Dexie & {
   groupMembers: Table<GroupMember, [string, string]>;
   scheduleEntries: EntityTable<ScheduleEntry, "id">;
   diaryEntries: Table<DiaryEntry, [string, number]>;
-  rooms: EntityTable<Room, "id">;
 };
 
 /** The compound primary key of a cell. */
@@ -184,6 +187,68 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
   // always read whole, and nothing ever queries one position.
   db.version(9).stores({
     rooms: "id, name",
+  });
+  // v10 drops the saved room. It was a user-defined TEMPLATE — positions
+  // embedded in the row, stamped through `applyTemplate`, no back-reference,
+  // "stamps and ceases to exist". A shared salle is the opposite: editing 204
+  // must change what 3°B and 5°A both see, which a stamp cannot do.
+  //
+  // The name is reused at v11 for that new meaning, so the old shape has to go
+  // rather than be carried forward — a v9 row would feed `positions` into code
+  // reading a `desks` table, which is the silent-zombie failure v7 was written
+  // for.
+  db.version(10).stores({
+    rooms: null,
+  });
+  // v11 lays down the salle: furniture that belongs to no class, and the
+  // assignation as its own row.
+  //
+  // `&[roomId+x+y]` keeps v8's guarantee that no two desks share a point, so a
+  // bug in `canPlace` surfaces as a rejected write rather than as a pupil
+  // nobody can tap.
+  //
+  // `&[planId+studentId]` is new, and it is the database refusing to seat one
+  // pupil in two chairs — an invariant that used to live only in careful code.
+  // Its consequence is load-bearing rather than incidental: seating an
+  // already-seated pupil THROWS unless the write clears their old row first,
+  // so every seat and swap is one transaction that deletes before it puts.
+  //
+  // `&[classId+roomId]` is what makes "one plan per class per salle" a fact
+  // rather than a convention `getOrCreatePlan` has to be trusted to keep.
+  //
+  // `[planId+deskId]` as the primary key copies `grades`: seating is a one-row
+  // put, unseating a one-row delete, and nothing read-modify-writes a
+  // collection.
+  db.version(11).stores({
+    rooms: "id, name",
+    desks: "id, roomId, &[roomId+x+y]",
+    seatingPlans: "id, classId, roomId, &[classId+roomId]",
+    assignments: "[planId+deskId], planId, deskId, studentId, &[planId+studentId]",
+  });
+  // v12 drops the per-class layout, now that the plan tab reads the salle.
+  //
+  // Both stores changed SHAPE rather than key, which is the case v7's comment
+  // generalised: a Seat carried a `studentId` and a SeatingLayout carried a
+  // `classId`, and neither means anything once furniture belongs to a salle
+  // and the assignation is its own row. Carried forward, a v11 seat would feed
+  // a `layoutId` into code reading `planId` — a room that renders nothing and
+  // cannot be told from an empty one.
+  db.version(12).stores({
+    seats: null,
+    seatingLayouts: null,
+  });
+  // v13 points a timetable entry at a salle. A plain field add would need no
+  // bump at all, but it is INDEXED — `deleteRoom` has to find every lesson
+  // naming the salle it is about to remove, and a full scan of the timetable
+  // on every delete is the kind of thing that is fine until it is not.
+  //
+  // The store is redeclared whole because Dexie's `stores` is a replacement,
+  // not a patch. No upgrade callback, per the standing rule: a row carrying
+  // the old free-text `room` simply keeps an unread property. That is NOT the
+  // zombie case v7 was written for — a leftover string is inert, where a
+  // missing `width` fed `undefined` into arithmetic and rendered scale(NaN).
+  db.version(13).stores({
+    scheduleEntries: "id, classId, weekday, gradebookId, roomId",
   });
   return db;
 }

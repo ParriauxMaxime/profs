@@ -25,7 +25,8 @@
     "menu": "Menu",
     "openMenu": "Ouvrir le menu",
     "closeMenu": "Fermer",
-    "diary": "Journal"
+    "diary": "Journal",
+    "rooms": "Salles"
   },
   "common": {
     "save": "Enregistrer",
@@ -212,16 +213,7 @@
     "termStart": "Début de l'année",
     "termStartHint": "Sert à calculer les semaines A et B. Sans cette date, les cours en semaine A ou B ne s'affichent pas.",
     "termStartUnset": "Aucune date définie",
-    "termStartClear": "Effacer",
-    "rooms": {
-      "title": "Salles enregistrées",
-      "help": "Une salle est enregistrée depuis un plan de table, puis appliquée à n'importe quelle classe.",
-      "empty": "Aucune salle enregistrée. Ouvrez « Modifier le plan » dans une classe pour en enregistrer une.",
-      "name": "Nom de la salle",
-      "tableCount_one": "{{count}} table",
-      "tableCount_other": "{{count}} tables",
-      "confirmDelete": "Supprimer « {{name}} » — les classes déjà disposées ainsi ne changent pas"
-    }
+    "termStartClear": "Effacer"
   },
   "csv": {
     "title": "Importer une liste d'élèves",
@@ -258,15 +250,10 @@
     "unseated": "Élèves sans place",
     "allSeated": "Tous les élèves sont placés",
     "hintPick": "Touchez un élève, puis une place.",
-    "hintPlaceFromRail": "Posez-le sur une place. Occupée, l'élève qui s'y trouve retourne dans la liste.",
-    "hintPlaceFromSeat": "Posez-le sur une place. Occupée, les deux élèves échangent.",
-    "hintPlaceTable": "Posez la table, ou ajustez-la aux flèches.",
     "searchPupil": "Rechercher un élève",
     "movePupil": "Déplacer",
     "emptySeat": "Place libre",
     "board": "Tableau",
-    "removeTable": "Retirer la table",
-    "freeSeat": "Libérer la place",
     "confirmStamp": "Remplacer toutes les tables",
     "template": "Disposition",
     "templateRows": "Rangées",
@@ -275,6 +262,8 @@
     "templateU": "Fer à cheval",
     "paramRows": "Rangées",
     "paramCols": "Colonnes",
+    "paramTables": "Tables par rang",
+    "paramPerTable": "Places par table",
     "paramPerRow": "Places par rang",
     "paramCurve": "Courbure",
     "paramIslands": "Îlots",
@@ -284,11 +273,6 @@
     "apply": "Appliquer",
     "resizeWarning_one": "{{count}} élève perdra sa place.",
     "resizeWarning_other": "{{count}} élèves perdront leur place.",
-    "editLayout": "Modifier le plan",
-    "doneEditing": "Terminer",
-    "moveHere": "Déplacer ici",
-    "addTable": "Ajouter une table",
-    "holdTable": "Déplacer la table",
     "emptyRoom": "Cette salle n'a aucune table. Choisissez une disposition pour la remplir.",
     "layouts": {
       "label": "Salles de cette classe",
@@ -299,15 +283,12 @@
       "delete": "Supprimer la salle",
       "deleteConfirm": "Supprimer « {{name}} » et le placement qu'elle contient"
     },
-    "rooms": {
-      "label": "Salles enregistrées :",
-      "none": "aucune pour l'instant",
-      "save": "Enregistrer cette salle",
-      "namePlaceholder": "Nom, par exemple « Salle 204 »",
-      "stampConfirm": "Remplacer les tables par « {{name}} »",
-      "stampConfirmOverflow_one": "Remplacer par « {{name}} » — {{count}} élève retournera à la liste",
-      "stampConfirmOverflow_other": "Remplacer par « {{name}} » — {{count}} élèves retourneront à la liste"
-    }
+    "room": "Salle",
+    "manageRooms": "Gérer les salles →",
+    "noRoom": "Aucune salle dans cet établissement. Créez-en une pour pouvoir y placer vos élèves.",
+    "hintPlace": "Posez-le sur une place. Les deux élèves permutent.",
+    "placeHere": "Poser ici",
+    "unseat": "Retirer de sa place"
   },
   "behaviour": {
     "title": "Comportement",
@@ -394,7 +375,6 @@
     "end": "Fin",
     "cycle": "Semaine",
     "room": "Salle",
-    "roomPlaceholder": "B12",
     "endBeforeStart": "La fin doit être après le début.",
     "badTime": "Heure invalide.",
     "badWeekday": "Jour invalide.",
@@ -415,7 +395,8 @@
       "all": "Toutes",
       "A": "Semaine A",
       "B": "Semaine B"
-    }
+    },
+    "noRoom": "Aucune salle"
   },
   "diary": {
     "title": "Journal",
@@ -461,5 +442,44 @@
     "othersSafe_one": "Votre autre établissement n'est pas touché.",
     "othersSafe_other": "Vos {{count}} autres établissements ne sont pas touchés.",
     "details": "Détail technique"
+  },
+  "rooms": {
+    "title": "Salles",
+    "help": "Une salle appartient à l'établissement. Les classes qui y passent gardent chacune leur plan de table.",
+    "name": "Nom de la salle",
+    "namePlaceholder": "204",
+    "empty": "Aucune salle pour l'instant. Créez-en une : c'est là que vivent les tables, et vos classes viendront s'y asseoir.",
+    "open": "Ouvrir",
+    "delete": "Supprimer la salle",
+    "notFound": "Salle introuvable",
+    "deskCount_one": "{{count}} place",
+    "deskCount_other": "{{count}} places",
+    "usedBy": "Utilisée par {{classes}}",
+    "usedByNobody": "Utilisée par aucune classe",
+    "confirmDelete": "Supprimer « {{name}} » et ses tables ?",
+    "confirmDeleteUsed": "Supprimer « {{name}} » — {{classes}} y perdront leur plan de table",
+    "addFurniture": "Ajouter",
+    "table": "Table",
+    "dragHint": "Glissez-la sur le plan. Posée contre une table voisine, les deux n'en font plus qu'une.",
+    "keyboardHint": "Appuyez sur une table pour la prendre, puis sur le sol pour la poser. Au clavier : Tab pour l'atteindre, Espace pour la prendre, les flèches pour l'ajuster, Échap pour reposer.",
+    "holdTable": "Prendre la table",
+    "removeTable": "Retirer la table",
+    "inHand": "En main",
+    "emptyRoom": "Cette salle n'a aucune table. Glissez-en une depuis « Ajouter », ou choisissez une disposition.",
+    "model": "Modèle",
+    "stampWarning_one": "{{count}} élève perdra sa place, toutes classes confondues.",
+    "stampWarning_other": "{{count}} élèves perdront leur place, toutes classes confondues.",
+    "pickShape": "Choisissez une disposition de départ — tout reste modifiable ensuite.",
+    "preset": {
+      "pairs": "Tables de deux",
+      "single": "Tables individuelles",
+      "islands": "Îlots",
+      "arc": "Arc de cercle",
+      "u": "Fer à cheval"
+    },
+    "floor": "Sol",
+    "cols": "Colonnes",
+    "rows": "Rangées",
+    "floorMin": "Minimum {{cols}} × {{rows}} : le sol ne peut pas passer sous les tables."
   }
 }

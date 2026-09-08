@@ -125,81 +125,81 @@ export interface BehaviourEvent {
 }
 
 /**
- * The room. One per class, sized in half-tiles.
+ * A salle: a physical room, sized in half-tiles.
  *
- * `width`/`height` replace phase 5's `rows`/`cols`: a room is an extent a
- * table may sit anywhere inside, not a count of cells.
- */
-/**
- * A saved room shape — "Ma salle 204" — reusable across classes.
+ * It belongs to the ÉTABLISSEMENT and to no class. 204 holds its tables
+ * whether or not 3°B is in it, and both 3°B and 5°A sit at the same furniture.
+ * That is the whole of why this is not a `SeatingLayout` with a nicer name:
+ * a layout was owned by one class, so two classes in one physical room kept
+ * two copies of it and editing one reached neither the other.
  *
- * A `Room` holds tables and no pupils, and applying one is a stamp: it goes
- * through the same `applyTemplate` the four built-in templates do, so `reseat`
- * pours the currently seated pupils into the new positions in reading order
- * and reports whoever no longer fits as overflow before the write. That is why
- * the "what happens to the occupants when a room moves between classes"
- * question the backlog raised needed no new answer — a saved room is a
- * user-defined template, and templates already had one.
- *
- * `positions` is embedded rather than given its own table, for the same reason
- * `RubricAssessment.criteria` is: a position has no independent existence
- * outside the room it belongs to, is never queried or deleted on its own, and
- * is always read as a whole. A seat, which is written one cell at a time, is
- * the case that earns a table.
- *
- * Like a template stamp, a saved room CEASES TO EXIST once applied: nothing on
- * a `SeatingLayout` records that it came from "Ma salle 204", so editing the
- * saved room later does not reach a class already stamped from it. Same ruling
- * as the built-in templates, and for the same reason — a live link cannot say
- * whether a table dragged out of the arrangement should follow a later edit.
+ * It carries no `positions`. Furniture lives in `desks`, because a desk needs
+ * an id for an assignment to name.
  */
 export interface Room {
   id: string;
   name: string;
   width: number;
   height: number;
-  positions: { x: number; y: number }[];
   createdAt: number;
   updatedAt: number;
 }
 
-export interface SeatingLayout {
+/**
+ * One place at one table, in one salle.
+ *
+ * `Desk` rather than `Table`: a Dexie store named `tables` would shadow
+ * `db.tables`, which `wipeWorkspace` and the backup's clear list both read —
+ * a silent, total break. Same reason `SchoolClass` is not `class` and
+ * `GradeColumn` is not `Column`. The French interface still says *table*.
+ *
+ * Carries no `studentId`. Who sits here is a property of a CLASS in this
+ * salle, not of the furniture, and storing it on the desk is what made a room
+ * unshareable.
+ *
+ * Two desks exactly `TABLE` apart share an edge and DRAW as one table. That
+ * merge is a rendering and never a datum — see `tableGroups`.
+ */
+export interface Desk {
+  id: string;
+  roomId: string;
+  x: number;
+  y: number;
+}
+
+/**
+ * One class's arrangement in one salle.
+ *
+ * Exactly one per (class, salle), which the `&[classId+roomId]` index
+ * enforces. A class taught in two salles has two plans and picks between them
+ * by picking the salle; several named arrangements of the SAME salle were
+ * considered and cut, since rearranging and rearranging back is cheaper than
+ * a feature.
+ */
+export interface SeatingPlan {
   id: string;
   classId: string;
-  /**
-   * What the teacher calls this arrangement — "Contrôle", "Travail de groupe".
-   *
-   * Optional, and it must stay optional: the layout a class gets on its first
-   * visit is created by `getOrCreateLayout` before anybody has named anything,
-   * and a *translated* default written into the row would be a stored label
-   * that stops matching the interface language. The UI renders
-   * `plan.layouts.unnamed` when this is absent.
-   */
-  name?: string;
-  width: number;
-  height: number;
+  roomId: string;
   updatedAt: number;
 }
 
 /**
- * One table, at a free position in half-tiles.
+ * One pupil at one desk, within one plan.
  *
- * Two states, not phase 5's three: a row with `studentId: null` is an empty
- * table and a row with a `studentId` is an occupied one. There is no third
- * "gap" state any more — an aisle is simply the absence of a table, which is
- * the absence of a row.
+ * Keyed `[planId+deskId]`, which copies `Grade` exactly: seating is a one-row
+ * `put`, unseating a one-row `delete`, and nothing ever read-modify-writes a
+ * collection of them.
  *
- * `id` is what everything addresses a table by. Coordinates identified a cell
- * in phase 5 and that is exactly why `swapSeats` needed a guard against
- * another tab: a coordinate is a position, and this codebase's standing rule
- * is that state bound to a record is anchored to the record's identity.
+ * `&[planId+studentId]` is the database refusing to seat one pupil in two
+ * chairs — an invariant that used to live only in careful code. Its
+ * consequence is load-bearing: seating an already-seated pupil THROWS unless
+ * the write clears their old row first, so every seat and swap is one
+ * transaction that deletes before it puts.
  */
-export interface Seat {
-  id: string;
-  layoutId: string;
-  x: number;
-  y: number;
-  studentId: string | null;
+export interface Assignment {
+  planId: string;
+  deskId: string;
+  studentId: string;
 }
 
 /** A reusable criteria set, managed in Réglages. */
@@ -280,7 +280,20 @@ export interface ScheduleEntry {
   startMinute: number;
   endMinute: number;
   weekCycle: WeekCycle;
-  room?: string;
+  /**
+   * The salle this lesson happens in, when it is one the teacher has created.
+   *
+   * Replaces a free-text `room` label. Two spellings of "which room" was one
+   * too many the moment a salle became a record: the label could say "B12"
+   * while the class's plan lived in a salle called "204", and nothing could
+   * tell they were meant to be the same place. A teacher who wants "Gymnase"
+   * on the timetable creates a salle called Gymnase, which costs one click and
+   * gives them a plan there.
+   *
+   * Optional, and it must stay optional: a lesson may legitimately have no
+   * room recorded, and `deleteRoom` UNLINKS rather than cascades.
+   */
+  roomId?: string;
   createdAt: number;
   updatedAt: number;
 }

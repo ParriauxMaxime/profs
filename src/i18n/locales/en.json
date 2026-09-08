@@ -25,7 +25,8 @@
     "menu": "Menu",
     "openMenu": "Open menu",
     "closeMenu": "Close",
-    "diary": "Journal"
+    "diary": "Journal",
+    "rooms": "Rooms"
   },
   "common": {
     "save": "Save",
@@ -212,16 +213,7 @@
     "termStart": "Start of the year",
     "termStartHint": "Used to work out A and B weeks. Without this date, lessons in week A or B are not shown.",
     "termStartUnset": "No date set",
-    "termStartClear": "Clear",
-    "rooms": {
-      "title": "Saved rooms",
-      "help": "A room is saved from a seating plan, then applied to any class.",
-      "empty": "No saved rooms. Open “Edit layout” in a class to save one.",
-      "name": "Room name",
-      "tableCount_one": "{{count}} table",
-      "tableCount_other": "{{count}} tables",
-      "confirmDelete": "Delete “{{name}}” — classes already arranged this way are unaffected"
-    }
+    "termStartClear": "Clear"
   },
   "csv": {
     "title": "Import a student list",
@@ -258,15 +250,10 @@
     "unseated": "Students without a seat",
     "allSeated": "All students are seated",
     "hintPick": "Tap a pupil, then a seat.",
-    "hintPlaceFromRail": "Drop them on a seat. If it is taken, whoever is sitting there goes back to the list.",
-    "hintPlaceFromSeat": "Drop them on a seat. If it is taken, the two pupils swap.",
-    "hintPlaceTable": "Drop the table, or nudge it with the arrow keys.",
     "searchPupil": "Search for a pupil",
     "movePupil": "Move",
     "emptySeat": "Empty seat",
     "board": "Board",
-    "removeTable": "Remove the table",
-    "freeSeat": "Free the seat",
     "confirmStamp": "Replace every table",
     "template": "Layout",
     "templateRows": "Rows",
@@ -275,6 +262,8 @@
     "templateU": "Horseshoe",
     "paramRows": "Rows",
     "paramCols": "Columns",
+    "paramTables": "Tables per row",
+    "paramPerTable": "Seats per table",
     "paramPerRow": "Seats per row",
     "paramCurve": "Curve",
     "paramIslands": "Islands",
@@ -284,11 +273,6 @@
     "apply": "Apply",
     "resizeWarning_one": "{{count}} student will lose their seat.",
     "resizeWarning_other": "{{count}} students will lose their seat.",
-    "editLayout": "Edit layout",
-    "doneEditing": "Done",
-    "moveHere": "Move here",
-    "addTable": "Add a table",
-    "holdTable": "Move the table",
     "emptyRoom": "This room has no tables. Pick a layout to fill it.",
     "layouts": {
       "label": "Rooms for this class",
@@ -299,15 +283,12 @@
       "delete": "Delete room",
       "deleteConfirm": "Delete “{{name}}” and the arrangement in it"
     },
-    "rooms": {
-      "label": "Saved rooms:",
-      "none": "none yet",
-      "save": "Save this room",
-      "namePlaceholder": "Name, for example “Room 204”",
-      "stampConfirm": "Replace the tables with “{{name}}”",
-      "stampConfirmOverflow_one": "Replace with “{{name}}” — {{count}} pupil goes back to the list",
-      "stampConfirmOverflow_other": "Replace with “{{name}}” — {{count}} pupils go back to the list"
-    }
+    "room": "Room",
+    "manageRooms": "Manage rooms →",
+    "noRoom": "No room in this school yet. Create one before you can seat your pupils.",
+    "hintPlace": "Drop them on a seat. The two pupils swap.",
+    "placeHere": "Place here",
+    "unseat": "Take out of their seat"
   },
   "behaviour": {
     "title": "Behaviour",
@@ -394,7 +375,6 @@
     "end": "End",
     "cycle": "Week",
     "room": "Room",
-    "roomPlaceholder": "B12",
     "endBeforeStart": "The end must be after the start.",
     "badTime": "Invalid time.",
     "badWeekday": "Invalid day.",
@@ -415,7 +395,8 @@
       "all": "Every week",
       "A": "Week A",
       "B": "Week B"
-    }
+    },
+    "noRoom": "No room"
   },
   "diary": {
     "title": "Journal",
@@ -461,5 +442,44 @@
     "othersSafe_one": "Your other school is untouched.",
     "othersSafe_other": "Your {{count}} other schools are untouched.",
     "details": "Technical detail"
+  },
+  "rooms": {
+    "title": "Rooms",
+    "help": "A room belongs to the school. Each class taught in it keeps its own seating plan.",
+    "name": "Room name",
+    "namePlaceholder": "204",
+    "empty": "No rooms yet. Create one — this is where the tables live, and your classes come to sit at them.",
+    "open": "Open",
+    "delete": "Delete room",
+    "notFound": "Room not found",
+    "deskCount_one": "{{count}} seat",
+    "deskCount_other": "{{count}} seats",
+    "usedBy": "Used by {{classes}}",
+    "usedByNobody": "Used by no class",
+    "confirmDelete": "Delete “{{name}}” and its tables?",
+    "confirmDeleteUsed": "Delete “{{name}}” — {{classes}} will lose their seating plan",
+    "addFurniture": "Add",
+    "table": "Table",
+    "dragHint": "Drag it onto the plan. Dropped against a neighbouring table, the two become one.",
+    "keyboardHint": "Tap a table to pick it up, then tap the floor to put it down. By keyboard: Tab to reach it, Space to pick it up, arrows to adjust, Escape to drop.",
+    "holdTable": "Pick up table",
+    "removeTable": "Remove table",
+    "inHand": "In hand",
+    "emptyRoom": "This room has no tables. Drag one from “Add”, or choose a layout.",
+    "model": "Layout",
+    "stampWarning_one": "{{count}} pupil will lose their seat, across all classes.",
+    "stampWarning_other": "{{count}} pupils will lose their seats, across all classes.",
+    "pickShape": "Pick a starting layout — everything stays editable afterwards.",
+    "preset": {
+      "pairs": "Tables for two",
+      "single": "Single desks",
+      "islands": "Islands",
+      "arc": "Curved rows",
+      "u": "Horseshoe"
+    },
+    "floor": "Floor",
+    "cols": "Columns",
+    "rows": "Rows",
+    "floorMin": "Minimum {{cols}} × {{rows}}: the floor cannot shrink under the tables."
   }
 }

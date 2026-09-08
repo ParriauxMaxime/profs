@@ -9,6 +9,10 @@ export const Router = createRouter(
     Students: "/students",
     Schedule: "/schedule",
     Diary: "/diary",
+    // A salle belongs to the établissement, not to a class, so it is a
+    // destination of its own rather than a panel inside one.
+    Rooms: "/salles",
+    Room: "/salles/:roomId",
     // A class is one page with four tabs, and a route per tab: the back button
     // steps between them, a reload keeps the one you were on, and Aujourd'hui
     // can link straight to a lesson's seating plan. `Class` itself only

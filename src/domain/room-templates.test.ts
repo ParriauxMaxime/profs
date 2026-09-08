@@ -1,4 +1,4 @@
-import { MAX_POSITIONS, overlaps, PITCH, ROOM_MAX, TABLE } from "./room";
+import { MAX_POSITIONS, overlaps, type Position, ROOM_MAX, TABLE, tableGroups } from "./room";
 import {
   buildRoom,
   clampTemplate,
@@ -38,8 +38,9 @@ describe("the registry", () => {
     }
   });
 
-  it("defaults to the grid phase 5 shipped", () => {
-    expect(DEFAULT_TEMPLATE).toEqual({ id: "rows", rows: 5, cols: 6 });
+  it("defaults to four rows of three tables de deux", () => {
+    expect(DEFAULT_TEMPLATE).toEqual({ id: "rows", rows: 4, tables: 3, perTable: 2 });
+    expect(seatCount(DEFAULT_TEMPLATE)).toBe(24);
   });
 
   it("builds a well-formed room from every default", () => {
@@ -49,25 +50,28 @@ describe("the registry", () => {
 
 describe("clampTemplate", () => {
   it("raises a parameter below its floor", () => {
-    expect(clampTemplate({ id: "rows", rows: 0, cols: 0 })).toEqual({
+    expect(clampTemplate({ id: "rows", rows: 0, tables: 0, perTable: 0 })).toEqual({
       id: "rows",
       rows: 1,
-      cols: 1,
+      tables: 1,
+      perTable: 1,
     });
   });
 
   it("lowers a parameter above its ceiling", () => {
-    expect(clampTemplate({ id: "rows", rows: 99, cols: 99 })).toMatchObject({
+    expect(clampTemplate({ id: "rows", rows: 99, tables: 99, perTable: 99 })).toMatchObject({
       rows: expect.any(Number),
-      cols: 20,
+      tables: 10,
+      perTable: 4,
     });
   });
 
   it("rounds a fractional parameter to an integer", () => {
-    expect(clampTemplate({ id: "rows", rows: 3.7, cols: 2.2 })).toEqual({
+    expect(clampTemplate({ id: "rows", rows: 3.7, tables: 2.2, perTable: 1.6 })).toEqual({
       id: "rows",
       rows: 4,
-      cols: 2,
+      tables: 2,
+      perTable: 2,
     });
   });
 
@@ -76,35 +80,77 @@ describe("clampTemplate", () => {
       const clamped = clampTemplate(defaultTemplate(id));
       expect(seatCount(clamped)).toBeLessThanOrEqual(MAX_POSITIONS);
     }
-    const huge = clampTemplate({ id: "rows", rows: 20, cols: 20 });
+    const huge = clampTemplate({ id: "rows", rows: 20, tables: 12, perTable: 4 });
     expect(seatCount(huge)).toBeLessThanOrEqual(MAX_POSITIONS);
   });
 
   it("is idempotent", () => {
-    const once = clampTemplate({ id: "rows", rows: 40, cols: 40 });
+    const once = clampTemplate({ id: "rows", rows: 40, tables: 40, perTable: 9 });
     expect(clampTemplate(once)).toEqual(once);
   });
 });
 
+/** The positions as `tableGroups` sees them, so a test can count TABLES. */
+function groupsOf(shape: { positions: Position[] }) {
+  return tableGroups(shape.positions.map((p, i) => ({ id: String(i), ...p, studentId: null })));
+}
+
 describe("rows", () => {
-  it("lays a grid out at pitch", () => {
-    const shape = buildRoom({ id: "rows", rows: 2, cols: 3 });
-    expect(shape.positions).toEqual([
-      { x: 1, y: 1 },
-      { x: 1 + PITCH, y: 1 },
-      { x: 1 + 2 * PITCH, y: 1 },
-      { x: 1, y: 1 + PITCH },
-      { x: 1 + PITCH, y: 1 + PITCH },
-      { x: 1 + 2 * PITCH, y: 1 + PITCH },
-    ]);
+  it("puts the places of one table edge to edge, so they draw as one surface", () => {
+    const shape = buildRoom({ id: "rows", rows: 1, tables: 1, perTable: 2 });
+    const groups = groupsOf(shape);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].desks).toHaveLength(2);
+    expect(groups[0].width).toBe(2 * TABLE);
+  });
+
+  it("leaves an aisle between tables in the same row", () => {
+    const shape = buildRoom({ id: "rows", rows: 1, tables: 3, perTable: 2 });
+    expect(shape.positions).toHaveLength(6);
+    expect(groupsOf(shape)).toHaveLength(3);
+  });
+
+  it("keeps rows apart", () => {
+    const shape = buildRoom({ id: "rows", rows: 2, tables: 1, perTable: 2 });
+    expect(groupsOf(shape)).toHaveLength(2);
+  });
+
+  it("counts places, not tables", () => {
+    expect(seatCount({ id: "rows", rows: 4, tables: 3, perTable: 2 })).toBe(24);
+  });
+
+  it("degrades to single desks at one place per table", () => {
+    const shape = buildRoom({ id: "rows", rows: 1, tables: 3, perTable: 1 });
+    expect(groupsOf(shape)).toHaveLength(3);
   });
 
   it("is well formed across its whole parameter range", () => {
     for (let rows = 1; rows <= 20; rows += 1) {
-      for (let cols = 1; cols <= 20; cols += 1) {
-        expectWellFormed(clampTemplate({ id: "rows", rows, cols }));
+      for (let tables = 1; tables <= 10; tables += 1) {
+        for (let perTable = 1; perTable <= 4; perTable += 1) {
+          expectWellFormed(clampTemplate({ id: "rows", rows, tables, perTable }));
+        }
       }
     }
+  });
+});
+
+describe("islands are actually islands", () => {
+  it("makes one block per island rather than spaced desks", () => {
+    const groups = groupsOf(buildRoom({ id: "islands", islands: 2, perIsland: 4 }));
+    expect(groups).toHaveLength(2);
+    expect(groups[0].desks).toHaveLength(4);
+    expect(groups[0]).toMatchObject({ width: 2 * TABLE, height: 2 * TABLE });
+  });
+});
+
+describe("the horseshoe is continuous", () => {
+  it("is one table, not a ring of separate desks", () => {
+    expect(groupsOf(buildRoom({ id: "u", cols: 4, rows: 3 }))).toHaveLength(1);
+  });
+
+  it("degrades to a plain row at one row", () => {
+    expect(groupsOf(buildRoom({ id: "u", cols: 4, rows: 1 }))).toHaveLength(1);
   });
 });
 
@@ -148,10 +194,22 @@ describe("arc", () => {
     }
   });
 
-  it("is wider when the curve is shallow — which is why ROOM_MAX is 120", () => {
-    const shallow = buildRoom({ id: "arc", perRow: 20, rows: 1, curve: 1 });
-    const deep = buildRoom({ id: "arc", perRow: 20, rows: 1, curve: 5 });
-    expect(shallow.width).toBeGreaterThan(deep.width);
+  it("is no wider than the straight row of the same length", () => {
+    // The old arc derived its radius from an angular span, so ten seats came
+    // out ~44 units across at EVERY curvature — a flat line stretched over
+    // 1600px. Width is now fixed by the seat spacing, and only the depth moves.
+    const straight = buildRoom({ id: "rows", rows: 1, tables: 10, perTable: 1 });
+    for (const curve of [1, 3, 5]) {
+      const arc = buildRoom({ id: "arc", perRow: 10, rows: 1, curve });
+      expect(arc.width).toBeLessThanOrEqual(straight.width);
+    }
+  });
+
+  it("bows deeper as the curve rises, and only deeper", () => {
+    const shallow = buildRoom({ id: "arc", perRow: 10, rows: 1, curve: 1 });
+    const deep = buildRoom({ id: "arc", perRow: 10, rows: 1, curve: 5 });
+    expect(deep.height).toBeGreaterThan(shallow.height);
+    expect(deep.width).toBe(shallow.width);
   });
 });
 

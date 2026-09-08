@@ -189,6 +189,41 @@ body {
   --on-level-2: #ffffff;
   --on-level-3: #ffffff;
   --on-level-4: #ffffff;
+
+  /*
+   * The salle, seen from above.
+   *
+   * These are MATERIALS, not interface colours, and they are the only warm
+   * values in the app. A room drawn in outlines reads as a diagram; drawn with
+   * a floor you can see the tiling of, and furniture with a front edge and a
+   * shadow, it reads as the place it depicts — which matters because the whole
+   * screen is about where things physically are.
+   *
+   * Scoped to the room surface. Every control around it keeps the interface
+   * tokens, and selection stays --color-accent, so interaction reads as
+   * interface and material reads as room. Do not spend these anywhere else.
+   *
+   * The floor's seams are drawn at one half-tile, so the tiling IS the
+   * coordinate grid rather than a second grid laid over it. Integer pixels at
+   * any root size, for the reason `.carreaux` is sized in rem.
+   *
+   * Measured: --wood-ink on --wood is 6.9:1 here and 5.5:1 in ardoise, both
+   * clear of the 4.5:1 AA threshold for the 10px surnames a seat tile carries.
+   */
+  --floor: #e9e2d4;
+  --floor-alt: #e4dccb;
+  --floor-seam: #d7cdb8;
+  --wall: #c6b99f;
+  --wall-inner: #ab9c7e;
+  --wood: #dcb886;
+  --wood-hi: #e8cba2;
+  --wood-edge: #a8834f;
+  --wood-ink: #3d2f1b;
+  --chair: #8a6f4e;
+  --board: #2f5044;
+  --board-frame: #b99a6b;
+  --board-ink: #cfe0d6;
+  --room-shadow: rgb(61 47 27 / 22%);
 }
 
 :root[data-theme="ardoise"] {
@@ -230,6 +265,30 @@ body {
   --on-level-2: #10151c;
   --on-level-3: #10151c;
   --on-level-4: #10151c;
+
+  /*
+   * The salle by projector light. A dark classroom is the case this theme
+   * exists for, so the room gets the same care as the rest of it: dark oak
+   * rather than the light theme's wood dimmed, a floor that stays below the
+   * furniture, and a board nearly black in its frame.
+   *
+   * The ink INVERTS — dark on light wood, light on dark wood — rather than
+   * staying one value. A single ink cannot clear 4.5:1 on both grounds.
+   */
+  --floor: #232a33;
+  --floor-alt: #1f262e;
+  --floor-seam: #1a2028;
+  --wall: #39424e;
+  --wall-inner: #2a323c;
+  --wood: #6b563a;
+  --wood-hi: #7d6544;
+  --wood-edge: #413322;
+  --wood-ink: #efe4d2;
+  --chair: #4a3b28;
+  --board: #16302a;
+  --board-frame: #5e4b32;
+  --board-ink: #9fbfae;
+  --room-shadow: rgb(0 0 0 / 45%);
 }
 
 /*

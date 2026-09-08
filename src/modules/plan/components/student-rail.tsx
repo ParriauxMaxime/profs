@@ -1,5 +1,5 @@
 import type { Student } from "@db";
-import type { Held } from "@domain/room";
+import type { HeldPupil } from "@domain/room";
 import { fuzzyMatchAny } from "@domain/search";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -23,30 +23,17 @@ export function StudentRail({
   onHold,
 }: {
   students: Student[];
-  held: Held | null;
+  held: HeldPupil | null;
   onHold: (studentId: string) => void;
 }) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
 
   const showSearch = students.length > SEARCH_THRESHOLD;
-  // The hint states the rule that actually applies, and the two are different:
-  // a pupil held from a seat SWAPS with an occupant, a pupil held from the
-  // rail DISPLACES them back into the rail.
-  // A switch, not a ternary chain: an unhandled kind is then a compile error,
-  // the way `resolveDrop` already makes it. A third kind arrived silently
-  // sharing the seat hint once.
-  const hint = ((): string => {
-    if (held === null) return t("plan.hintPick");
-    switch (held.kind) {
-      case "pool":
-        return t("plan.hintPlaceFromRail");
-      case "seat":
-        return t("plan.hintPlaceFromSeat");
-      case "table":
-        return t("plan.hintPlaceTable");
-    }
-  })();
+  // ONE hint, because there is now one rule. Three sentences described what
+  // was never three rules: whoever occupies the target goes where the held
+  // pupil came from, and the rail is simply the case where that is nowhere.
+  const hint = held === null ? t("plan.hintPick") : t("plan.hintPlace");
   const visible = showSearch
     ? students.filter((s) => fuzzyMatchAny([s.lastName, s.firstName], query))
     : students;
@@ -79,7 +66,7 @@ export function StudentRail({
               scrolls sideways and clips the names it exists to show. */}
           <div className="flex flex-wrap gap-2 lg:max-h-[28rem] lg:flex-col lg:flex-nowrap lg:overflow-y-auto">
             {visible.map((student) => {
-              const isHeld = held?.kind === "pool" && held.studentId === student.id;
+              const isHeld = held?.studentId === student.id && held.fromDeskId === null;
               return (
                 <button
                   key={student.id}
@@ -98,9 +85,9 @@ export function StudentRail({
         </>
       )}
 
-      {/* A full room still needs the hint: a pupil can be picked up from a
-          seat, through the card's Déplacer or a tap in layout-edit mode, with
-          no chip in the rail at all. */}
+      {/* A full room still needs the hint: a pupil can be in hand with no chip
+          in the rail at all, having been lifted from a place by the card's
+          Déplacer. */}
       {(held !== null || students.length > 0) && <p className="text-text-faint text-xs">{hint}</p>}
     </div>
   );

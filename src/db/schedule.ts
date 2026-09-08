@@ -19,7 +19,7 @@ export interface ScheduleEntryInput {
   startMinute: number;
   endMinute: number;
   weekCycle: WeekCycle;
-  room?: string;
+  roomId?: string;
 }
 
 export type SaveScheduleResult =
@@ -61,7 +61,7 @@ export async function saveScheduleEntry(
     startMinute: input.startMinute,
     endMinute: input.endMinute,
     weekCycle: input.weekCycle,
-    ...(input.room?.trim() ? { room: input.room.trim() } : {}),
+    ...(input.roomId ? { roomId: input.roomId } : {}),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };

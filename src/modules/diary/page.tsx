@@ -19,6 +19,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { ToggleGroup, ToggleOption } from "../design-system/components/primitives";
+import { useRoomNames } from "../rooms/use-room-names";
 import { DayEntry } from "./components/day-entry";
 
 const VIEWS = ["agenda", "week", "month"] as const;
@@ -310,6 +311,7 @@ function AgendaView({
   className: (id: string) => string;
   searching: boolean;
 }) {
+  const roomNames = useRoomNames();
   const { t } = useTranslation();
   // While searching, only the days whose entries matched are worth showing —
   // every lesson of the month would bury the three days being looked for. But
@@ -367,7 +369,9 @@ function AgendaView({
                     {lessonsHere.map((lesson) => (
                       <span key={lesson.entry.id} className="text-sm text-text-muted">
                         {formatTimeRange(lesson.entry.startMinute, lesson.entry.endMinute, locale)}
-                        {lesson.entry.room ? ` · ${lesson.entry.room}` : ""}
+                        {lesson.entry.roomId && roomNames.has(lesson.entry.roomId)
+                          ? ` · ${roomNames.get(lesson.entry.roomId)}`
+                          : ""}
                       </span>
                     ))}
                     {lessonsHere.length === 0 && (

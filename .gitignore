@@ -3,3 +3,6 @@ dist/
 .env
 .superpowers/
 .claude/
+
+# Design canvas working files — the published canvas is linked from the spec.
+.design/

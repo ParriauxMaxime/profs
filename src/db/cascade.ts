@@ -51,11 +51,12 @@ export async function deleteColumn(db: AppDatabase, columnId: string): Promise<v
 }
 
 /**
- * A pupil's rows reach into six tables. The seat is emptied rather than
- * deleted: a seat row is a TABLE, furniture the teacher placed, and a pupil
- * leaving the class is no reason to take their table out of the room. Deleting
- * it would redraw the layout behind the teacher's back — the room would come
- * back one table short, with nothing to say why.
+ * A pupil's rows reach into six tables.
+ *
+ * Their ASSIGNMENT is deleted rather than emptied: an assignment is the pair
+ * (place, pupil), so without the pupil there is no row left to hold. The DESK
+ * is untouched — it is furniture in a salle, and a pupil leaving the class is
+ * no reason to take a table out of the room.
  */
 export async function deleteStudent(db: AppDatabase, studentId: string): Promise<void> {
   await db.transaction(
@@ -65,7 +66,7 @@ export async function deleteStudent(db: AppDatabase, studentId: string): Promise
       db.grades,
       db.attendance,
       db.behaviourEvents,
-      db.seats,
+      db.assignments,
       db.rubricScores,
       db.groupMembers,
     ],
@@ -73,7 +74,10 @@ export async function deleteStudent(db: AppDatabase, studentId: string): Promise
       await db.grades.where("studentId").equals(studentId).delete();
       await db.attendance.where("studentId").equals(studentId).delete();
       await db.behaviourEvents.where("studentId").equals(studentId).delete();
-      await db.seats.where("studentId").equals(studentId).modify({ studentId: null });
+      // Deleted rather than emptied: an assignment is the pair (place, pupil),
+      // so without the pupil there is no row left to keep — unlike a Seat,
+      // which is furniture that survives its occupant.
+      await db.assignments.where("studentId").equals(studentId).delete();
       await db.rubricScores.where("studentId").equals(studentId).delete();
       await db.groupMembers.where("studentId").equals(studentId).delete();
       await db.students.delete(studentId);
@@ -169,8 +173,8 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
       db.sessions,
       db.attendance,
       db.behaviourEvents,
-      db.seatingLayouts,
-      db.seats,
+      db.seatingPlans,
+      db.assignments,
       db.rubricAssessments,
       db.rubricScores,
       db.studentGroups,
@@ -206,7 +210,6 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
         // pupil it describes.
         await db.attendance.where("studentId").anyOf(studentIds).delete();
         await db.behaviourEvents.where("studentId").anyOf(studentIds).delete();
-        await db.seats.where("studentId").anyOf(studentIds).modify({ studentId: null });
         await db.rubricScores.where("studentId").anyOf(studentIds).delete();
         await db.students.bulkDelete(studentIds);
       }
@@ -218,10 +221,13 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
       }
       await db.behaviourEvents.where("classId").equals(classId).delete();
 
-      const layoutIds = await db.seatingLayouts.where("classId").equals(classId).primaryKeys();
-      if (layoutIds.length > 0) {
-        await db.seats.where("layoutId").anyOf(layoutIds).delete();
-        await db.seatingLayouts.bulkDelete(layoutIds);
+      // The class's arrangements go; the SALLES they were made in do not. A
+      // room belongs to the établissement and outlives every class taught in
+      // it, which is the whole point of the split.
+      const planIds = await db.seatingPlans.where("classId").equals(classId).primaryKeys();
+      if (planIds.length > 0) {
+        await db.assignments.where("planId").anyOf(planIds).delete();
+        await db.seatingPlans.bulkDelete(planIds);
       }
 
       const groupIds = await db.studentGroups.where("classId").equals(classId).primaryKeys();
@@ -288,11 +294,39 @@ export async function deleteBehaviourEvent(db: AppDatabase, eventId: string): Pr
 }
 
 /** The room and every table in it. */
-export async function deleteSeatingLayout(db: AppDatabase, layoutId: string): Promise<void> {
-  await db.transaction("rw", [db.seatingLayouts, db.seats], async () => {
-    await db.seats.where("layoutId").equals(layoutId).delete();
-    await db.seatingLayouts.delete(layoutId);
-  });
+/**
+ * A salle, its furniture, and every arrangement made in it.
+ *
+ * Cascades rather than refusing, unlike `deleteSubject`. Destroying gradebooks
+ * as a side effect of removing a subject is too much to do implicitly; an
+ * arrangement is rebuilt in a minute, and refusing would strand a salle behind
+ * classes a teacher no longer teaches, with no way to be rid of it. The
+ * `ConfirmButton` names the classes that lose one, which is where the weight
+ * of the decision belongs.
+ */
+export async function deleteRoom(db: AppDatabase, roomId: string): Promise<void> {
+  await db.transaction(
+    "rw",
+    [db.rooms, db.desks, db.seatingPlans, db.assignments, db.scheduleEntries],
+    async () => {
+      const planIds = await db.seatingPlans.where("roomId").equals(roomId).primaryKeys();
+      if (planIds.length > 0) {
+        await db.assignments.where("planId").anyOf(planIds).delete();
+        await db.seatingPlans.bulkDelete(planIds);
+      }
+      // The timetable is UNLINKED, never deleted — the same ruling
+      // `deleteGradebook` follows. The lesson still happens on Monday at 10h;
+      // it simply no longer names a salle. Deleting a room must never delete
+      // part of a teacher's week.
+      const lessons = await db.scheduleEntries.where("roomId").equals(roomId).toArray();
+      for (const lesson of lessons) {
+        const { roomId: _unlinked, ...rest } = lesson;
+        await db.scheduleEntries.put({ ...rest, updatedAt: Date.now() });
+      }
+      await db.desks.where("roomId").equals(roomId).delete();
+      await db.rooms.delete(roomId);
+    },
+  );
 }
 
 /** An assessment and every level recorded on it. */

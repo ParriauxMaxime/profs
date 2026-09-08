@@ -7,10 +7,10 @@ import {
   deleteGradebook,
   deleteGroup,
   deletePeriod,
+  deleteRoom,
   deleteRubricAssessment,
   deleteRubricTemplate,
   deleteScheduleEntry,
-  deleteSeatingLayout,
   deleteSession,
   deleteStudent,
   deleteSubject,
@@ -607,7 +607,6 @@ describe("deleteStudent — phase 2 rows", () => {
       type: "yellow",
       createdAt: 1,
     });
-    await db.seats.put({ id: "t1", layoutId: "l1", x: 0, y: 0, studentId: "p1" });
 
     await deleteStudent(db, "p1");
 
@@ -616,13 +615,6 @@ describe("deleteStudent — phase 2 rows", () => {
     expect(await db.behaviourEvents.count()).toBe(0);
     // The seat survives, emptied: deleting a pupil must not punch a hole in
     // the room's geometry.
-    expect(await db.seats.get("t1")).toEqual({
-      id: "t1",
-      layoutId: "l1",
-      x: 0,
-      y: 0,
-      studentId: null,
-    });
     db.close();
   });
 
@@ -661,8 +653,6 @@ describe("deleteClass — phase 2 rows", () => {
       type: "red",
       createdAt: 1,
     });
-    await db.seatingLayouts.add({ id: "l1", classId: "c1", width: 4, height: 4, updatedAt: 1 });
-    await db.seats.put({ id: "t1", layoutId: "l1", x: 0, y: 0, studentId: "p1" });
     await db.studentGroups.add({
       id: "g1",
       classId: "c1",
@@ -681,8 +671,6 @@ describe("deleteClass — phase 2 rows", () => {
       db.sessions,
       db.attendance,
       db.behaviourEvents,
-      db.seatingLayouts,
-      db.seats,
       db.studentGroups,
       db.groupMembers,
     ]) {
@@ -712,22 +700,6 @@ describe("deleteSession", () => {
     expect(await db.attendance.count()).toBe(1);
     expect(await db.behaviourEvents.count()).toBe(1);
     expect((await db.behaviourEvents.toArray())[0].id).toBe("e2");
-    db.close();
-  });
-});
-
-describe("deleteSeatingLayout", () => {
-  it("takes its seats", async () => {
-    const db = openWorkspaceDb(`cascade-layout-${crypto.randomUUID()}`);
-    await db.seatingLayouts.add({ id: "l1", classId: "c1", width: 7, height: 4, updatedAt: 1 });
-    await db.seats.bulkPut([
-      { id: "t1", layoutId: "l1", x: 0, y: 0, studentId: null },
-      { id: "t2", layoutId: "l1", x: 3, y: 0, studentId: "p1" },
-      { id: "t3", layoutId: "l2", x: 0, y: 0, studentId: null },
-    ]);
-    await deleteSeatingLayout(db, "l1");
-    expect(await db.seatingLayouts.count()).toBe(0);
-    expect(await db.seats.count()).toBe(1);
     db.close();
   });
 });
@@ -1126,6 +1098,154 @@ describe("the journal", () => {
     await deleteClass(db, "c2");
 
     expect(await db.diaryEntries.count()).toBe(0);
+    db.close();
+  });
+});
+
+describe("salles", () => {
+  /** A salle with two desks, taught to two classes. */
+  async function salleWithTwoClasses(db: ReturnType<typeof openWorkspaceDb>) {
+    await db.rooms.add({
+      id: "r1",
+      name: "204",
+      width: 20,
+      height: 16,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await db.desks.bulkAdd([
+      { id: "d1", roomId: "r1", x: 2, y: 2 },
+      { id: "d2", roomId: "r1", x: 4, y: 2 },
+    ]);
+    await db.seatingPlans.bulkAdd([
+      { id: "pA", classId: "cA", roomId: "r1", updatedAt: 1 },
+      { id: "pB", classId: "cB", roomId: "r1", updatedAt: 1 },
+    ]);
+    await db.assignments.bulkPut([
+      { planId: "pA", deskId: "d1", studentId: "sA" },
+      { planId: "pB", deskId: "d1", studentId: "sB" },
+    ]);
+  }
+
+  it("deleteRoom takes its desks, its plans and their assignments", async () => {
+    const db = openWorkspaceDb(`cascade-room-${crypto.randomUUID()}`);
+    await salleWithTwoClasses(db);
+
+    await deleteRoom(db, "r1");
+
+    expect(await db.rooms.count()).toBe(0);
+    expect(await db.desks.count()).toBe(0);
+    expect(await db.seatingPlans.count()).toBe(0);
+    expect(await db.assignments.count()).toBe(0);
+    db.close();
+  });
+
+  it("deleteRoom unlinks the timetable rather than deleting lessons", async () => {
+    const db = openWorkspaceDb(`cascade-room-schedule-${crypto.randomUUID()}`);
+    await salleWithTwoClasses(db);
+    await db.scheduleEntries.add({
+      id: "sch1",
+      classId: "cA",
+      roomId: "r1",
+      weekday: 1,
+      startMinute: 600,
+      endMinute: 660,
+      weekCycle: "all",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+
+    await deleteRoom(db, "r1");
+
+    // The lesson still happens on Monday at 10h; it just no longer names a
+    // salle. Deleting a room must never delete part of a teacher's week.
+    const entry = await db.scheduleEntries.get("sch1");
+    expect(entry).toBeDefined();
+    expect(entry).not.toHaveProperty("roomId");
+    expect(entry?.weekday).toBe(1);
+    db.close();
+  });
+
+  it("deleteRoom leaves another salle's lessons linked", async () => {
+    const db = openWorkspaceDb(`cascade-room-schedule-other-${crypto.randomUUID()}`);
+    await salleWithTwoClasses(db);
+    await db.scheduleEntries.add({
+      id: "sch2",
+      classId: "cA",
+      roomId: "r2",
+      weekday: 2,
+      startMinute: 600,
+      endMinute: 660,
+      weekCycle: "all",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+
+    await deleteRoom(db, "r1");
+
+    expect((await db.scheduleEntries.get("sch2"))?.roomId).toBe("r2");
+    db.close();
+  });
+
+  it("deleteRoom leaves another salle entirely alone", async () => {
+    const db = openWorkspaceDb(`cascade-room-other-${crypto.randomUUID()}`);
+    await salleWithTwoClasses(db);
+    await db.rooms.add({
+      id: "r2",
+      name: "Labo",
+      width: 20,
+      height: 16,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await db.desks.add({ id: "d9", roomId: "r2", x: 2, y: 2 });
+    await db.seatingPlans.add({ id: "pC", classId: "cA", roomId: "r2", updatedAt: 1 });
+    await db.assignments.put({ planId: "pC", deskId: "d9", studentId: "sA" });
+
+    await deleteRoom(db, "r1");
+
+    expect(await db.rooms.count()).toBe(1);
+    expect(await db.desks.count()).toBe(1);
+    expect(await db.assignments.count()).toBe(1);
+    db.close();
+  });
+
+  it("deleteClass takes its plan but leaves the salle standing", async () => {
+    const db = openWorkspaceDb(`cascade-class-room-${crypto.randomUUID()}`);
+    await db.classes.add({ id: "cA", name: "3°B", createdAt: 1, updatedAt: 1 });
+    await salleWithTwoClasses(db);
+
+    await deleteClass(db, "cA");
+
+    // The salle belongs to the établissement and outlives every class in it.
+    expect(await db.rooms.count()).toBe(1);
+    expect(await db.desks.count()).toBe(2);
+    // Only 3°B's arrangement went; 5°A still sits where it sat.
+    expect(await db.seatingPlans.count()).toBe(1);
+    expect((await db.assignments.toArray()).map((a) => a.studentId)).toEqual(["sB"]);
+    db.close();
+  });
+
+  it("deleteStudent removes their assignment rather than emptying it", async () => {
+    const db = openWorkspaceDb(`cascade-student-room-${crypto.randomUUID()}`);
+    await db.students.add({
+      id: "sA",
+      classId: "cA",
+      lastName: "BERNARD",
+      firstName: "Adam",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await salleWithTwoClasses(db);
+
+    await deleteStudent(db, "sA");
+
+    // An assignment is the pair (place, pupil): with no pupil there is no row.
+    expect(await db.assignments.where("planId").equals("pA").count()).toBe(0);
+    // The desk is furniture and stays, exactly as a Seat does.
+    expect(await db.desks.count()).toBe(2);
+    // And the other class is untouched.
+    expect(await db.assignments.where("planId").equals("pB").count()).toBe(1);
     db.close();
   });
 });

@@ -12,20 +12,22 @@ import { hasBeenSeeded, markSeeded } from "@domain/workspaces";
 import type { AppDatabase } from ".";
 import { startOfDay } from "./sessions";
 import type {
+  Assignment,
   AttendanceRecord,
   BehaviourEvent,
+  Desk,
   DiaryEntry,
   Grade,
   Gradebook,
   GradeColumn,
   GroupMember,
   Period,
+  Room,
   RubricAssessment,
   RubricScore,
   RubricTemplate,
   ScheduleEntry,
-  Seat,
-  SeatingLayout,
+  SeatingPlan,
   Session,
   Student,
   StudentGroup,
@@ -342,34 +344,47 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
   // child. What `@domain/avatar` draws is flat vector shapes with no shading
   // and no likeness, which is what makes seeding it acceptable — it exercises
   // the photo path without depicting anybody.
-  const seatingLayouts: SeatingLayout[] = [];
-  const seats: Seat[] = [];
   const sessions: Session[] = [];
   const attendance: AttendanceRecord[] = [];
   const behaviourEvents: BehaviourEvent[] = [];
+
+  // ONE salle, shared by every demo class — which is the point the demo school
+  // exists to make. Two classes sitting at the same furniture with their own
+  // arrangements is the whole of what changed, and a seed that gave each class
+  // its own room would show none of it.
+  const shape = buildRoom(DEFAULT_TEMPLATE);
+  const roomId = id();
+  const rooms: Room[] = [
+    {
+      id: roomId,
+      name: "204",
+      width: shape.width,
+      height: shape.height,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ];
+  const desks: Desk[] = shape.positions.map((position) => ({
+    id: id(),
+    roomId,
+    x: position.x,
+    y: position.y,
+  }));
+  const seatingPlans: SeatingPlan[] = [];
+  const assignments: Assignment[] = [];
 
   const weekdays = lastWeekdays(3, now);
 
   for (const schoolClass of classes) {
     const classStudents = students.filter((s) => s.classId === schoolClass.id);
 
-    const layoutId = id();
-    const shape = buildRoom(DEFAULT_TEMPLATE);
-    seatingLayouts.push({
-      id: layoutId,
-      classId: schoolClass.id,
-      width: shape.width,
-      height: shape.height,
-      updatedAt: now,
-    });
-    shape.positions.forEach((position, i) => {
-      seats.push({
-        id: id(),
-        layoutId,
-        x: position.x,
-        y: position.y,
-        studentId: classStudents[i]?.id ?? null,
-      });
+    const planId = id();
+    seatingPlans.push({ id: planId, classId: schoolClass.id, roomId, updatedAt: now });
+    // Reading order, and only as far as the furniture goes: a class larger
+    // than the salle leaves its tail in the rail, which is what a teacher
+    // would see.
+    classStudents.slice(0, desks.length).forEach((student, i) => {
+      assignments.push({ planId, deskId: desks[i].id, studentId: student.id });
     });
 
     const classSessions = weekdays.map((date) => ({
@@ -451,15 +466,16 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     start: number;
     end: number;
     cycle: WeekCycle;
-    room: string;
   }[] = [
-    { classIndex: 0, weekday: 1, start: 8 * 60, end: 9 * 60, cycle: "all", room: "B12" },
-    { classIndex: 0, weekday: 2, start: 10 * 60, end: 11 * 60, cycle: "all", room: "B12" },
-    { classIndex: 0, weekday: 4, start: 14 * 60, end: 15 * 60, cycle: "A", room: "B14" },
-    { classIndex: 0, weekday: 4, start: 14 * 60, end: 15 * 60, cycle: "B", room: "Labo" },
-    { classIndex: 1, weekday: 1, start: 9 * 60, end: 10 * 60, cycle: "all", room: "A03" },
-    { classIndex: 1, weekday: 3, start: 11 * 60, end: 12 * 60, cycle: "all", room: "A03" },
-    { classIndex: 1, weekday: 5, start: 8 * 60, end: 9 * 60, cycle: "B", room: "A03" },
+    // Every lesson is in the one seeded salle, which is the point the demo
+    // exists to make: two classes, one physical room, an arrangement each.
+    { classIndex: 0, weekday: 1, start: 8 * 60, end: 9 * 60, cycle: "all" },
+    { classIndex: 0, weekday: 2, start: 10 * 60, end: 11 * 60, cycle: "all" },
+    { classIndex: 0, weekday: 4, start: 14 * 60, end: 15 * 60, cycle: "A" },
+    { classIndex: 0, weekday: 4, start: 14 * 60, end: 15 * 60, cycle: "B" },
+    { classIndex: 1, weekday: 1, start: 9 * 60, end: 10 * 60, cycle: "all" },
+    { classIndex: 1, weekday: 3, start: 11 * 60, end: 12 * 60, cycle: "all" },
+    { classIndex: 1, weekday: 5, start: 8 * 60, end: 9 * 60, cycle: "B" },
   ];
   const scheduleEntries: ScheduleEntry[] = scheduleShape.map((shape) => ({
     id: id(),
@@ -470,7 +486,7 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     startMinute: shape.start,
     endMinute: shape.end,
     weekCycle: shape.cycle,
-    room: shape.room,
+    roomId,
     createdAt: now,
     updatedAt: now,
   }));
@@ -510,8 +526,10 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       db.sessions,
       db.attendance,
       db.behaviourEvents,
-      db.seatingLayouts,
-      db.seats,
+      db.rooms,
+      db.desks,
+      db.seatingPlans,
+      db.assignments,
       db.rubricTemplates,
       db.rubricAssessments,
       db.rubricScores,
@@ -531,8 +549,10 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       await db.sessions.bulkAdd(sessions);
       await db.attendance.bulkPut(attendance);
       await db.behaviourEvents.bulkAdd(behaviourEvents);
-      await db.seatingLayouts.bulkAdd(seatingLayouts);
-      await db.seats.bulkPut(seats);
+      await db.rooms.bulkAdd(rooms);
+      await db.desks.bulkAdd(desks);
+      await db.seatingPlans.bulkAdd(seatingPlans);
+      await db.assignments.bulkPut(assignments);
       await db.rubricTemplates.add(rubricTemplate);
       await db.rubricAssessments.bulkAdd(rubricAssessments);
       await db.rubricScores.bulkPut(rubricScores);

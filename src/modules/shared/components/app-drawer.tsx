@@ -91,6 +91,10 @@ export function AppDrawer({
     { key: "students", to: Router.Students(), label: t("nav.students") },
     { key: "schedule", to: Router.Schedule(), label: t("nav.schedule") },
     { key: "diary", to: Router.Diary(), label: t("nav.diary") },
+    // Salles sits with the destinations rather than in Réglages: once
+    // furniture belongs to the établissement rather than to a class, a salle
+    // is CONTENT the app is about, like Élèves — not configuration for it.
+    { key: "rooms", to: Router.Rooms(), label: t("nav.rooms") },
     { key: "settings", to: Router.Settings(), label: t("nav.settings") },
   ];
 

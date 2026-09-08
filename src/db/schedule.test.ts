@@ -17,22 +17,22 @@ const BASE = {
 describe("saveScheduleEntry", () => {
   it("creates an entry", async () => {
     const db = freshDb("create");
-    const result = await saveScheduleEntry(db, { ...BASE, room: "  B12  " });
+    const result = await saveScheduleEntry(db, { ...BASE, roomId: "r1" });
 
     expect(result.saved).toBe(true);
     const entry = await db.scheduleEntries.get((result as { id: string }).id);
     expect(entry?.weekday).toBe(1);
-    expect(entry?.room).toBe("B12");
+    expect(entry?.roomId).toBe("r1");
     expect(entry?.weekCycle).toBe("all");
     db.close();
   });
 
   it("omits absent optional fields rather than storing undefined", async () => {
     const db = freshDb("optional");
-    const result = await saveScheduleEntry(db, { ...BASE, room: "   " });
+    const result = await saveScheduleEntry(db, { ...BASE, roomId: "" });
     const entry = await db.scheduleEntries.get((result as { id: string }).id);
 
-    expect(entry).not.toHaveProperty("room");
+    expect(entry).not.toHaveProperty("roomId");
     expect(entry).not.toHaveProperty("subjectId");
     expect(entry).not.toHaveProperty("gradebookId");
     db.close();

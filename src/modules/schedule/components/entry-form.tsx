@@ -1,7 +1,9 @@
 import type { Gradebook, ScheduleEntry, SchoolClass, Subject } from "@db";
 import { useDb } from "@db/provider";
+import { listRooms } from "@db/rooms";
 import { saveScheduleEntry } from "@db/schedule";
 import { hmToMinutes, minutesToHm, overlaps, WEEK_CYCLES, type WeekCycle } from "@domain/schedule";
+import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEscape } from "../../shared/use-escape";
@@ -49,6 +51,9 @@ export function EntryForm({
 }) {
   const { t } = useTranslation();
   const db = useDb();
+  // `db` in the deps like every live query here, or a workspace switch
+  // would keep offering the previous school's salles.
+  const rooms = useLiveQuery(() => listRooms(db), [db]);
 
   const [classId, setClassId] = useState(entry?.classId ?? classes[0]?.id ?? "");
   const [subjectId, setSubjectId] = useState(entry?.subjectId ?? "");
@@ -57,7 +62,7 @@ export function EntryForm({
   const [start, setStart] = useState(toTimeValue(entry?.startMinute ?? 8 * 60));
   const [end, setEnd] = useState(toTimeValue(entry?.endMinute ?? 9 * 60));
   const [weekCycle, setWeekCycle] = useState<WeekCycle>(entry?.weekCycle ?? "all");
-  const [room, setRoom] = useState(entry?.room ?? "");
+  const [roomId, setRoomId] = useState(entry?.roomId ?? "");
   const [error, setError] = useState<string | null>(null);
 
   useEscape(onDone);
@@ -95,7 +100,7 @@ export function EntryForm({
       startMinute,
       endMinute,
       weekCycle,
-      room,
+      roomId,
     });
     if (!result.saved) {
       setError(
@@ -222,12 +227,14 @@ export function EntryForm({
 
         <label className="flex flex-col gap-1">
           {t("schedule.room")}
-          <input
-            className="field"
-            value={room}
-            onChange={(e) => setRoom(e.target.value)}
-            placeholder={t("schedule.roomPlaceholder")}
-          />
+          <select className="field" value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+            <option value="">{t("schedule.noRoom")}</option>
+            {(rooms ?? []).map((room) => (
+              <option key={room.id} value={room.id}>
+                {room.name}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
 
