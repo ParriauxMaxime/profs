@@ -98,6 +98,17 @@ export interface Session {
   classId: string;
   subjectId?: string;
   date: number;
+  /**
+   * Minutes from midnight, when the lesson has a time. Absent for an
+   * unscheduled séance — a cover lesson, a catch-up.
+   *
+   * This records WHEN THIS LESSON WAS; it is not a foreign key into the
+   * timetable. A lesson moved to another hour next term leaves every past
+   * séance holding the time it actually happened at.
+   */
+  startsAt?: number;
+  /** What was done in this lesson. Free text, written and read whole. */
+  note?: string;
   createdAt: number;
 }
 

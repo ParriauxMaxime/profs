@@ -244,7 +244,11 @@ export function PlanPage({
           <button
             type="button"
             className="btn"
-            onClick={() => void createSession(db, classId).then((s) => selectSession(s.id, true))}
+            onClick={() =>
+              void createSession(db, classId, startOfDay(Date.now())).then((s) =>
+                selectSession(s.id, true),
+              )
+            }
           >
             {t("plan.newSession")}
           </button>

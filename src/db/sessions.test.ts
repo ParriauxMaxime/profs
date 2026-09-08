@@ -1,6 +1,12 @@
 import "fake-indexeddb/auto";
 import { openWorkspaceDb } from ".";
-import { createSession, getOrCreateTodaySession, sessionsForClass, startOfDay } from "./sessions";
+import {
+  createSession,
+  getOrCreateTodaySession,
+  sessionsForClass,
+  setSessionNote,
+  startOfDay,
+} from "./sessions";
 
 function freshDb(name: string) {
   return openWorkspaceDb(`sessions-${name}-${crypto.randomUUID()}`);
@@ -62,7 +68,7 @@ describe("getOrCreateTodaySession", () => {
   it("returns the most recent when a second was forced today", async () => {
     const db = freshDb("forced");
     await getOrCreateTodaySession(db, "c1");
-    const forced = await createSession(db, "c1");
+    const forced = await createSession(db, "c1", startOfDay(Date.now()));
     const found = await getOrCreateTodaySession(db, "c1");
     expect(found.id).toBe(forced.id);
     expect(await db.sessions.count()).toBe(2);
@@ -96,6 +102,63 @@ describe("getOrCreateTodaySession — concurrency", () => {
     ]);
     expect(await db.sessions.count()).toBe(1);
     expect(a.id).toBe(b.id);
+    db.close();
+  });
+});
+
+describe("setSessionNote", () => {
+  it("writes the note onto the séance", async () => {
+    const db = freshDb("note");
+    const session = await createSession(db, "c1", startOfDay(Date.now()));
+    await setSessionNote(db, session.id, "Théorème de Pythagore");
+    expect((await db.sessions.get(session.id))?.note).toBe("Théorème de Pythagore");
+    db.close();
+  });
+
+  it("trims it", async () => {
+    const db = freshDb("trim");
+    const session = await createSession(db, "c1", startOfDay(Date.now()));
+    await setSessionNote(db, session.id, "  Pythagore  ");
+    expect((await db.sessions.get(session.id))?.note).toBe("Pythagore");
+    db.close();
+  });
+
+  /**
+   * Cleared, never emptied. A séance with `note: ""` is the husk `writeGrade`
+   * refuses for a grade: it survives export, and makes "does this lesson have
+   * a note?" answer yes for a lesson that has none.
+   */
+  it("removes the field when the text is blank", async () => {
+    const db = freshDb("blank");
+    const session = await createSession(db, "c1", startOfDay(Date.now()));
+    await setSessionNote(db, session.id, "Pythagore");
+    await setSessionNote(db, session.id, "   ");
+    const after = await db.sessions.get(session.id);
+    expect(after).toBeDefined();
+    expect("note" in (after ?? {})).toBe(false);
+    db.close();
+  });
+
+  it("ignores a séance that no longer exists", async () => {
+    const db = freshDb("gone");
+    await expect(setSessionNote(db, "gone", "x")).resolves.toBeUndefined();
+    db.close();
+  });
+});
+
+describe("createSession with a time", () => {
+  it("keeps the start time it was given", async () => {
+    const db = freshDb("time");
+    const date = startOfDay(Date.now());
+    const session = await createSession(db, "c1", date, { startsAt: 600 });
+    expect(session.startsAt).toBe(600);
+    db.close();
+  });
+
+  it("leaves it absent for an unscheduled séance", async () => {
+    const db = freshDb("unscheduled");
+    const session = await createSession(db, "c1", startOfDay(Date.now()));
+    expect("startsAt" in session).toBe(false);
     db.close();
   });
 });

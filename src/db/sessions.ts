@@ -20,9 +20,9 @@ export function startOfDay(ms: number): number {
 export async function createSession(
   db: AppDatabase,
   classId: string,
-  subjectId?: string,
+  date: number,
+  options: { subjectId?: string; startsAt?: number } = {},
 ): Promise<Session> {
-  const date = startOfDay(Date.now());
   // A forced second session can land in the same millisecond as the first in
   // a fast test run (or on a fast machine). `createdAt` is what determines
   // "most recent" in getOrCreateTodaySession, so it must strictly increase
@@ -32,8 +32,9 @@ export async function createSession(
   const session: Session = {
     id: crypto.randomUUID(),
     classId,
-    ...(subjectId === undefined ? {} : { subjectId }),
-    date,
+    ...(options.subjectId === undefined ? {} : { subjectId: options.subjectId }),
+    ...(options.startsAt === undefined ? {} : { startsAt: options.startsAt }),
+    date: startOfDay(date),
     createdAt: Math.max(Date.now(), latestExisting + 1),
   };
   await db.sessions.add(session);
@@ -78,4 +79,26 @@ export async function getOrCreateTodaySession(
 export async function sessionsForClass(db: AppDatabase, classId: string): Promise<Session[]> {
   const sessions = await db.sessions.where("classId").equals(classId).toArray();
   return sessions.sort((a, b) => b.date - a.date || b.createdAt - a.createdAt);
+}
+
+/**
+ * What was done in this lesson.
+ *
+ * Blank text CLEARS the field rather than storing an empty string — the same
+ * rule `writeGrade` applies to a grade with neither value nor note. A husk
+ * survives every export and makes "does this séance have a note?" answer yes
+ * for a lesson that has none.
+ */
+export async function setSessionNote(
+  db: AppDatabase,
+  sessionId: string,
+  note: string,
+): Promise<void> {
+  const text = note.trim();
+  if (text === "") {
+    // `delete` is Dexie's own sentinel for removing a key in an update.
+    await db.sessions.update(sessionId, { note: undefined });
+    return;
+  }
+  await db.sessions.update(sessionId, { note: text });
 }

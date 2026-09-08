@@ -16,7 +16,7 @@ import {
   deleteSubject,
 } from "./cascade";
 import { seedIfEmpty } from "./seed";
-import { createSession } from "./sessions";
+import { createSession, startOfDay } from "./sessions";
 
 describe("cascading deletes", () => {
   it("deleteColumn removes the column and every grade in it, and nothing else", async () => {
@@ -527,7 +527,7 @@ describe("deleteSubject", () => {
     const now = Date.now();
     const id = crypto.randomUUID();
     await db.subjects.add({ id, name: "Sport", color: "#a855f7", createdAt: now, updatedAt: now });
-    await createSession(db, schoolClass.id, id);
+    await createSession(db, schoolClass.id, startOfDay(Date.now()), { subjectId: id });
     const before = await db.subjects.count();
 
     const result = await deleteSubject(db, id);
