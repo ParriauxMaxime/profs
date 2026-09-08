@@ -2,8 +2,10 @@ import "fake-indexeddb/auto";
 import { openWorkspaceDb } from ".";
 import {
   createSession,
+  getOrCreateSessionAt,
   getOrCreateTodaySession,
   sessionsForClass,
+  sessionsForDay,
   setSessionNote,
   startOfDay,
 } from "./sessions";
@@ -171,6 +173,84 @@ describe("createSession with a time", () => {
     const session2 = await createSession(db, "c1", afternoon + 1000); // 1 second later
     // The second must have a strictly greater createdAt, enforced by the guard.
     expect(session2.createdAt).toBeGreaterThan(session1.createdAt);
+    db.close();
+  });
+});
+
+describe("sessionsForDay", () => {
+  it("returns the day's séances earliest first, untimed last", async () => {
+    const db = freshDb("day-order");
+    const date = startOfDay(Date.now());
+    await createSession(db, "c1", date, { startsAt: 840 });
+    await createSession(db, "c1", date, { startsAt: 600 });
+    await createSession(db, "c1", date);
+    await createSession(db, "c2", date, { startsAt: 60 });
+
+    const day = await sessionsForDay(db, "c1", date);
+    expect(day.map((s) => s.startsAt)).toEqual([600, 840, undefined]);
+    db.close();
+  });
+});
+
+describe("getOrCreateSessionAt", () => {
+  it("creates the séance for a slot that has none", async () => {
+    const db = freshDb("slot-create");
+    const date = startOfDay(Date.now());
+    const session = await getOrCreateSessionAt(db, "c1", { date, startsAt: 600 });
+    expect(session.startsAt).toBe(600);
+    expect(await db.sessions.count()).toBe(1);
+    db.close();
+  });
+
+  it("returns the existing séance for that slot", async () => {
+    const db = freshDb("slot-reuse");
+    const date = startOfDay(Date.now());
+    const first = await getOrCreateSessionAt(db, "c1", { date, startsAt: 600 });
+    const again = await getOrCreateSessionAt(db, "c1", { date, startsAt: 600 });
+    expect(again.id).toBe(first.id);
+    expect(await db.sessions.count()).toBe(1);
+    db.close();
+  });
+
+  /**
+   * The whole reason `startsAt` exists: two lessons on one day are two
+   * séances, each with its own register and its own note.
+   */
+  it("keeps two lessons on one day apart", async () => {
+    const db = freshDb("two-lessons");
+    const date = startOfDay(Date.now());
+    const morning = await getOrCreateSessionAt(db, "c1", { date, startsAt: 600 });
+    const afternoon = await getOrCreateSessionAt(db, "c1", { date, startsAt: 840 });
+    expect(afternoon.id).not.toBe(morning.id);
+    expect(await db.sessions.count()).toBe(2);
+    db.close();
+  });
+
+  it("treats an unscheduled séance as its own slot", async () => {
+    const db = freshDb("unscheduled-slot");
+    const date = startOfDay(Date.now());
+    const timed = await getOrCreateSessionAt(db, "c1", { date, startsAt: 600 });
+    const untimed = await getOrCreateSessionAt(db, "c1", { date });
+    expect(untimed.id).not.toBe(timed.id);
+    expect(untimed.startsAt).toBeUndefined();
+    db.close();
+  });
+
+  /**
+   * Read and write inside ONE transaction. React StrictMode double-invokes
+   * effects, and a read-then-write outside a transaction let both reads run
+   * before either write — which is how the plan page once created two
+   * sessions for one lesson.
+   */
+  it("creates one séance when called twice at once", async () => {
+    const db = freshDb("concurrent");
+    const date = startOfDay(Date.now());
+    const [a, b] = await Promise.all([
+      getOrCreateSessionAt(db, "c1", { date, startsAt: 600 }),
+      getOrCreateSessionAt(db, "c1", { date, startsAt: 600 }),
+    ]);
+    expect(a.id).toBe(b.id);
+    expect(await db.sessions.count()).toBe(1);
     db.close();
   });
 });

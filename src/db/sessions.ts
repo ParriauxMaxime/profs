@@ -104,3 +104,52 @@ export async function setSessionNote(
   }
   await db.sessions.update(sessionId, { note: text });
 }
+
+/**
+ * A class's séances on one day, earliest first.
+ *
+ * An unscheduled séance has no time and sorts last: it has nothing to sort
+ * by, and a teacher reads a day as a clock.
+ */
+export async function sessionsForDay(
+  db: AppDatabase,
+  classId: string,
+  date: number,
+): Promise<Session[]> {
+  const day = await db.sessions.where({ classId, date: startOfDay(date) }).toArray();
+  return day.sort((a, b) => {
+    if (a.startsAt === b.startsAt) return a.createdAt - b.createdAt;
+    if (a.startsAt === undefined) return 1;
+    if (b.startsAt === undefined) return -1;
+    return a.startsAt - b.startsAt;
+  });
+}
+
+/**
+ * The séance for one slot, created if absent.
+ *
+ * A slot is a class, a day, and — when the lesson has one — a start time.
+ * Two lessons on one day are two slots and therefore two séances, each with
+ * its own register and its own note.
+ *
+ * Read and write inside ONE transaction: StrictMode's double-invoked effects
+ * ran both reads before either write and produced two sessions for one lesson.
+ */
+export async function getOrCreateSessionAt(
+  db: AppDatabase,
+  classId: string,
+  at: { date: number; startsAt?: number; subjectId?: string },
+): Promise<Session> {
+  const date = startOfDay(at.date);
+  return db.transaction("rw", db.sessions, async () => {
+    const day = await db.sessions.where({ classId, date }).toArray();
+    const existing = day.filter((s) => s.startsAt === at.startsAt);
+    if (existing.length > 0) {
+      return existing.reduce((latest, s) => (s.createdAt > latest.createdAt ? s : latest));
+    }
+    return createSession(db, classId, date, {
+      ...(at.subjectId === undefined ? {} : { subjectId: at.subjectId }),
+      ...(at.startsAt === undefined ? {} : { startsAt: at.startsAt }),
+    });
+  });
+}
