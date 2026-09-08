@@ -1,5 +1,6 @@
 import {
   canPlace,
+  clampRoomSize,
   compareReadingOrder,
   occupantsInReadingOrder,
   type Position,
@@ -55,6 +56,33 @@ export async function createRoom(db: AppDatabase, name: string, shape: RoomShape
 
 export async function renameRoom(db: AppDatabase, roomId: string, name: string): Promise<void> {
   await db.rooms.update(roomId, { name, updatedAt: Date.now() });
+}
+
+/**
+ * Resize the salle's floor, without moving a single table.
+ *
+ * The clamp reads the room's OWN desks inside the transaction, so shrinking can
+ * never leave one outside the walls: a desk beyond the edge fails `fitsRoom`,
+ * which means `moveDesk` would refuse every attempt to bring it back and the
+ * teacher would have furniture they could see and not touch.
+ *
+ * Growing is always legal up to `ROOM_MAX`. Returns the size actually written,
+ * which is what the caller should render — a spinner that keeps showing a
+ * refused number is lying about the room.
+ */
+export async function resizeRoom(
+  db: AppDatabase,
+  roomId: string,
+  requested: { width: number; height: number },
+): Promise<{ width: number; height: number } | null> {
+  return db.transaction("rw", [db.rooms, db.desks], async () => {
+    const room = await db.rooms.get(roomId);
+    if (!room) return null;
+    const desks = await db.desks.where("roomId").equals(roomId).toArray();
+    const size = clampRoomSize(requested, desks);
+    await db.rooms.update(roomId, { ...size, updatedAt: Date.now() });
+    return size;
+  });
 }
 
 /**

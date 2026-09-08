@@ -476,6 +476,10 @@
       "islands": "Islands",
       "arc": "Curved rows",
       "u": "Horseshoe"
-    }
+    },
+    "floor": "Floor",
+    "cols": "Columns",
+    "rows": "Rows",
+    "floorMin": "Minimum {{cols}} × {{rows}}: the floor cannot shrink under the tables."
   }
 }

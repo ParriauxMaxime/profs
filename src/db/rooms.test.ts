@@ -13,6 +13,7 @@ import {
   nudgeDesk,
   removeDesk,
   renameRoom,
+  resizeRoom,
   stampOverflow,
 } from "./rooms";
 
@@ -65,6 +66,45 @@ describe("renameRoom", () => {
     await renameRoom(db, room.id, "Salle 204");
     expect((await db.rooms.get(room.id))?.name).toBe("Salle 204");
     expect(await desksForRoom(db, room.id)).toHaveLength(6);
+  });
+});
+
+describe("resizeRoom", () => {
+  it("grows the floor without moving a table", async () => {
+    const room = await createRoom(db, "204", SHAPE);
+    const before = await desksForRoom(db, room.id);
+
+    const size = await resizeRoom(db, room.id, { width: 40, height: 30 });
+
+    expect(size).toEqual({ width: 40, height: 30 });
+    expect(await desksForRoom(db, room.id)).toEqual(before);
+  });
+
+  it("refuses to shrink under the furniture, returning what it actually wrote", async () => {
+    const room = await createRoom(db, "204", SHAPE);
+    const furthest = (await desksForRoom(db, room.id)).reduce((a, b) => (a.x > b.x ? a : b));
+
+    const size = await resizeRoom(db, room.id, { width: 4, height: 4 });
+
+    // A desk outside the walls fails `fitsRoom`, so `moveDesk` would refuse
+    // every attempt to bring it back — furniture visible and untouchable.
+    expect(size?.width).toBeGreaterThan(furthest.x + TABLE);
+    const stored = await db.rooms.get(room.id);
+    expect(stored?.width).toBe(size?.width);
+  });
+
+  it("lets an emptied salle shrink to the floor", async () => {
+    const room = await createRoom(db, "204", SHAPE);
+    for (const desk of await desksForRoom(db, room.id)) await removeDesk(db, desk.id);
+
+    const size = await resizeRoom(db, room.id, { width: 0, height: 0 });
+
+    expect(size?.width).toBeLessThan(room.width);
+    expect(size?.width).toBeGreaterThan(0);
+  });
+
+  it("is null for a salle that is gone", async () => {
+    expect(await resizeRoom(db, "no-such-room", { width: 20, height: 20 })).toBeNull();
   });
 });
 

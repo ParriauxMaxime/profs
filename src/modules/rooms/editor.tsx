@@ -8,8 +8,9 @@ import {
   nudgeDesk,
   removeDesk,
   renameRoom,
+  resizeRoom,
 } from "@db/rooms";
-import type { Position } from "@domain/room";
+import { minimumExtent, type Position, ROOM_MAX, TABLE } from "@domain/room";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -37,6 +38,52 @@ import { TemplateForm } from "./components/template-form";
 
 /** What is being dragged: an existing desk, or a new one from the palette. */
 type Dragging = { kind: "desk"; deskId: string } | { kind: "new" } | null;
+
+/**
+ * One dimension of the floor, in whole tiles.
+ *
+ * Steppers rather than a free number field: the only sensible edits are one
+ * more and one less, the floor is bounded on both sides, and a spinner invites
+ * typing a number the room will silently refuse. `−` disables at the minimum
+ * so the wall being immovable is visible rather than discovered.
+ */
+function SizeStepper({
+  label,
+  tiles,
+  min,
+  onChange,
+}: {
+  label: string;
+  tiles: number;
+  min: number;
+  onChange: (tiles: number) => void;
+}) {
+  const max = Math.floor(ROOM_MAX / TABLE);
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-sm">{label}</span>
+      <button
+        type="button"
+        className="btn h-9 min-h-9 w-9 p-0"
+        disabled={tiles <= min}
+        aria-label={`${label} −`}
+        onClick={() => onChange(tiles - 1)}
+      >
+        −
+      </button>
+      <span className="tabular w-6 text-center text-sm">{tiles}</span>
+      <button
+        type="button"
+        className="btn h-9 min-h-9 w-9 p-0"
+        disabled={tiles >= max}
+        aria-label={`${label} +`}
+        onClick={() => onChange(tiles + 1)}
+      >
+        +
+      </button>
+    </div>
+  );
+}
 
 export function RoomEditorPage({ roomId }: { roomId: string }) {
   const { t } = useTranslation();
@@ -124,6 +171,19 @@ export function RoomEditorPage({ roomId }: { roomId: string }) {
     });
   };
 
+  // In TILES, since that is what the steppers count. A room whose extent is
+  // not a whole number of tiles (an arc's frame need not be) rounds up, so the
+  // floor never reports a size that would clip a desk.
+  const minExtent = minimumExtent(desks);
+  const minTiles = {
+    width: Math.ceil(minExtent.width / TABLE),
+    height: Math.ceil(minExtent.height / TABLE),
+  };
+
+  const resize = async (width: number, height: number): Promise<void> => {
+    await resizeRoom(db, roomId, { width, height });
+  };
+
   return (
     <div className="flex flex-col gap-3">
       <div className="text-text-faint text-xs">
@@ -198,7 +258,30 @@ export function RoomEditorPage({ roomId }: { roomId: string }) {
           <p className="text-text-faint text-xs">{t("rooms.keyboardHint")}</p>
         </div>
 
-        <div className="lg:order-1 lg:min-w-0 lg:flex-1">
+        <div className="flex flex-col gap-2 lg:order-1 lg:min-w-0 lg:flex-1">
+          {/* Above the plan, because it is about the FLOOR rather than about
+              any table on it. In tiles, not half-tiles: a teacher counts
+              places across the room, and the half-tile only exists so an arc
+              can sit between two of them. */}
+          <div className="flex flex-wrap items-center gap-3 rounded-md border border-border px-3 py-2">
+            <span className="text-sm text-text-muted">{t("rooms.floor")}</span>
+            <SizeStepper
+              label={t("rooms.cols")}
+              tiles={room.width / TABLE}
+              min={minTiles.width}
+              onChange={(cols) => void resize(cols * TABLE, room.height)}
+            />
+            <SizeStepper
+              label={t("rooms.rows")}
+              tiles={room.height / TABLE}
+              min={minTiles.height}
+              onChange={(rows) => void resize(room.width, rows * TABLE)}
+            />
+            <span className="text-text-faint text-xs">
+              {t("rooms.floorMin", { cols: minTiles.width, rows: minTiles.height })}
+            </span>
+          </div>
+
           <RoomCanvas
             room={room}
             desks={desks}

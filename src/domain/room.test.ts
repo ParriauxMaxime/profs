@@ -1,5 +1,6 @@
 import {
   canPlace,
+  clampRoomSize,
   compareReadingOrder,
   FLOOR_MARGIN,
   fitsRoom,
@@ -288,6 +289,54 @@ describe("tableGroups", () => {
       { id: "b", x: TABLE, y: 0, studentId: null },
     ]);
     expect(groups[0].desks.map((d) => d.studentId)).toEqual(["p1", null]);
+  });
+});
+
+describe("clampRoomSize", () => {
+  const at = (id: string, x: number, y: number): Seated => ({ id, x, y, studentId: null });
+
+  it("never shrinks below the furniture, which would orphan a desk", () => {
+    const desks = [at("a", 10, 6)];
+    const { width, height } = clampRoomSize({ width: 4, height: 4 }, desks);
+    expect(width).toBeGreaterThanOrEqual(10 + TABLE);
+    expect(height).toBeGreaterThanOrEqual(6 + TABLE);
+    // and every desk still fits the room it returns
+    for (const desk of desks) expect(fitsRoom(desk, { width, height })).toBe(true);
+  });
+
+  it("gives an empty salle a floor, not a zero", () => {
+    const { width, height } = clampRoomSize({ width: 0, height: 0 }, []);
+    expect(width).toBeGreaterThanOrEqual(TABLE + 2 * FLOOR_MARGIN);
+    expect(height).toBeGreaterThanOrEqual(TABLE + 2 * FLOOR_MARGIN);
+  });
+
+  it("stops at ROOM_MAX", () => {
+    expect(clampRoomSize({ width: 9999, height: 9999 }, [])).toEqual({
+      width: ROOM_MAX,
+      height: ROOM_MAX,
+    });
+  });
+
+  it("snaps to whole tiles, so the floor's tiling lands on the grid", () => {
+    const { width, height } = clampRoomSize({ width: 21, height: 15 }, []);
+    expect(width % TABLE).toBe(0);
+    expect(height % TABLE).toBe(0);
+  });
+
+  it("grows freely — a bigger room is always legal", () => {
+    expect(clampRoomSize({ width: 40, height: 30 }, [at("a", 0, 0)])).toEqual({
+      width: 40,
+      height: 30,
+    });
+  });
+
+  it("does not move the furniture, unlike frame", () => {
+    // `frame` shifts to the origin, which would slide every table under the
+    // teacher while they were only dragging an edge.
+    const desks = [at("a", 8, 8)];
+    const size = clampRoomSize({ width: 30, height: 30 }, desks);
+    expect(desks[0]).toMatchObject({ x: 8, y: 8 });
+    expect(fitsRoom(desks[0], size)).toBe(true);
   });
 });
 

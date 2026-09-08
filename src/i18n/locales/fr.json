@@ -476,6 +476,10 @@
       "islands": "Îlots",
       "arc": "Arc de cercle",
       "u": "Fer à cheval"
-    }
+    },
+    "floor": "Sol",
+    "cols": "Colonnes",
+    "rows": "Rangées",
+    "floorMin": "Minimum {{cols}} × {{rows}} : le sol ne peut pas passer sous les tables."
   }
 }

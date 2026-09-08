@@ -1,5 +1,12 @@
 import type { Desk } from "@db";
-import { freeEdges, type Position, TABLE, type TableGroup, tableGroups } from "@domain/room";
+import {
+  type FreeEdges,
+  freeEdges,
+  type Position,
+  TABLE,
+  type TableGroup,
+  tableGroups,
+} from "@domain/room";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -62,6 +69,63 @@ function useFitScale(roomWidthPx: number): [React.RefObject<HTMLDivElement | nul
     return () => observer.disconnect();
   }, [roomWidthPx]);
   return [ref, scale];
+}
+
+/**
+ * Where a place's chair sits, given which of its sides are free.
+ *
+ * The near edge wins when it is available, because that is where a pupil sits
+ * in a row. Otherwise the chair takes whichever side faces open room — the
+ * arms of a horseshoe seat people facing across it — and a place hemmed in on
+ * all four sides (the middle of a large island) gets none, which is correct:
+ * nobody can reach it.
+ */
+function chairStyle(
+  edge: FreeEdges,
+  desk: { x: number },
+  group: { x: number; width: number },
+): React.CSSProperties {
+  const long = 32;
+  const short = 13;
+  const inset = (TABLE * UNIT_PX - long) / 2;
+  const bottom = {
+    left: inset,
+    bottom: -short,
+    width: long,
+    height: short,
+    borderRadius: "0 0 6px 6px",
+  };
+  const right = {
+    top: inset,
+    right: -short,
+    width: short,
+    height: long,
+    borderRadius: "0 6px 6px 0",
+  };
+  const left = {
+    top: inset,
+    left: -short,
+    width: short,
+    height: long,
+    borderRadius: "6px 0 0 6px",
+  };
+  const top = { left: inset, top: -short, width: long, height: short, borderRadius: "6px 6px 0 0" };
+
+  if (edge.bottom) return bottom;
+  // Which SIDE cannot be decided from the free edges alone: both arms of a
+  // horseshoe are one place wide, so both have a free left and a free right,
+  // and a fixed preference seats one arm facing out of the room. The chair
+  // faces the table's own centre instead, which puts both arms facing across
+  // the U — where the pupils in them actually look.
+  const facingRight = desk.x + TABLE / 2 < group.x + group.width / 2;
+  if (facingRight && edge.right) return right;
+  if (!facingRight && edge.left) return left;
+  if (edge.right) return right;
+  if (edge.left) return left;
+  if (edge.top) return top;
+  // Hemmed in on all four sides — the middle of a large island. Correct: it
+  // cannot be reached, so nobody sits there.
+  return { display: "none" };
 }
 
 /** Snap a pointer offset, in unscaled px, to the whole-tile cell under it. */
@@ -233,18 +297,21 @@ export function RoomCanvas({
                     >
                       {/* A chair marks where one place ends. With the surface
                         continuous there is no internal border to do it, and a
-                        chair is how a teacher reads a real classroom anyway. */}
+                        chair is how a teacher reads a real classroom anyway.
+
+                        It goes on a FREE side, preferring the near edge. Pinned
+                        to the bottom it vanished behind the next place on any
+                        table taller than one — the arms of a horseshoe showed
+                        no chairs at all, so their places did not read as
+                        places. Whoever sits in an arm faces across the room,
+                        and their chair is on the side facing it. */}
                       <span
                         aria-hidden="true"
-                        className="pointer-events-none absolute rounded-b"
+                        className="pointer-events-none absolute"
                         style={{
-                          left: 20,
-                          bottom: -13,
-                          width: 32,
-                          height: 13,
+                          ...chairStyle(edge, desk, group),
                           background: "var(--chair)",
                           border: "2px solid var(--wood-edge)",
-                          borderTop: "none",
                         }}
                       />
                       {renderPlace(desk)}

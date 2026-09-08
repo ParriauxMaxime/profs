@@ -272,6 +272,46 @@ export function tableGroups<T extends Placed>(desks: T[]): TableGroup<T>[] {
   return groups;
 }
 
+/**
+ * The smallest room that still holds this furniture.
+ *
+ * A resize may never orphan a desk. `frame` cannot be reused for this — it
+ * SHIFTS positions to the origin, which would move every table under the
+ * teacher while they were only dragging an edge.
+ *
+ * Note the asymmetry: the far side needs the desk's whole footprint plus a
+ * margin, but there is no margin on the near side, because the desks are
+ * already where they are and nothing is being re-laid-out.
+ */
+export function minimumExtent(desks: readonly Placed[]): { width: number; height: number } {
+  if (desks.length === 0) return { width: MIN_EXTENT, height: MIN_EXTENT };
+  return {
+    width: Math.max(MIN_EXTENT, Math.max(...desks.map((d) => d.x)) + TABLE + FLOOR_MARGIN),
+    height: Math.max(MIN_EXTENT, Math.max(...desks.map((d) => d.y)) + TABLE + FLOOR_MARGIN),
+  };
+}
+
+/**
+ * Bring a requested room size inside what is legal.
+ *
+ * Three bounds at once: never smaller than `minimumExtent` (a desk outside the
+ * room is unreachable and undraggable, and `canPlace` would then refuse to put
+ * it back), never larger than `ROOM_MAX`, and always a whole number of tiles
+ * so the floor's tiling lands on the grid the coordinates use.
+ */
+export function clampRoomSize(
+  requested: { width: number; height: number },
+  desks: readonly Placed[],
+): { width: number; height: number } {
+  const floor = minimumExtent(desks);
+  const tile = (value: number, least: number) =>
+    Math.min(ROOM_MAX, Math.max(least, Math.round(value / TABLE) * TABLE));
+  return {
+    width: tile(requested.width, floor.width),
+    height: tile(requested.height, floor.height),
+  };
+}
+
 /** Which sides of a desk face open air rather than a neighbour. */
 export interface FreeEdges {
   top: boolean;
