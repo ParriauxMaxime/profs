@@ -1,9 +1,8 @@
-import type { Assignment, Desk, GroupMember, Session, Student } from "@db";
+import type { Assignment, Desk, Session, Student } from "@db";
 import { applyPlacement, assignmentsForPlan, getOrCreatePlan, unassign } from "@db/plans";
 import { useDb } from "@db/provider";
 import { desksForRoom, listRooms } from "@db/rooms";
 import { readActiveRoom, resolveActiveRoom, writeActiveRoom } from "@domain/active-room";
-import { filterByGroup } from "@domain/group";
 import { type HeldPupil, resolvePlacement } from "@domain/room";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -30,10 +29,10 @@ import { StudentRail } from "./components/student-rail";
  * card's `Déplacer`, which is frequent enough to be its primary action and has
  * no other path.
  *
- * The pupils, the group filter and the séance come from the class page: which
- * lesson is being recorded is the class's business, not this view's. What
- * stays local is this view's own gesture — who is in the hand, whose card is
- * open, which salle is being looked at.
+ * The pupils and the séance come from the class page: which lesson is being
+ * recorded is the class's business, not this view's. What stays local is this
+ * view's own gesture — who is in the hand, whose card is open, which salle is
+ * being looked at.
  *
  * It NO LONGER picks a séance, and no longer creates one. `session` may be
  * null — a lesson nobody has recorded anything for yet — and `onRecord`
@@ -44,16 +43,11 @@ import { StudentRail } from "./components/student-rail";
 export function PlanPage({
   classId,
   students,
-  memberships,
-  selectedGroupId,
   session,
   onRecord,
 }: {
   classId: string;
   students: Student[];
-  memberships: GroupMember[];
-  /** Already through `resolveGroupSelection`: a deleted group reads as "Tous". */
-  selectedGroupId: string | null;
   /** The séance being recorded against, or null while none exists yet. */
   session: Session | null;
   /** Creates that séance on demand. Awaited before any register write. */
@@ -140,7 +134,6 @@ export function PlanPage({
   const byId = new Map(students.map((s) => [s.id, s]));
 
   const unseatedStudents = students.filter((s) => !seatedIds.has(s.id));
-  const visibleUnseated = filterByGroup(unseatedStudents, memberships, selectedGroupId);
 
   const deskOf = (studentId: string): string | null =>
     assignments.find((a: Assignment) => a.studentId === studentId)?.deskId ?? null;
@@ -198,7 +191,7 @@ export function PlanPage({
             at where to put them. */}
         <div className="flex flex-col gap-2 lg:order-2 lg:w-64 lg:shrink-0">
           <StudentRail
-            students={visibleUnseated}
+            students={unseatedStudents}
             held={held}
             onHold={(studentId) =>
               setHeld((current) =>

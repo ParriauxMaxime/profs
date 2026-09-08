@@ -2,7 +2,6 @@ import type { ScheduleEntry, Session } from "@db";
 import { useDb } from "@db/provider";
 import { listRooms } from "@db/rooms";
 import { getOrCreateSessionAt, sessionsForClass, sessionsForDay, startOfDay } from "@db/sessions";
-import { filterByGroup, resolveGroupSelection } from "@domain/group";
 import { entriesForDay } from "@domain/schedule";
 import { resolveSlot, type Slot, slotsForDay, teachingDays } from "@domain/seance";
 import { readTermStart } from "@domain/term";
@@ -17,7 +16,6 @@ import { PlanPage } from "../plan/page";
 import { CarnetsPanel } from "./components/carnets-panel";
 import { ClassForm } from "./components/class-form";
 import { ClassMenu } from "./components/class-menu";
-import { GroupFilter } from "./components/group-filter";
 import { RosterRegister } from "./components/roster-register";
 import { SeanceStrip } from "./components/seance-strip";
 
@@ -38,9 +36,8 @@ import { SeanceStrip } from "./components/seance-strip";
  * of those paths goes through `ensureSeance` and awaits it before writing;
  * none of them is an effect.
  *
- * The class, its pupils, its groups and their memberships are loaded here once
- * and passed down, so nothing below flashes "Chargement…" over a class already
- * on screen.
+ * The class and its pupils are loaded here once and passed down, so nothing
+ * below flashes "Chargement…" over a class already on screen.
  */
 export function ClassPage({
   classId,
@@ -56,9 +53,6 @@ export function ClassPage({
   const { t } = useTranslation();
   const db = useDb();
   const [renaming, setRenaming] = useState(false);
-  // Held as a group id, never an index: a deleted group falls back to "Tous",
-  // not to whatever now sits at that position.
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   // Held as a pupil id, never an index: the roster register's rows re-sort as
   // pupils are added. Only used without a salle — with one, the plan owns its
   // own card locally.
@@ -99,15 +93,6 @@ export function ClassPage({
     () => db.students.where("classId").equals(classId).sortBy("lastName"),
     [db, classId],
   );
-  const groups = useLiveQuery(
-    () => db.studentGroups.where("classId").equals(classId).sortBy("name"),
-    [db, classId],
-  );
-  const memberships = useLiveQuery(async () => {
-    if (!groups || groups.length === 0) return [];
-    const groupIds = groups.map((g) => g.id);
-    return await db.groupMembers.where("groupId").anyOf(groupIds).toArray();
-  }, [db, groups]);
 
   // A pure read: it resolves which day is on screen and fetches that day's
   // séances. It creates nothing, which is the whole point of this page.
@@ -236,7 +221,6 @@ export function ClassPage({
   if (
     schoolClass === undefined ||
     students === undefined ||
-    groups === undefined ||
     lesson === undefined ||
     rooms === undefined
   ) {
@@ -260,10 +244,6 @@ export function ClassPage({
   // resets it rather than carrying one hour's text onto the next.
   const noteKey = slotSessionId ?? `${seanceDay}-${slotStartsAt}`;
   const hasRoom = rooms.length > 0;
-  // Resolved ONCE, and every filter on this screen reads it. Resolving for the
-  // register but not for the rail would leave a deleted group showing "Tous"
-  // selected above a full register and an empty rail.
-  const groupId = resolveGroupSelection(groups, selectedGroupId);
 
   return (
     <div className="flex flex-col gap-4">
@@ -317,19 +297,10 @@ export function ClassPage({
         {/* The plan comes first in the DOM: it is what a hand reaches for
             mid-lesson, and the marks are what is read afterwards. */}
         <div className="flex min-w-0 flex-col gap-3 lg:flex-1">
-          {/* The chips filter the roster and the unseated rail, never the
-              seats: filtering seats would leave holes in a room. */}
-          <GroupFilter
-            groups={groups}
-            selectedGroupId={selectedGroupId}
-            onSelect={setSelectedGroupId}
-          />
           {hasRoom ? (
             <PlanPage
               classId={classId}
               students={students}
-              memberships={memberships ?? []}
-              selectedGroupId={groupId}
               session={session}
               onRecord={ensureSeance}
             />
@@ -339,7 +310,7 @@ export function ClassPage({
             // row to open the pupil card, the only place a mark is set.
             <>
               <RosterRegister
-                students={filterByGroup(students, memberships ?? [], groupId)}
+                students={students}
                 attendance={attendanceRecords ?? []}
                 onOpen={setSelectedStudentId}
               />
