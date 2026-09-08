@@ -37,9 +37,18 @@ describe("cascading deletes", () => {
     const db = openWorkspaceDb("cascade-column");
     await seedIfEmpty(db, "cascade-column");
 
-    const column = (await db.columns.toArray())[0];
-    const before = await db.grades.count();
-    const inColumn = await db.grades.where("columnId").equals(column.id).count();
+    // Not `columns[0]`: `toArray()` orders by primary key, which is a random
+    // UUID, and the demo carnet deliberately holds an UNMARKED column ("Projet
+    // musical") in every one of its sixteen gradebooks. Indexing blindly lands
+    // on an empty column about one run in five, leaving this test nothing to
+    // delete and failing on `inColumn > 0`.
+    const allGrades = await db.grades.toArray();
+    const column = (await db.columns.toArray()).find((c) =>
+      allGrades.some((g) => g.columnId === c.id),
+    );
+    if (!column) throw new Error("the seed produced no column carrying grades");
+    const before = allGrades.length;
+    const inColumn = allGrades.filter((g) => g.columnId === column.id).length;
     expect(inColumn).toBeGreaterThan(0);
 
     await deleteColumn(db, column.id);
@@ -439,9 +448,16 @@ describe("deleteClass", () => {
     const otherGradebook = (
       await db.gradebooks.where("classId").equals(otherClass.id).toArray()
     )[0];
+    // A column that actually carries marks, for the same reason as the
+    // deleteColumn test above: every demo carnet holds one deliberately
+    // unmarked column, and `toArray()` orders by a random UUID, so a blind
+    // [0] lands on it about one run in five — and the final assertion here
+    // (the surviving column still has grades) would then fail.
+    const otherGrades = await db.grades.where("gradebookId").equals(otherGradebook.id).toArray();
     const otherColumn = (
       await db.columns.where("gradebookId").equals(otherGradebook.id).toArray()
-    )[0];
+    ).find((c) => otherGrades.some((g) => g.columnId === c.id));
+    if (!otherColumn) throw new Error("the surviving carnet has no marked column");
     await db.grades.put({
       gradebookId: otherGradebook.id,
       columnId: otherColumn.id,
