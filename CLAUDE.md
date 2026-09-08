@@ -416,6 +416,14 @@ the top of `main.tsx`, before `initWorkspace`.
 
 Consequence when developing: once a workspace has been seeded, emptying the tables will **not** bring the demo data back. Remove that key from `localStorage` and reload.
 
+The demo teacher teaches **éducation musicale**, and that choice is load-bearing rather than flavour: music is an hour a week for every pupil in the building, so this teacher's roster *is* the school — sixteen classes, 6°A to 3°D, **360 pupils**, one subject, one salle. That is the shape the app has to survive, and a two-class demo never showed it. All sixteen classes plan into the same *Salle de musique*, which is what the salle/plan split exists to demonstrate.
+
+Every pupil carries one latent **aptitude** in `[0, 1]`, and marks, behaviour, attendance and the appreciation all read from it. Drawn independently per surface, the demo showed pupils failing the carnet while the behaviour log called them exemplary, and neither read as a person. Measured on the seeded data: a "weak" appreciation averages 5,96/20, a "middle" one 11,17, a "strong" one 16,36, with the bands barely overlapping.
+
+**The séance history is honest and therefore date-dependent.** It runs from the rentrée — 3 September of the current school year — to today, so a workspace seeded in the first week of term holds roughly one lesson per class, and classes whose hour falls on a weekday the term has not yet reached have **no séance at all**. That is not a gap; it is the "predicts, never pre-creates" distinction visible in the fixtures. `MAX_HISTORY_DAYS` caps the window at 60 days so a workspace seeded in June does not generate the whole year. The consequence for tests: **never assert an exact session, attendance or behaviour count** — those grow with the calendar. `seed.test.ts` asserts classes, pupils and carnets, which are fixed; `cascade.test.ts` asserts `sessionCount` only as `> 0`.
+
+`cascade.test.ts` raises Jest's timeout to 30s, and the reason is measured rather than assumed: against 360 pupils `fake-indexeddb` takes nearly five seconds for a cascade Chrome completes in about 650ms. Every column those deletes filter on is indexed. If a cascade ever gets slow **in the browser**, that timeout is not the thing to raise.
+
 ### Testing posture
 
 Domain and `src/db` modules are TDD, tested against `fake-indexeddb` (`import "fake-indexeddb/auto"` at the top of the suite). Jest runs in the `node` environment, so `jest.setup.js` supplies the `localStorage` shim the workspace registry and seed marker need. **There are deliberately no component tests** — UI is verified by reading and by driving a real browser against `yarn dev` on port 3000. That is also why blocking dialogs are banned: they freeze that automation.

@@ -1,11 +1,12 @@
 import { ATTENDANCE_VALUES } from "@domain/attendance";
 import { avatarSvg, hasAvatar } from "@domain/avatar";
 import { BEHAVIOUR_TYPES } from "@domain/behaviour";
+import { nextDay, previousDay } from "@domain/calendar";
 import { defaultGradebookName } from "@domain/gradebook/naming";
 import { DEFAULT_PERIOD_NAMES } from "@domain/gradebook/period";
 import { buildRoom, DEFAULT_TEMPLATE } from "@domain/room-templates";
 import { RUBRIC_LEVELS } from "@domain/rubric";
-import type { WeekCycle } from "@domain/schedule";
+import { entriesForDay, type WeekCycle } from "@domain/schedule";
 import { SUBJECT_COLORS } from "@domain/subject";
 import { readTermStart, writeTermStart } from "@domain/term";
 import { hasBeenSeeded, markSeeded } from "@domain/workspaces";
@@ -38,79 +39,200 @@ import type {
  * workspace registry, so a wipe (or an import of a legitimately empty backup)
  * leaves the workspace empty instead of bringing the demo school back on the
  * next reload.
+ *
+ * The demo teacher teaches **éducation musicale**, which is why the school is
+ * a whole collège rather than two classes: music is an hour a week for every
+ * pupil in the building, so this teacher's roster IS the school — sixteen
+ * classes, 360 pupils, one room. That shape is what the app has to survive,
+ * and a two-class demo never showed it.
  */
 
 const LAST_NAMES = [
   "Bernard",
+  "Blanc",
+  "Bonnet",
+  "Boyer",
+  "Brun",
+  "Chevalier",
+  "Clement",
+  "Colin",
   "Dubois",
+  "Dumont",
+  "Dupont",
   "Durand",
+  "Fabre",
+  "Faure",
+  "Fernandez",
   "Fontaine",
+  "Garcia",
   "Garnier",
+  "Gauthier",
   "Girard",
+  "Guerin",
+  "Henry",
+  "Jean",
+  "Joly",
   "Lambert",
+  "Laurent",
+  "Lefebvre",
+  "Legrand",
+  "Lemaire",
   "Leroy",
+  "Marchand",
   "Martin",
+  "Masson",
+  "Mathieu",
+  "Menard",
   "Mercier",
+  "Meunier",
+  "Michel",
   "Moreau",
   "Morel",
+  "Muller",
   "Nguyen",
+  "Noel",
+  "Perrin",
   "Petit",
+  "Philippe",
+  "Picard",
+  "Renard",
+  "Rey",
+  "Richard",
+  "Riviere",
   "Robert",
+  "Robin",
+  "Roche",
   "Rousseau",
   "Roux",
+  "Roy",
+  "Sanchez",
   "Simon",
   "Thomas",
-  "Vincent",
-  "Blanc",
-  "Chevalier",
-  "Faure",
-  "Perrin",
 ];
 
 const FIRST_NAMES = [
   "Adam",
+  "Adèle",
   "Alice",
+  "Amir",
+  "Anaïs",
+  "Antoine",
+  "Arthur",
+  "Assia",
+  "Aya",
+  "Basile",
   "Camille",
   "Chloé",
+  "Clara",
+  "Élias",
+  "Éliott",
   "Élise",
   "Emma",
+  "Enzo",
+  "Éva",
   "Gabriel",
   "Hugo",
+  "Ibrahim",
+  "Ilan",
+  "Inaya",
   "Inès",
   "Jade",
   "Jules",
+  "Kenza",
   "Léa",
+  "Léna",
   "Léo",
+  "Lina",
+  "Lisa",
+  "Livia",
   "Louis",
+  "Louise",
   "Lucas",
   "Maël",
+  "Malo",
   "Manon",
-  "Marie",
-  "Nathan",
+  "Marius",
+  "Mathis",
+  "Maya",
+  "Mehdi",
+  "Mila",
+  "Naël",
+  "Nina",
   "Noah",
-  "Rania",
+  "Nour",
+  "Océane",
+  "Paul",
+  "Raphaël",
+  "Rayan",
+  "Romane",
   "Sacha",
+  "Samuel",
+  "Sofia",
   "Théo",
+  "Tiago",
   "Zoé",
 ];
 
+/** 6e through 3e, four classes each — a collège of 360. */
+const LEVELS = ["6e", "5e", "4e", "3e"] as const;
+const CLASS_LETTERS = ["A", "B", "C", "D"] as const;
+/** Per letter, so every level holds 90 and the school holds exactly 360. */
+const CLASS_SIZES = [24, 23, 22, 21];
+
 /**
- * The 1 September on or before `ms` — the start of the school year the demo
- * data sits in. Derived rather than hard-coded so the demo still makes sense
- * whenever it is first opened.
+ * The appreciation a pupil gets, banded by the same aptitude that drives their
+ * marks. Three bands rather than one string, because an appreciation that says
+ * "Travail sérieux" under a 6/20 is the demo contradicting itself.
  */
-function startOfSeptember(ms: number): number {
-  const d = new Date(ms);
-  const year = d.getMonth() >= 8 ? d.getFullYear() : d.getFullYear() - 1;
-  return startOfDay(new Date(year, 8, 1).getTime());
-}
+const APPRECIATIONS = {
+  strong: [
+    "Très bonne oreille, chante juste et entraîne le groupe.",
+    "Élève investi, moteur dans le projet musical.",
+    "Travail sérieux et régulier. Continuez ainsi.",
+  ],
+  middle: [
+    "Ensemble correct. Peut encore gagner en assurance à l'oral.",
+    "Participation irrégulière, mais du sérieux quand il s'y met.",
+    "Des progrès sur l'écoute. À confirmer au prochain trimestre.",
+  ],
+  weak: [
+    "Doit se concentrer davantage pendant les séances.",
+    "Participation insuffisante, bavardages fréquents.",
+    "Matériel souvent oublié. Le travail est à reprendre.",
+  ],
+} as const;
 
 /** Plausible journal text. Deliberately mundane — a log, not a lesson plan. */
 const DEMO_DIARY = [
-  "Fin du chapitre sur les fractions. Beaucoup de mal sur la mise au même dénominateur — reprendre en début d'heure la prochaine fois.",
-  "Correction du contrôle. Bonne moyenne mais l'exercice 3 est passé à la trappe, à refaire autrement l'an prochain.",
-  "Travail en groupes. Ça a bien marché, garder cette organisation pour la suite du chapitre.",
+  "Premier cours : présentation du programme et test d'écoute. Groupe volontaire dans l'ensemble.",
+  "Mise en place du chant de rentrée. Le refrain ne tient pas encore — reprendre par pupitre.",
+  "Écoute du Boléro. Bonne attention, à réexploiter pour le travail sur le crescendo.",
 ];
+
+/**
+ * How far back the séance history may reach.
+ *
+ * The window starts at the rentrée, which is the honest answer — but a
+ * workspace seeded in June would then generate every lesson since September,
+ * some fifteen thousand attendance rows for a demo nobody asked to be
+ * exhaustive. The cap only ever binds for a workspace created late; seeded in
+ * the first weeks of term, which is when a demo is usually met, it does
+ * nothing and the history genuinely starts at the rentrée.
+ */
+const MAX_HISTORY_DAYS = 60;
+
+/**
+ * The rentrée: 3 September of the current school year.
+ *
+ * A demo seeded in February belongs to the year that began the previous
+ * September, so the month decides which one — otherwise the A/B parity anchor
+ * would jump forward mid-year and every fortnightly lesson would swap weeks.
+ */
+function startOfSchoolYear(ms: number): number {
+  const d = new Date(ms);
+  const year = d.getMonth() >= 8 ? d.getFullYear() : d.getFullYear() - 1;
+  return startOfDay(new Date(year, 8, 3).getTime());
+}
 
 /** Deterministic pseudo-random so the demo looks the same on every device. */
 function makeRandom(seed: number): () => number {
@@ -135,14 +257,26 @@ function weightedPick<T extends string>(
   return items[items.length - 1];
 }
 
-/** The `count` most recent weekdays at or before `fromMs`, oldest first. */
-function lastWeekdays(count: number, fromMs: number): number[] {
+/**
+ * A mark out of `max`, from the pupil's aptitude plus a little noise.
+ *
+ * The noise matters: an aptitude that mapped straight onto every mark would
+ * give each pupil the same score in every column, which reads as a bug rather
+ * than as a pupil. It is small enough that the ordering survives it.
+ */
+function markFor(aptitude: number, max: number, noise: number): number {
+  const base = 0.2 + aptitude * 0.72 + (noise - 0.5) * 0.16;
+  const clamped = Math.min(1, Math.max(0, base));
+  return Math.round(clamped * max * 2) / 2;
+}
+
+/** The days from `from` to `to` inclusive, oldest first, walking the calendar. */
+function daysFrom(from: number, to: number): number[] {
   const days: number[] = [];
-  let cursor = startOfDay(fromMs);
-  while (days.length < count) {
-    const weekday = new Date(cursor).getDay();
-    if (weekday !== 0 && weekday !== 6) days.unshift(cursor);
-    cursor -= 24 * 60 * 60 * 1000;
+  let cursor = from;
+  while (cursor <= to) {
+    days.push(cursor);
+    cursor = nextDay(cursor);
   }
   return days;
 }
@@ -155,29 +289,55 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
   if ((await db.classes.count()) > 0) return false;
 
   const now = Date.now();
-  const random = makeRandom(20260901);
+  const random = makeRandom(20260903);
   const id = () => crypto.randomUUID();
 
-  const classes = [
-    { id: id(), name: "3°B", level: "3e", createdAt: now, updatedAt: now },
-    { id: id(), name: "5°A", level: "5e", createdAt: now, updatedAt: now },
-  ];
-  const sizes = [24, 22];
+  // ---- the collège -------------------------------------------------------
+  const classes = LEVELS.flatMap((level) =>
+    CLASS_LETTERS.map((letter) => ({
+      id: id(),
+      name: `${level[0]}°${letter}`,
+      level,
+      createdAt: now,
+      updatedAt: now,
+    })),
+  );
 
-  const subjects = [
-    { id: id(), name: "Mathématiques", color: SUBJECT_COLORS[0], createdAt: now, updatedAt: now },
-    { id: id(), name: "Français", color: SUBJECT_COLORS[1], createdAt: now, updatedAt: now },
-  ];
+  // One subject: this teacher teaches one thing, to everybody.
+  const subject = {
+    id: id(),
+    name: "Éducation musicale",
+    color: SUBJECT_COLORS[6],
+    createdAt: now,
+    updatedAt: now,
+  };
+  const subjects = [subject];
+
+  /**
+   * One latent value per pupil, in [0, 1].
+   *
+   * Marks, behaviour, attendance and the appreciation all read from it, so a
+   * struggling pupil is struggling CONSISTENTLY. Drawn independently per
+   * surface, the demo would show a pupil failing the carnet while the
+   * behaviour log called them exemplary, and neither would read as a person.
+   */
+  const aptitude = new Map<string, number>();
 
   const students: Student[] = [];
   classes.forEach((schoolClass, classIndex) => {
-    for (let i = 0; i < sizes[classIndex]; i++) {
+    const size = CLASS_SIZES[classIndex % CLASS_SIZES.length];
+    for (let i = 0; i < size; i++) {
       const studentId = id();
+      // Walks both pools out of step, so no two pupils in the school share a
+      // full name even though the pools are far smaller than the roster.
+      const n = students.length;
+      const block = Math.floor(n / LAST_NAMES.length);
+      aptitude.set(studentId, random());
       students.push({
         id: studentId,
         classId: schoolClass.id,
-        lastName: LAST_NAMES[(i + classIndex * 7) % LAST_NAMES.length],
-        firstName: FIRST_NAMES[(i * 5 + classIndex * 3) % FIRST_NAMES.length],
+        lastName: LAST_NAMES[n % LAST_NAMES.length],
+        firstName: FIRST_NAMES[(n + block * 7) % FIRST_NAMES.length],
         // A drawing, not a photograph — see `@domain/avatar`. About a third of
         // the roster has none, which is both what mid-September looks like and
         // what keeps the initials fallback on screen.
@@ -190,11 +350,12 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     }
   });
 
-  const gradebooks: Gradebook[] = classes.map((schoolClass, index) => ({
+  // ---- carnets -----------------------------------------------------------
+  const gradebooks: Gradebook[] = classes.map((schoolClass) => ({
     id: id(),
     classId: schoolClass.id,
-    subjectId: subjects[index].id,
-    name: defaultGradebookName(subjects[index].name, schoolClass.name),
+    subjectId: subject.id,
+    name: defaultGradebookName(subject.name, schoolClass.name),
     createdAt: now,
     updatedAt: now,
   }));
@@ -212,14 +373,15 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     }));
     periods.push(...gradebookPeriods);
 
-    // Five columns, all in Trimestre 1, exercising three of the five column
-    // types (numeric, checkbox, text); letter and icon are not exercised.
     const firstPeriod = gradebookPeriods[0];
     const specs: Array<Pick<GradeColumn, "type" | "label" | "weight" | "max">> = [
-      { type: "numeric", label: "DS 1", weight: 2, max: 20 },
-      { type: "numeric", label: "DS 2", weight: 2, max: 20 },
-      { type: "numeric", label: "Interro", weight: 1, max: 10 },
-      { type: "checkbox", label: "Devoir rendu", weight: 1, max: 20 },
+      { type: "numeric", label: "Chant", weight: 1, max: 20 },
+      { type: "numeric", label: "Écoute", weight: 1, max: 20 },
+      // Created and deliberately left EMPTY: a column the teacher has set up
+      // for later. It is what a carnet looks like in the first weeks, and it
+      // exercises the unmarked-column path the other four never reach.
+      { type: "numeric", label: "Projet musical", weight: 2, max: 20 },
+      { type: "checkbox", label: "Matériel", weight: 1, max: 20 },
       { type: "text", label: "Appréciation", weight: 1, max: 20 },
     ];
 
@@ -228,24 +390,25 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       gradebookId: gradebook.id,
       periodId: firstPeriod.id,
       order,
-      date: now - (specs.length - order) * 7 * 24 * 60 * 60 * 1000,
+      date: now - (specs.length - order) * 24 * 60 * 60 * 1000,
       ...spec,
     }));
     columns.push(...gradebookColumns);
 
     const gradebookStudents = students.filter((s) => s.classId === gradebook.classId);
     for (const student of gradebookStudents) {
+      const apt = aptitude.get(student.id) ?? 0.5;
       for (const column of gradebookColumns) {
-        // Leave roughly one cell in six empty, as a real gradebook has holes.
-        if (random() < 0.17) continue;
+        if (column.label === "Projet musical") continue;
+        // Leave roughly one cell in eight empty, as a real carnet has holes.
+        if (random() < 0.12) continue;
 
         if (column.type === "numeric") {
-          const mark = Math.round(random() * column.max * 2) / 2;
           grades.push({
             gradebookId: gradebook.id,
             columnId: column.id,
             studentId: student.id,
-            value: { type: "numeric", value: mark },
+            value: { type: "numeric", value: markFor(apt, column.max, random()) },
             updatedAt: now,
           });
         } else if (column.type === "checkbox") {
@@ -253,15 +416,21 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
             gradebookId: gradebook.id,
             columnId: column.id,
             studentId: student.id,
-            value: { type: "checkbox", value: random() > 0.2 },
+            // The pupil who forgets their material is the pupil who struggles.
+            value: { type: "checkbox", value: random() < 0.35 + apt * 0.6 },
             updatedAt: now,
           });
-        } else if (column.type === "text" && random() > 0.6) {
+        } else if (column.type === "text") {
+          const band = apt > 0.72 ? "strong" : apt < 0.3 ? "weak" : "middle";
+          const options = APPRECIATIONS[band];
           grades.push({
             gradebookId: gradebook.id,
             columnId: column.id,
             studentId: student.id,
-            value: { type: "text", value: "Travail sérieux, continuez." },
+            value: {
+              type: "text",
+              value: options[Math.floor(random() * options.length)] ?? options[0],
+            },
             updatedAt: now,
           });
         }
@@ -269,13 +438,11 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     }
   }
 
-  // One reusable rubric template, and one assessment per gradebook built
-  // from it. Levels are given to roughly two thirds of pupils per criterion
-  // — a partially filled grid is a more honest demo than a complete one.
+  // ---- rubric ------------------------------------------------------------
   const rubricTemplate: RubricTemplate = {
     id: id(),
-    name: "Exposé oral",
-    criteria: ["Clarté", "Contenu", "Support", "Interaction"].map((label) => ({
+    name: "Projet musical",
+    criteria: ["Justesse", "Rythme", "Écoute", "Engagement"].map((label) => ({
       id: id(),
       label,
     })),
@@ -287,58 +454,53 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
   const rubricScores: RubricScore[] = [];
 
   for (const gradebook of gradebooks) {
-    const gradebookPeriods = periods.filter((p) => p.gradebookId === gradebook.id);
-    const firstPeriod = gradebookPeriods[0];
+    const firstPeriod = periods.filter((p) => p.gradebookId === gradebook.id)[0];
     const assessment: RubricAssessment = {
       id: id(),
       gradebookId: gradebook.id,
       periodId: firstPeriod.id,
-      name: "Exposé oral",
+      name: "Projet musical",
       date: now,
+      // Fresh ids, never the template's: a score written against one
+      // assessment must not be readable from another.
       criteria: rubricTemplate.criteria.map((c) => ({ id: id(), label: c.label })),
       createdAt: now,
       updatedAt: now,
     };
     rubricAssessments.push(assessment);
 
-    const gradebookStudents = students.filter((s) => s.classId === gradebook.classId);
-    for (const student of gradebookStudents) {
+    for (const student of students.filter((s) => s.classId === gradebook.classId)) {
+      const apt = aptitude.get(student.id) ?? 0.5;
       for (const criterion of assessment.criteria) {
         if (random() > 2 / 3) continue;
-        const level = RUBRIC_LEVELS[Math.floor(random() * RUBRIC_LEVELS.length)];
+        const index = Math.min(
+          RUBRIC_LEVELS.length - 1,
+          Math.floor(apt * RUBRIC_LEVELS.length + (random() - 0.5)),
+        );
         rubricScores.push({
           assessmentId: assessment.id,
           criterionId: criterion.id,
           studentId: student.id,
-          level,
+          level: RUBRIC_LEVELS[Math.max(0, index)],
           updatedAt: now,
         });
       }
     }
   }
 
-  // Classroom data: a seating plan, three lessons, attendance for each and a
-  // scattering of behaviour events.
+  // ---- the salle ---------------------------------------------------------
   //
-  // Photos are seeded above, and the rule they used to break still stands: a
-  // fabricated Blob must not be a fabricated *photograph* of a fictional
-  // child. What `@domain/avatar` draws is flat vector shapes with no shading
-  // and no likeness, which is what makes seeding it acceptable — it exercises
-  // the photo path without depicting anybody.
-  const sessions: Session[] = [];
-  const attendance: AttendanceRecord[] = [];
-  const behaviourEvents: BehaviourEvent[] = [];
-
-  // ONE salle, shared by every demo class — which is the point the demo school
-  // exists to make. Two classes sitting at the same furniture with their own
-  // arrangements is the whole of what changed, and a seed that gave each class
-  // its own room would show none of it.
+  // ONE salle, shared by all sixteen classes — which is both what a music
+  // teacher has and the point the demo school exists to make. Sixteen classes
+  // at the same furniture with an arrangement each is the whole of what the
+  // salle/plan split buys, and a seed giving each class its own room would
+  // show none of it.
   const shape = buildRoom(DEFAULT_TEMPLATE);
   const roomId = id();
   const rooms: Room[] = [
     {
       id: roomId,
-      name: "204",
+      name: "Salle de musique",
       width: shape.width,
       height: shape.height,
       createdAt: now,
@@ -351,62 +513,154 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     x: position.x,
     y: position.y,
   }));
+
   const seatingPlans: SeatingPlan[] = [];
   const assignments: Assignment[] = [];
-
-  const weekdays = lastWeekdays(3, now);
-
   for (const schoolClass of classes) {
-    const classStudents = students.filter((s) => s.classId === schoolClass.id);
-
     const planId = id();
     seatingPlans.push({ id: planId, classId: schoolClass.id, roomId, updatedAt: now });
     // Reading order, and only as far as the furniture goes: a class larger
     // than the salle leaves its tail in the rail, which is what a teacher
     // would see.
-    classStudents.slice(0, desks.length).forEach((student, i) => {
-      assignments.push({ planId, deskId: desks[i].id, studentId: student.id });
-    });
+    students
+      .filter((s) => s.classId === schoolClass.id)
+      .slice(0, desks.length)
+      .forEach((student, i) => {
+        assignments.push({ planId, deskId: desks[i].id, studentId: student.id });
+      });
+  }
 
-    const classSessions = weekdays.map((date) => ({
+  // ---- the timetable -----------------------------------------------------
+  //
+  // One hour a week per class, which is what éducation musicale is, plus a
+  // fortnightly extra for 3°D so the A/B mechanism is visible in the demo
+  // rather than being something a teacher must build before they can see it
+  // work. Weekdays are ISO (1 = Monday); minutes are from midnight.
+  const scheduleShape: { className: string; weekday: number; start: number; cycle: WeekCycle }[] = [
+    { className: "6°A", weekday: 1, start: 8 * 60, cycle: "all" },
+    { className: "6°B", weekday: 1, start: 9 * 60, cycle: "all" },
+    { className: "5°A", weekday: 1, start: 10 * 60, cycle: "all" },
+    { className: "5°B", weekday: 1, start: 11 * 60, cycle: "all" },
+    { className: "4°A", weekday: 2, start: 8 * 60, cycle: "all" },
+    { className: "4°B", weekday: 2, start: 9 * 60, cycle: "all" },
+    { className: "3°A", weekday: 2, start: 10 * 60, cycle: "all" },
+    { className: "3°B", weekday: 2, start: 11 * 60, cycle: "all" },
+    { className: "6°C", weekday: 3, start: 8 * 60, cycle: "all" },
+    { className: "5°C", weekday: 3, start: 9 * 60, cycle: "all" },
+    { className: "4°C", weekday: 3, start: 10 * 60, cycle: "all" },
+    { className: "3°C", weekday: 4, start: 8 * 60, cycle: "all" },
+    { className: "6°D", weekday: 4, start: 9 * 60, cycle: "all" },
+    { className: "5°D", weekday: 4, start: 10 * 60, cycle: "all" },
+    { className: "4°D", weekday: 5, start: 8 * 60, cycle: "all" },
+    { className: "3°D", weekday: 5, start: 9 * 60, cycle: "all" },
+    // The chorale hour, one week in two.
+    { className: "3°D", weekday: 5, start: 13 * 60, cycle: "A" },
+  ];
+
+  const classByName = new Map(classes.map((c) => [c.name, c]));
+  const gradebookByClass = new Map(gradebooks.map((g) => [g.classId, g]));
+  const scheduleEntries: ScheduleEntry[] = scheduleShape.map((entry) => {
+    const schoolClass = classByName.get(entry.className);
+    if (!schoolClass) throw new Error(`timetable names an unknown class: ${entry.className}`);
+    return {
       id: id(),
       classId: schoolClass.id,
-      date,
-      createdAt: date,
-    }));
-    sessions.push(...classSessions);
+      subjectId: subject.id,
+      gradebookId: gradebookByClass.get(schoolClass.id)?.id,
+      weekday: entry.weekday,
+      startMinute: entry.start,
+      endMinute: entry.start + 55,
+      weekCycle: entry.cycle,
+      roomId,
+      createdAt: now,
+      updatedAt: now,
+    };
+  });
 
-    for (const session of classSessions) {
+  // Without an anchor the demo's A and B lessons would never appear, and the
+  // feature would look broken rather than unconfigured. Seeded only if the
+  // teacher has not already chosen one — their date always wins.
+  const rentree = startOfSchoolYear(now);
+  if (readTermStart() === null) writeTermStart(rentree);
+  const termStart = readTermStart() ?? rentree;
+
+  // ---- the séances actually taught ---------------------------------------
+  //
+  // A séance exists ONLY where a scheduled lesson genuinely fell on a day that
+  // has already happened. The timetable predicts and never pre-creates, so a
+  // class whose hour is on a weekday the term has not yet reached has no
+  // séance at all — which is not a gap in the demo, it is the demo showing the
+  // distinction the whole schedule design rests on.
+  //
+  // `entriesForDay` is the same function the class page and Aujourd'hui read
+  // with, so what is seeded and what is displayed cannot disagree about A/B.
+  const today = startOfDay(now);
+  let earliest = today;
+  for (let i = 0; i < MAX_HISTORY_DAYS; i++) earliest = previousDay(earliest);
+  const firstDay = Math.max(rentree, earliest);
+
+  const sessions: Session[] = [];
+  const attendance: AttendanceRecord[] = [];
+  const behaviourEvents: BehaviourEvent[] = [];
+
+  for (const day of daysFrom(firstDay, today)) {
+    for (const entry of entriesForDay(scheduleEntries, termStart, day)) {
+      const classStudents = students.filter((s) => s.classId === entry.classId);
+      if (classStudents.length === 0) continue;
+
+      const session: Session = {
+        id: id(),
+        classId: entry.classId,
+        date: day,
+        startsAt: entry.startMinute,
+        subjectId: entry.subjectId,
+        createdAt: day,
+      };
+      sessions.push(session);
+
       for (const student of classStudents) {
-        // Mostly present, a scattering of the rest.
-        const value = weightedPick(ATTENDANCE_VALUES, [0.87, 0.05, 0.05, 0.03], random());
+        const apt = aptitude.get(student.id) ?? 0.5;
+        // The pupil who struggles is the pupil who is late and absent.
+        const present = 0.8 + apt * 0.17;
         attendance.push({
           sessionId: session.id,
           studentId: student.id,
-          value,
+          value: weightedPick(
+            ATTENDANCE_VALUES,
+            [present, (1 - present) * 0.4, (1 - present) * 0.4, (1 - present) * 0.2],
+            random(),
+          ),
           updatedAt: now,
         });
       }
-    }
 
-    // Roughly a dozen behaviour events per class, skewed toward green/yellow.
-    for (let i = 0; i < 12; i++) {
-      const session = classSessions[Math.floor(random() * classSessions.length)];
-      const student = classStudents[Math.floor(random() * classStudents.length)];
-      const type = weightedPick(BEHAVIOUR_TYPES, [0.4, 0.35, 0.15, 0.1], random());
-      behaviourEvents.push({
-        id: id(),
-        sessionId: session.id,
-        studentId: student.id,
-        classId: schoolClass.id,
-        type,
-        createdAt: session.date,
-      });
+      // Four or five remarks a lesson, aimed by aptitude: green goes to the
+      // strong, yellow and red to those who are struggling.
+      const remarks = 4 + Math.floor(random() * 2);
+      for (let i = 0; i < remarks; i++) {
+        const student = classStudents[Math.floor(random() * classStudents.length)];
+        const apt = aptitude.get(student.id) ?? 0.5;
+        const type = weightedPick(
+          BEHAVIOUR_TYPES,
+          [0.1 + apt * 0.7, 0.45 - apt * 0.3, 0.35 - apt * 0.3, 0.1],
+          random(),
+        );
+        behaviourEvents.push({
+          id: id(),
+          sessionId: session.id,
+          studentId: student.id,
+          classId: entry.classId,
+          type,
+          createdAt: day,
+        });
+      }
     }
   }
 
+  // ---- groups ------------------------------------------------------------
+  //
   // Two working groups on one class, splitting its roster in half, so the
-  // feature is visible in the demo without touching every class.
+  // feature is visible in the demo without touching all sixteen.
   const groupClass = classes[0];
   const groupClassStudents = students.filter((s) => s.classId === groupClass.id);
   const half = Math.ceil(groupClassStudents.length / 2);
@@ -414,7 +668,7 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     {
       id: id(),
       classId: groupClass.id,
-      name: "Groupe A",
+      name: "Pupitre 1",
       color: SUBJECT_COLORS[2],
       createdAt: now,
       updatedAt: now,
@@ -422,7 +676,7 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     {
       id: id(),
       classId: groupClass.id,
-      name: "Groupe B",
+      name: "Pupitre 2",
       color: SUBJECT_COLORS[3],
       createdAt: now,
       updatedAt: now,
@@ -437,53 +691,10 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       .map((student) => ({ groupId: studentGroups[1].id, studentId: student.id })),
   ];
 
-  // A plausible week: 3°B four times, 5°A three, with one lesson on each
-  // alternating cycle so the A/B mechanism is visible in the demo rather than
-  // being something a teacher has to build before they can see it work.
-  // Weekdays are ISO (1 = Monday); minutes are from midnight.
-  const scheduleShape: {
-    classIndex: number;
-    weekday: number;
-    start: number;
-    end: number;
-    cycle: WeekCycle;
-  }[] = [
-    // Every lesson is in the one seeded salle, which is the point the demo
-    // exists to make: two classes, one physical room, an arrangement each.
-    { classIndex: 0, weekday: 1, start: 8 * 60, end: 9 * 60, cycle: "all" },
-    { classIndex: 0, weekday: 2, start: 10 * 60, end: 11 * 60, cycle: "all" },
-    { classIndex: 0, weekday: 4, start: 14 * 60, end: 15 * 60, cycle: "A" },
-    { classIndex: 0, weekday: 4, start: 14 * 60, end: 15 * 60, cycle: "B" },
-    { classIndex: 1, weekday: 1, start: 9 * 60, end: 10 * 60, cycle: "all" },
-    { classIndex: 1, weekday: 3, start: 11 * 60, end: 12 * 60, cycle: "all" },
-    { classIndex: 1, weekday: 5, start: 8 * 60, end: 9 * 60, cycle: "B" },
-  ];
-  const scheduleEntries: ScheduleEntry[] = scheduleShape.map((shape) => ({
-    id: id(),
-    classId: classes[shape.classIndex].id,
-    subjectId: subjects[shape.classIndex].id,
-    gradebookId: gradebooks[shape.classIndex].id,
-    weekday: shape.weekday,
-    startMinute: shape.start,
-    endMinute: shape.end,
-    weekCycle: shape.cycle,
-    roomId,
-    createdAt: now,
-    updatedAt: now,
-  }));
-
-  // Without an anchor the demo's A and B lessons would never appear, and the
-  // feature would look broken rather than unconfigured. Seeded only if the
-  // teacher has not already chosen one — their date always wins.
-  if (readTermStart() === null) {
-    writeTermStart(startOfSeptember(now));
-  }
-
-  // A few journal notes on lessons already in the past, so the feature is
-  // visible in the demo rather than being an empty calendar. Written straight
-  // onto real `Session.note` fields — the séances already built above — since
-  // a note now lives on the lesson it was written about rather than on a
-  // day-keyed row of its own.
+  // A few journal notes on lessons already taught, so the feature is visible
+  // rather than being an empty calendar. Written straight onto real
+  // `Session.note` fields — a note lives on the lesson it was written about
+  // rather than on a day-keyed row of its own.
   sessions.slice(0, DEMO_DIARY.length).forEach((session, index) => {
     session.note = DEMO_DIARY[index];
   });
