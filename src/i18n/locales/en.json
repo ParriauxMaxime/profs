@@ -480,7 +480,6 @@
     "floor": "Floor",
     "cols": "Columns",
     "rows": "Rows",
-    "floorMin": "Minimum {{cols}} × {{rows}}: the floor cannot shrink under the tables.",
     "addTable": "Add a table"
   }
 }

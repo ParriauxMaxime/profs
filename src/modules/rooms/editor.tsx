@@ -373,48 +373,55 @@ export function RoomEditorPage({ roomId }: { roomId: string }) {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-text-muted">{t("rooms.name")}</span>
-        <input
-          className="field font-semibold"
-          style={{ width: "12rem" }}
-          value={current.name}
-          onChange={(e) => {
-            const name = e.target.value;
-            edit((draft) => renameDraft(draft, name));
-          }}
-        />
-        <span className="text-sm text-text-faint">
-          {t("rooms.deskCount", { count: current.desks.length })}
-        </span>
-      </div>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        {/* Everything about the salle ITSELF, stacked in one card: its name,
+            how many places it holds, the floor it stands on, and the table you
+            add to it. The plan beside it is the only other thing on screen. */}
+        <div className="flex flex-col gap-4 rounded-md border border-border p-3 lg:w-56 lg:shrink-0">
+          <label className="flex flex-col gap-1 text-sm text-text-muted">
+            {t("rooms.name")}
+            <input
+              className="field font-semibold text-text"
+              value={current.name}
+              onChange={(e) => {
+                const name = e.target.value;
+                edit((draft) => renameDraft(draft, name));
+              }}
+            />
+          </label>
 
-      <div className="flex flex-col gap-2">
-        {/* Above the plan, because it is about the FLOOR rather than about
-              any table on it. In tiles, not half-tiles: a teacher counts
-              places across the room, and the half-tile only exists so an arc
-              can sit between two of them. */}
-        <div className="flex flex-wrap items-center gap-3 rounded-md border border-border px-3 py-2">
-          <span className="text-sm text-text-muted">{t("rooms.floor")}</span>
-          <SizeStepper
-            label={t("rooms.cols")}
-            tiles={Math.ceil(current.width / TABLE)}
-            min={minTiles.width}
-            onChange={(cols) =>
-              edit((draft) => resizeDraft(draft, { width: cols * TABLE, height: draft.height }))
-            }
-          />
-          <SizeStepper
-            label={t("rooms.rows")}
-            tiles={Math.ceil(current.height / TABLE)}
-            min={minTiles.height}
-            onChange={(rows) =>
-              edit((draft) => resizeDraft(draft, { width: draft.width, height: rows * TABLE }))
-            }
-          />
-          {/* The table palette, in the header rather than a column of its
-                own. It was a panel holding one control and two paragraphs of
-                instructions, and it cost the plan a quarter of the screen. */}
+          <span className="text-sm text-text-faint">
+            {t("rooms.deskCount", { count: current.desks.length })}
+          </span>
+
+          {/* In TILES, not half-tiles: a teacher counts places across the room,
+              and the half-tile only exists so an arc can sit between two of
+              them. `−` disables at the minimum, which is what says the floor
+              cannot shrink under the furniture — a sentence saying so as well
+              explained a rule the disabled button had already made obvious. */}
+          <div className="flex flex-col gap-2">
+            <span className="text-sm text-text-muted">{t("rooms.floor")}</span>
+            <SizeStepper
+              label={t("rooms.cols")}
+              tiles={Math.ceil(current.width / TABLE)}
+              min={minTiles.width}
+              onChange={(cols) =>
+                edit((draft) => resizeDraft(draft, { width: cols * TABLE, height: draft.height }))
+              }
+            />
+            <SizeStepper
+              label={t("rooms.rows")}
+              tiles={Math.ceil(current.height / TABLE)}
+              min={minTiles.height}
+              onChange={(rows) =>
+                edit((draft) => resizeDraft(draft, { width: draft.width, height: rows * TABLE }))
+              }
+            />
+          </div>
+
+          {/* Drawn as the thing it becomes, so the drag has a before and an
+              after that look alike. Tap it to take a table in hand, or press
+              and drag it straight onto the floor. */}
           <button
             type="button"
             aria-pressed={held?.kind === "new"}
@@ -424,94 +431,99 @@ export function RoomEditorPage({ roomId }: { roomId: string }) {
               if (dropped.current) return;
               setHeld((current) => (current?.kind === "new" ? null : { kind: "new" }));
             }}
-            className={`btn h-9 min-h-9 gap-1 font-medium ${
-              held?.kind === "new" ? "border-accent text-accent" : ""
+            className={`flex h-[72px] items-center justify-center rounded font-bold text-xs uppercase tracking-wide ${
+              held?.kind === "new" ? "outline-2 outline-accent outline-offset-2" : ""
             }`}
-            style={held?.kind === "new" ? { outline: "2px solid var(--color-accent)" } : undefined}
+            style={{
+              background: "var(--wood)",
+              color: "var(--wood-ink)",
+              border: "2px solid var(--wood-edge)",
+              boxShadow: "inset 0 3px 0 var(--wood-hi), 0 4px 0 var(--wood-edge)",
+            }}
           >
-            <span aria-hidden="true">+</span> {t("rooms.table")}
+            <span aria-hidden="true">+&nbsp;</span>
+            {t("rooms.table")}
           </button>
-          <span className="text-text-faint text-xs">
-            {t("rooms.floorMin", { cols: minTiles.width, rows: minTiles.height })}
-          </span>
         </div>
 
-        <RoomCanvas
-          room={current}
-          desks={current.desks.map((desk) => ({ ...desk, roomId }))}
-          onFloor={onFloor}
-          ghost={held === null ? null : target}
-          floorRef={floor}
-          liftedDeskId={heldDeskId}
-          emptyHint={t("rooms.emptyRoom")}
-          // Nothing is written on a table. What is in hand is said by the
-          // lift, and where it will land by the ghost.
-          renderPlace={() => null}
-          placeProps={(desk) => ({
-            tabIndex: 0,
-            role: "button",
-            "aria-pressed": heldDeskId === desk.id || undefined,
-            // The screen carries no instructions any more, so the keyboard
-            // path lives in the accessible name, where it costs no pixels.
-            "aria-keyshortcuts": "Space",
-            title: t("rooms.holdTable"),
-            "aria-label": t("rooms.holdTable"),
-            // Only the SELECTED table is outlined, to anchor its × control.
-            // The held one needs no outline: it is the one off the floor.
-            className:
-              selectedDeskId === desk.id && heldDeskId !== desk.id
-                ? "outline-2 outline-accent"
-                : "",
-            onPointerDown: (e) => begin(e, { kind: "desk", deskId: desk.id }),
-            onClick: () => {
-              // Tap: pick up, or put down onto a desk that is not this one —
-              // which is refused, since furniture never lands on furniture.
-              if (dropped.current) return;
-              if (heldDeskId === desk.id) {
-                setHeld(null);
-                return;
-              }
-              if (held !== null) return;
-              setHeld({ kind: "desk", deskId: desk.id });
-              setSelectedDeskId(desk.id);
-            },
-            onKeyDown: (e) => {
-              if (e.key !== " " && e.key !== "Enter") return;
-              e.preventDefault();
-              setHeld((current) =>
-                current?.kind === "desk" && current.deskId === desk.id
-                  ? null
-                  : { kind: "desk", deskId: desk.id },
-              );
-              setSelectedDeskId(desk.id);
-            },
-          })}
-          renderTableOverlay={(group) => {
-            // Only the SELECTED table carries controls. Stamped on all
-            // twenty-four they were most of the clutter, and a destructive
-            // control beside every place is a mis-tap waiting to happen.
-            const selected = group.desks.find((d) => d.id === selectedDeskId);
-            if (!selected) return null;
-            return (
-              <button
-                key={`x-${selected.id}`}
-                type="button"
-                aria-label={t("rooms.removeTable")}
-                title={t("rooms.removeTable")}
-                className="-top-3 absolute flex h-[30px] w-[30px] items-center justify-center rounded-full border-2 border-danger bg-bg text-danger text-[15px] leading-none"
-                style={{ left: "calc(100% - 15px)" }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedDeskId(null);
+        <div className="flex flex-col gap-2 lg:min-w-0 lg:flex-1">
+          <RoomCanvas
+            room={current}
+            desks={current.desks.map((desk) => ({ ...desk, roomId }))}
+            onFloor={onFloor}
+            ghost={held === null ? null : target}
+            floorRef={floor}
+            liftedDeskId={heldDeskId}
+            emptyHint={t("rooms.emptyRoom")}
+            // Nothing is written on a table. What is in hand is said by the
+            // lift, and where it will land by the ghost.
+            renderPlace={() => null}
+            placeProps={(desk) => ({
+              tabIndex: 0,
+              role: "button",
+              "aria-pressed": heldDeskId === desk.id || undefined,
+              // The screen carries no instructions any more, so the keyboard
+              // path lives in the accessible name, where it costs no pixels.
+              "aria-keyshortcuts": "Space",
+              title: t("rooms.holdTable"),
+              "aria-label": t("rooms.holdTable"),
+              // Only the SELECTED table is outlined, to anchor its × control.
+              // The held one needs no outline: it is the one off the floor.
+              className:
+                selectedDeskId === desk.id && heldDeskId !== desk.id
+                  ? "outline-2 outline-accent"
+                  : "",
+              onPointerDown: (e) => begin(e, { kind: "desk", deskId: desk.id }),
+              onClick: () => {
+                // Tap: pick up, or put down onto a desk that is not this one —
+                // which is refused, since furniture never lands on furniture.
+                if (dropped.current) return;
+                if (heldDeskId === desk.id) {
                   setHeld(null);
-                  edit((draft) => removeFromDraft(draft, selected.id));
-                }}
-              >
-                ×
-              </button>
-            );
-          }}
-        />
+                  return;
+                }
+                if (held !== null) return;
+                setHeld({ kind: "desk", deskId: desk.id });
+                setSelectedDeskId(desk.id);
+              },
+              onKeyDown: (e) => {
+                if (e.key !== " " && e.key !== "Enter") return;
+                e.preventDefault();
+                setHeld((current) =>
+                  current?.kind === "desk" && current.deskId === desk.id
+                    ? null
+                    : { kind: "desk", deskId: desk.id },
+                );
+                setSelectedDeskId(desk.id);
+              },
+            })}
+            renderTableOverlay={(group) => {
+              // Only the SELECTED table carries controls. Stamped on all
+              // twenty-four they were most of the clutter, and a destructive
+              // control beside every place is a mis-tap waiting to happen.
+              const selected = group.desks.find((d) => d.id === selectedDeskId);
+              if (!selected) return null;
+              return (
+                <button
+                  key={`x-${selected.id}`}
+                  type="button"
+                  aria-label={t("rooms.removeTable")}
+                  title={t("rooms.removeTable")}
+                  className="-top-3 absolute flex h-[30px] w-[30px] items-center justify-center rounded-full border-2 border-danger bg-bg text-danger text-[15px] leading-none"
+                  style={{ left: "calc(100% - 15px)" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedDeskId(null);
+                    setHeld(null);
+                    edit((draft) => removeFromDraft(draft, selected.id));
+                  }}
+                >
+                  ×
+                </button>
+              );
+            }}
+          />
+        </div>
       </div>
     </div>
   );

@@ -199,14 +199,16 @@ and a blue outline: the outline competed with the borders that draw the
 furniture itself, and the caption wrote a word on a table. The ghost says where
 it will land, so nothing needs saying twice.
 
-The editor is the header and the plan, and nothing else. The table palette is
-one button in the floor row; the panel it came from held a single control and
-two paragraphs of instructions, and cost the plan a quarter of the screen. With
-the instructions gone the keyboard path lives in `aria-keyshortcuts` and the
-tile's accessible name, where it costs no pixels — if you add a gesture here,
-put it there too, because there is no longer anywhere on screen to explain it.
-The plan centres with `justify-content: safe center`: plain `center` clips the
-start of a room wider than its column, and no scrollbar recovers it.
+The editor is one card and the plan, and nothing else. The card stacks
+everything about the salle ITSELF — its name, its places, its floor, and the
+table you add to it, drawn as the thing it becomes. It replaced a panel holding
+a single control and two paragraphs of instructions. With those gone the
+keyboard path lives in `aria-keyshortcuts` and the tile's accessible name, where
+it costs no pixels — if you add a gesture here, put it there too, because there
+is no longer anywhere on screen to explain it. The floor's minimum is said by
+`−` disabling at it, not by a sentence beside it. The plan centres with
+`justify-content: safe center`: plain `center` clips the start of a room wider
+than its column, and no scrollbar recovers it.
 
 **Where a dropped table lands is `snapToPlace`, and the two bugs behind it
 bracket the problem.** A grid of whole TABLES could not express the odd rows the
