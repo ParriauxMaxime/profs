@@ -45,6 +45,7 @@ export function PlanPage({
   students,
   session,
   onRecord,
+  panel,
 }: {
   classId: string;
   students: Student[];
@@ -52,6 +53,16 @@ export function PlanPage({
   session: Session | null;
   /** Creates that séance on demand. Awaited before any register write. */
   onRecord: () => Promise<string>;
+  /**
+   * What the right panel holds when no pupil card is open — the séance note
+   * and the carnets, built by the class page.
+   *
+   * The two-column layout lives HERE rather than in the class page because the
+   * card that takes this column over needs `held`, `planId` and `unassign`,
+   * all local to this view. Lifting those up would drag the whole placement
+   * gesture with them.
+   */
+  panel: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const db = useDb();
@@ -163,47 +174,9 @@ export function PlanPage({
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-text-muted">{t("plan.room")}</span>
-          <select
-            className="field"
-            style={{ width: "12rem" }}
-            value={room.id}
-            onChange={(e) => selectRoom(e.target.value)}
-          >
-            {rooms.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-          <Link className="text-accent text-sm" to={Router.Rooms()}>
-            {t("plan.manageRooms")}
-          </Link>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        {/* The rail comes first in the DOM so that on a narrow screen the
-            pupil you are about to place is not below the fold while you look
-            at where to put them. */}
-        <div className="flex flex-col gap-2 lg:order-2 lg:w-64 lg:shrink-0">
-          <StudentRail
-            students={unseatedStudents}
-            held={held}
-            onHold={(studentId) =>
-              setHeld((current) =>
-                current?.studentId === studentId && current.fromDeskId === null
-                  ? null
-                  : { studentId, fromDeskId: null },
-              )
-            }
-          />
-        </div>
-
-        <div className="lg:order-1 lg:min-w-0 lg:flex-1">
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+      <div className="flex min-w-0 flex-col gap-3 lg:flex-1">
+        <div>
           <RoomCanvas
             room={room}
             desks={desks}
@@ -268,6 +241,48 @@ export function PlanPage({
             }}
           />
         </div>
+
+        {/* Below the room, and only when it has something to say. It used to
+            sit above at all times, reporting "Tous les élèves sont placés" —
+            a permanent band for the normal state. Below rather than above
+            because it is conditional now: appearing above would push the
+            desks down the moment a pupil is unseated, moving them under a
+            hand that is mid-gesture. */}
+        {unseatedStudents.length > 0 && (
+          <StudentRail
+            students={unseatedStudents}
+            held={held}
+            onHold={(studentId) =>
+              setHeld((current) =>
+                current?.studentId === studentId && current.fromDeskId === null
+                  ? null
+                  : { studentId, fromDeskId: null },
+              )
+            }
+          />
+        )}
+      </div>
+
+      <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:w-80 lg:shrink-0 lg:overflow-y-auto">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-text-muted">{t("plan.room")}</span>
+          <select
+            className="field"
+            style={{ width: "auto" }}
+            value={room.id}
+            onChange={(e) => selectRoom(e.target.value)}
+          >
+            {rooms.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+          <Link className="text-accent text-sm" to={Router.Rooms()}>
+            {t("plan.manageRooms")}
+          </Link>
+        </div>
+        {panel}
       </div>
 
       {selectedStudentId !== null &&

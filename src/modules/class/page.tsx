@@ -245,6 +245,35 @@ export function ClassPage({
   const noteKey = slotSessionId ?? `${seanceDay}-${slotStartsAt}`;
   const hasRoom = rooms.length > 0;
 
+  /**
+   * The right panel's steady contents. Built here because the note and the
+   * carnets are the class's business, and handed to whichever branch renders —
+   * the plan takes it over with the pupil card, so the plan owns the column.
+   */
+  const panel = (
+    <>
+      <div className="flex flex-col gap-1">
+        <h3 className="font-medium text-text-muted text-xs uppercase tracking-wider">
+          {t("diary.entryLabel")}
+        </h3>
+        <SeanceNote
+          key={noteKey}
+          sessionId={slotSessionId}
+          text={session?.note ?? ""}
+          onEnsureSession={ensureSeance}
+        />
+      </div>
+
+      {books !== undefined && (
+        <CarnetsPanel
+          schoolClass={schoolClass}
+          gradebooks={books.gradebooks}
+          subjects={books.subjects}
+        />
+      )}
+    </>
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
@@ -293,67 +322,44 @@ export function ClassPage({
         onStart={() => void startSeance()}
       />
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        {/* The plan comes first in the DOM: it is what a hand reaches for
-            mid-lesson, and the marks are what is read afterwards. */}
-        <div className="flex min-w-0 flex-col gap-3 lg:flex-1">
-          {hasRoom ? (
-            <PlanPage
-              classId={classId}
+      {hasRoom ? (
+        <PlanPage
+          classId={classId}
+          students={students}
+          session={session}
+          onRecord={ensureSeance}
+          panel={panel}
+        />
+      ) : (
+        // No salle in the workspace: a plan has nowhere to draw, but the
+        // register does not depend on one. Same gesture as a seat — tap a row
+        // to open the pupil card, the only place a mark is set. This branch
+        // keeps its own column split: there is no room to sit beside.
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+          <div className="flex min-w-0 flex-col gap-3 lg:flex-1">
+            <RosterRegister
               students={students}
-              session={session}
-              onRecord={ensureSeance}
+              attendance={attendanceRecords ?? []}
+              onOpen={setSelectedStudentId}
             />
-          ) : (
-            // No salle in the workspace: a plan has nowhere to draw, but the
-            // register does not depend on one. Same gesture as a seat — tap a
-            // row to open the pupil card, the only place a mark is set.
-            <>
-              <RosterRegister
-                students={students}
-                attendance={attendanceRecords ?? []}
-                onOpen={setSelectedStudentId}
-              />
-              {selectedStudentId !== null &&
-                (() => {
-                  const student = students.find((s) => s.id === selectedStudentId);
-                  if (!student) return null;
-                  return (
-                    <StudentCard
-                      key={student.id}
-                      student={student}
-                      session={session}
-                      onRecord={ensureSeance}
-                      onClose={() => setSelectedStudentId(null)}
-                    />
-                  );
-                })()}
-            </>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">
-          <div className="flex flex-col gap-1">
-            <h3 className="font-medium text-text-muted text-xs uppercase tracking-wider">
-              {t("diary.entryLabel")}
-            </h3>
-            <SeanceNote
-              key={noteKey}
-              sessionId={slotSessionId}
-              text={session?.note ?? ""}
-              onEnsureSession={ensureSeance}
-            />
+            {selectedStudentId !== null &&
+              (() => {
+                const student = students.find((s) => s.id === selectedStudentId);
+                if (!student) return null;
+                return (
+                  <StudentCard
+                    key={student.id}
+                    student={student}
+                    session={session}
+                    onRecord={ensureSeance}
+                    onClose={() => setSelectedStudentId(null)}
+                  />
+                );
+              })()}
           </div>
-
-          {books !== undefined && (
-            <CarnetsPanel
-              schoolClass={schoolClass}
-              gradebooks={books.gradebooks}
-              subjects={books.subjects}
-            />
-          )}
+          <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">{panel}</div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
