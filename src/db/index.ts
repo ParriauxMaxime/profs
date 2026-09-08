@@ -237,5 +237,18 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
     seats: null,
     seatingLayouts: null,
   });
+  // v13 points a timetable entry at a salle. A plain field add would need no
+  // bump at all, but it is INDEXED — `deleteRoom` has to find every lesson
+  // naming the salle it is about to remove, and a full scan of the timetable
+  // on every delete is the kind of thing that is fine until it is not.
+  //
+  // The store is redeclared whole because Dexie's `stores` is a replacement,
+  // not a patch. No upgrade callback, per the standing rule: a row carrying
+  // the old free-text `room` simply keeps an unread property. That is NOT the
+  // zombie case v7 was written for — a leftover string is inert, where a
+  // missing `width` fed `undefined` into arithmetic and rendered scale(NaN).
+  db.version(13).stores({
+    scheduleEntries: "id, classId, weekday, gradebookId, roomId",
+  });
   return db;
 }

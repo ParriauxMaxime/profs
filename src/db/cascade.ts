@@ -305,15 +305,28 @@ export async function deleteBehaviourEvent(db: AppDatabase, eventId: string): Pr
  * of the decision belongs.
  */
 export async function deleteRoom(db: AppDatabase, roomId: string): Promise<void> {
-  await db.transaction("rw", [db.rooms, db.desks, db.seatingPlans, db.assignments], async () => {
-    const planIds = await db.seatingPlans.where("roomId").equals(roomId).primaryKeys();
-    if (planIds.length > 0) {
-      await db.assignments.where("planId").anyOf(planIds).delete();
-      await db.seatingPlans.bulkDelete(planIds);
-    }
-    await db.desks.where("roomId").equals(roomId).delete();
-    await db.rooms.delete(roomId);
-  });
+  await db.transaction(
+    "rw",
+    [db.rooms, db.desks, db.seatingPlans, db.assignments, db.scheduleEntries],
+    async () => {
+      const planIds = await db.seatingPlans.where("roomId").equals(roomId).primaryKeys();
+      if (planIds.length > 0) {
+        await db.assignments.where("planId").anyOf(planIds).delete();
+        await db.seatingPlans.bulkDelete(planIds);
+      }
+      // The timetable is UNLINKED, never deleted — the same ruling
+      // `deleteGradebook` follows. The lesson still happens on Monday at 10h;
+      // it simply no longer names a salle. Deleting a room must never delete
+      // part of a teacher's week.
+      const lessons = await db.scheduleEntries.where("roomId").equals(roomId).toArray();
+      for (const lesson of lessons) {
+        const { roomId: _unlinked, ...rest } = lesson;
+        await db.scheduleEntries.put({ ...rest, updatedAt: Date.now() });
+      }
+      await db.desks.where("roomId").equals(roomId).delete();
+      await db.rooms.delete(roomId);
+    },
+  );
 }
 
 /** An assessment and every level recorded on it. */

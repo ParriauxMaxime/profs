@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { ConfirmButton } from "../design-system/components/confirm-button";
+import { useRoomNames } from "../rooms/use-room-names";
 import { EntryForm } from "./components/entry-form";
 
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
@@ -24,6 +25,7 @@ const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 export function SchedulePage() {
   const { t, i18n } = useTranslation();
   const db = useDb();
+  const roomNames = useRoomNames();
   // Held as an entry id or the string "new", never an index into the list.
   const [editing, setEditing] = useState<string | null>(null);
   const termStart = readTermStart();
@@ -134,7 +136,7 @@ export function SchedulePage() {
                             {t(`schedule.cycleLabel.${entry.weekCycle}`)}
                           </span>
                         )}
-                        {entry.room}
+                        {roomNames.get(entry.roomId ?? "")}
                       </span>
                       <div className="flex flex-wrap gap-1">
                         <button

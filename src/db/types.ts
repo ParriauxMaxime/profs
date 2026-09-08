@@ -280,7 +280,20 @@ export interface ScheduleEntry {
   startMinute: number;
   endMinute: number;
   weekCycle: WeekCycle;
-  room?: string;
+  /**
+   * The salle this lesson happens in, when it is one the teacher has created.
+   *
+   * Replaces a free-text `room` label. Two spellings of "which room" was one
+   * too many the moment a salle became a record: the label could say "B12"
+   * while the class's plan lived in a salle called "204", and nothing could
+   * tell they were meant to be the same place. A teacher who wants "Gymnase"
+   * on the timetable creates a salle called Gymnase, which costs one click and
+   * gives them a plan there.
+   *
+   * Optional, and it must stay optional: a lesson may legitimately have no
+   * room recorded, and `deleteRoom` UNLINKS rather than cascades.
+   */
+  roomId?: string;
   createdAt: number;
   updatedAt: number;
 }

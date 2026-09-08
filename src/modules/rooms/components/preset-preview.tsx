@@ -24,7 +24,6 @@ export function PresetPreview({ template }: { template: RoomTemplate }) {
       aria-hidden="true"
       style={{ background: "var(--floor)", borderRadius: 3 }}
     >
-      <title>{template.id}</title>
       {/* The board, so an arc and a horseshoe read as facing something. */}
       <rect x={boxW / 2 - 22} y={1} width={44} height={3} rx={1} fill="var(--board)" />
       {/* One rect per DESK, filled and unstroked: adjacent desks abut and

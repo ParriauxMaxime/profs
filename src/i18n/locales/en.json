@@ -375,7 +375,6 @@
     "end": "End",
     "cycle": "Week",
     "room": "Room",
-    "roomPlaceholder": "B12",
     "endBeforeStart": "The end must be after the start.",
     "badTime": "Invalid time.",
     "badWeekday": "Invalid day.",
@@ -396,7 +395,8 @@
       "all": "Every week",
       "A": "Week A",
       "B": "Week B"
-    }
+    },
+    "noRoom": "No room"
   },
   "diary": {
     "title": "Journal",
@@ -459,7 +459,7 @@
     "confirmDelete": "Delete “{{name}}” and its tables?",
     "confirmDeleteUsed": "Delete “{{name}}” — {{classes}} will lose their seating plan",
     "addFurniture": "Add",
-    "table": "TABLE",
+    "table": "Table",
     "dragHint": "Drag it onto the plan. Dropped against a neighbouring table, the two become one.",
     "keyboardHint": "Tap a table to pick it up, then tap the floor to put it down. By keyboard: Tab to reach it, Space to pick it up, arrows to adjust, Escape to drop.",
     "holdTable": "Pick up table",

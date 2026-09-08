@@ -1,4 +1,5 @@
 import { deleteRoom } from "@db/cascade";
+import { plansForRoom } from "@db/plans";
 import { useDb } from "@db/provider";
 import {
   addDesk,
@@ -16,6 +17,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
+import { ConfirmButton } from "../design-system/components/confirm-button";
 import { useEscape } from "../shared/use-escape";
 import { RoomCanvas } from "./components/room-canvas";
 import { TemplateForm } from "./components/template-form";
@@ -104,6 +106,14 @@ export function RoomEditorPage({ roomId }: { roomId: string }) {
 
   const room = useLiveQuery(async () => (await db.rooms.get(roomId)) ?? null, [db, roomId]);
   const desks = useLiveQuery(() => desksForRoom(db, roomId), [db, roomId]);
+  // Which classes lose an arrangement if this salle goes — the confirm has
+  // to be able to say so.
+  const usedBy =
+    useLiveQuery(async () => {
+      const plans = await plansForRoom(db, roomId);
+      const classes = await db.classes.bulkGet(plans.map((plan) => plan.classId));
+      return classes.filter((c) => c !== undefined).map((c) => c.name);
+    }, [db, roomId]) ?? [];
 
   // Half-tile precision by keyboard, and the only way to reach the odd
   // coordinates an arc uses. `nudgeDesk` reads the position fresh inside its
@@ -208,13 +218,21 @@ export function RoomEditorPage({ roomId }: { roomId: string }) {
             {t("rooms.deskCount", { count: desks.length })}
           </span>
         </div>
-        <button
-          type="button"
-          className="btn btn-danger"
-          onClick={() => void deleteRoom(db, roomId).then(() => Router.push("Rooms"))}
-        >
-          {t("rooms.delete")}
-        </button>
+        {/* Two-step, in place. This was a bare button: one click destroyed
+            the salle, its furniture and every class's arrangement in it, with
+            nothing in between. The confirm names the classes that lose one,
+            exactly as the list's does — a salle is shared, so the cost of
+            deleting it reaches past the screen it is deleted from. */}
+        <ConfirmButton
+          label={t("rooms.delete")}
+          confirmLabel={
+            usedBy.length === 0
+              ? t("rooms.confirmDelete", { name: room.name })
+              : t("rooms.confirmDeleteUsed", { name: room.name, classes: usedBy.join(", ") })
+          }
+          danger
+          onConfirm={() => deleteRoom(db, roomId).then(() => Router.push("Rooms"))}
+        />
       </div>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
@@ -234,7 +252,7 @@ export function RoomEditorPage({ roomId }: { roomId: string }) {
               onDragEnd={() => {
                 dragging.current = null;
               }}
-              className="flex h-[72px] items-center justify-center rounded font-bold text-xs"
+              className="flex h-[72px] items-center justify-center rounded font-bold text-xs uppercase tracking-wide"
               style={{
                 background: "var(--wood)",
                 color: "var(--wood-ink)",

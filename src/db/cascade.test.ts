@@ -1140,6 +1140,53 @@ describe("salles", () => {
     db.close();
   });
 
+  it("deleteRoom unlinks the timetable rather than deleting lessons", async () => {
+    const db = openWorkspaceDb(`cascade-room-schedule-${crypto.randomUUID()}`);
+    await salleWithTwoClasses(db);
+    await db.scheduleEntries.add({
+      id: "sch1",
+      classId: "cA",
+      roomId: "r1",
+      weekday: 1,
+      startMinute: 600,
+      endMinute: 660,
+      weekCycle: "all",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+
+    await deleteRoom(db, "r1");
+
+    // The lesson still happens on Monday at 10h; it just no longer names a
+    // salle. Deleting a room must never delete part of a teacher's week.
+    const entry = await db.scheduleEntries.get("sch1");
+    expect(entry).toBeDefined();
+    expect(entry).not.toHaveProperty("roomId");
+    expect(entry?.weekday).toBe(1);
+    db.close();
+  });
+
+  it("deleteRoom leaves another salle's lessons linked", async () => {
+    const db = openWorkspaceDb(`cascade-room-schedule-other-${crypto.randomUUID()}`);
+    await salleWithTwoClasses(db);
+    await db.scheduleEntries.add({
+      id: "sch2",
+      classId: "cA",
+      roomId: "r2",
+      weekday: 2,
+      startMinute: 600,
+      endMinute: 660,
+      weekCycle: "all",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+
+    await deleteRoom(db, "r1");
+
+    expect((await db.scheduleEntries.get("sch2"))?.roomId).toBe("r2");
+    db.close();
+  });
+
   it("deleteRoom leaves another salle entirely alone", async () => {
     const db = openWorkspaceDb(`cascade-room-other-${crypto.randomUUID()}`);
     await salleWithTwoClasses(db);

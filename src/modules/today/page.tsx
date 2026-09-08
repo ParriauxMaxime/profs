@@ -7,6 +7,7 @@ import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
+import { useRoomNames } from "../rooms/use-room-names";
 
 /**
  * One row of Today: a lesson that is scheduled, under way, or both.
@@ -27,6 +28,7 @@ interface TodayLesson {
 export function TodayPage() {
   const { t, i18n } = useTranslation();
   const db = useDb();
+  const roomNames = useRoomNames();
   const termStart = readTermStart();
   const now = Date.now();
   const today = startOfDay(now);
@@ -149,8 +151,10 @@ export function TodayPage() {
                     {subjectName(lesson.entry?.subjectId ?? undefined)}
                   </span>
                 )}
-                {lesson.entry?.room && (
-                  <span className="text-sm text-text-muted">{lesson.entry.room}</span>
+                {lesson.entry?.roomId && roomNames.has(lesson.entry.roomId) && (
+                  <span className="text-sm text-text-muted">
+                    {roomNames.get(lesson.entry.roomId)}
+                  </span>
                 )}
                 {/* A lesson that is both scheduled and started says so here
                     rather than appearing twice. */}

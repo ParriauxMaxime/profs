@@ -375,7 +375,6 @@
     "end": "Fin",
     "cycle": "Semaine",
     "room": "Salle",
-    "roomPlaceholder": "B12",
     "endBeforeStart": "La fin doit être après le début.",
     "badTime": "Heure invalide.",
     "badWeekday": "Jour invalide.",
@@ -396,7 +395,8 @@
       "all": "Toutes",
       "A": "Semaine A",
       "B": "Semaine B"
-    }
+    },
+    "noRoom": "Aucune salle"
   },
   "diary": {
     "title": "Journal",
@@ -459,7 +459,7 @@
     "confirmDelete": "Supprimer « {{name}} » et ses tables ?",
     "confirmDeleteUsed": "Supprimer « {{name}} » — {{classes}} y perdront leur plan de table",
     "addFurniture": "Ajouter",
-    "table": "TABLE",
+    "table": "Table",
     "dragHint": "Glissez-la sur le plan. Posée contre une table voisine, les deux n'en font plus qu'une.",
     "keyboardHint": "Appuyez sur une table pour la prendre, puis sur le sol pour la poser. Au clavier : Tab pour l'atteindre, Espace pour la prendre, les flèches pour l'ajuster, Échap pour reposer.",
     "holdTable": "Prendre la table",

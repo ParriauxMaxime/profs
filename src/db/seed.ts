@@ -466,15 +466,16 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     start: number;
     end: number;
     cycle: WeekCycle;
-    room: string;
   }[] = [
-    { classIndex: 0, weekday: 1, start: 8 * 60, end: 9 * 60, cycle: "all", room: "B12" },
-    { classIndex: 0, weekday: 2, start: 10 * 60, end: 11 * 60, cycle: "all", room: "B12" },
-    { classIndex: 0, weekday: 4, start: 14 * 60, end: 15 * 60, cycle: "A", room: "B14" },
-    { classIndex: 0, weekday: 4, start: 14 * 60, end: 15 * 60, cycle: "B", room: "Labo" },
-    { classIndex: 1, weekday: 1, start: 9 * 60, end: 10 * 60, cycle: "all", room: "A03" },
-    { classIndex: 1, weekday: 3, start: 11 * 60, end: 12 * 60, cycle: "all", room: "A03" },
-    { classIndex: 1, weekday: 5, start: 8 * 60, end: 9 * 60, cycle: "B", room: "A03" },
+    // Every lesson is in the one seeded salle, which is the point the demo
+    // exists to make: two classes, one physical room, an arrangement each.
+    { classIndex: 0, weekday: 1, start: 8 * 60, end: 9 * 60, cycle: "all" },
+    { classIndex: 0, weekday: 2, start: 10 * 60, end: 11 * 60, cycle: "all" },
+    { classIndex: 0, weekday: 4, start: 14 * 60, end: 15 * 60, cycle: "A" },
+    { classIndex: 0, weekday: 4, start: 14 * 60, end: 15 * 60, cycle: "B" },
+    { classIndex: 1, weekday: 1, start: 9 * 60, end: 10 * 60, cycle: "all" },
+    { classIndex: 1, weekday: 3, start: 11 * 60, end: 12 * 60, cycle: "all" },
+    { classIndex: 1, weekday: 5, start: 8 * 60, end: 9 * 60, cycle: "B" },
   ];
   const scheduleEntries: ScheduleEntry[] = scheduleShape.map((shape) => ({
     id: id(),
@@ -485,7 +486,7 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     startMinute: shape.start,
     endMinute: shape.end,
     weekCycle: shape.cycle,
-    room: shape.room,
+    roomId,
     createdAt: now,
     updatedAt: now,
   }));
