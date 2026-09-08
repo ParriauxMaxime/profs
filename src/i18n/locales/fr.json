@@ -212,7 +212,16 @@
     "termStart": "Début de l'année",
     "termStartHint": "Sert à calculer les semaines A et B. Sans cette date, les cours en semaine A ou B ne s'affichent pas.",
     "termStartUnset": "Aucune date définie",
-    "termStartClear": "Effacer"
+    "termStartClear": "Effacer",
+    "rooms": {
+      "title": "Salles enregistrées",
+      "help": "Une salle est enregistrée depuis un plan de table, puis appliquée à n'importe quelle classe.",
+      "empty": "Aucune salle enregistrée. Ouvrez « Modifier le plan » dans une classe pour en enregistrer une.",
+      "name": "Nom de la salle",
+      "tableCount_one": "{{count}} table",
+      "tableCount_other": "{{count}} tables",
+      "confirmDelete": "Supprimer « {{name}} » — les classes déjà disposées ainsi ne changent pas"
+    }
   },
   "csv": {
     "title": "Importer une liste d'élèves",
@@ -289,6 +298,15 @@
       "rename": "Renommer",
       "delete": "Supprimer la salle",
       "deleteConfirm": "Supprimer « {{name}} » et le placement qu'elle contient"
+    },
+    "rooms": {
+      "label": "Salles enregistrées :",
+      "none": "aucune pour l'instant",
+      "save": "Enregistrer cette salle",
+      "namePlaceholder": "Nom, par exemple « Salle 204 »",
+      "stampConfirm": "Remplacer les tables par « {{name}} »",
+      "stampConfirmOverflow_one": "Remplacer par « {{name}} » — {{count}} élève retournera à la liste",
+      "stampConfirmOverflow_other": "Remplacer par « {{name}} » — {{count}} élèves retourneront à la liste"
     }
   },
   "behaviour": {

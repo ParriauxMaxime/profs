@@ -79,6 +79,16 @@ two rooms, rename and delete only in layout-edit mode, and the last room is
 never deletable, since the class would be handed a fresh default on the next
 render and the delete would read as "reset".
 
+A **saved room** (`rooms`, v9; `src/db/rooms.ts`) is a named shape — "Salle
+204" — stampable onto any class. It is a *user-defined template*, so applying
+one goes through `applyTemplate` and inherits every ruling the built-in
+templates already had: it stamps and then ceases to exist (nothing records
+where a layout's shape came from, so editing or deleting a saved room cannot
+reach a class already stamped from it), and `reseat` reports overflow before
+the write. It stores positions and **no pupils** — those ids do not exist in
+another class. `positions` is embedded rather than given its own table, the
+`RubricAssessment.criteria` precedent: never queried alone, always read whole.
+
 ### The class is the page
 
 A teacher thinks in 3°B, not in carnets and rosters, so a class is **one page with four tabs** — Plan de table, Élèves, Carnets, Journal — with a route per tab (`src/modules/class/page.tsx` is the shell, `tabs/` holds the four). `ClassPage` loads the class, its pupils, its groups and their memberships **once** and passes them down as `ClassTabProps`; a tab that re-queried would flash "Chargement…" over a class already on screen. The grid stays a full-screen route outside the tabs, because a tab bar above a wide scrolling table costs vertical space on the one screen with none to spare.

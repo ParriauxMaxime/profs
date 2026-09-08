@@ -212,7 +212,16 @@
     "termStart": "Start of the year",
     "termStartHint": "Used to work out A and B weeks. Without this date, lessons in week A or B are not shown.",
     "termStartUnset": "No date set",
-    "termStartClear": "Clear"
+    "termStartClear": "Clear",
+    "rooms": {
+      "title": "Saved rooms",
+      "help": "A room is saved from a seating plan, then applied to any class.",
+      "empty": "No saved rooms. Open “Edit layout” in a class to save one.",
+      "name": "Room name",
+      "tableCount_one": "{{count}} table",
+      "tableCount_other": "{{count}} tables",
+      "confirmDelete": "Delete “{{name}}” — classes already arranged this way are unaffected"
+    }
   },
   "csv": {
     "title": "Import a student list",
@@ -289,6 +298,15 @@
       "rename": "Rename",
       "delete": "Delete room",
       "deleteConfirm": "Delete “{{name}}” and the arrangement in it"
+    },
+    "rooms": {
+      "label": "Saved rooms:",
+      "none": "none yet",
+      "save": "Save this room",
+      "namePlaceholder": "Name, for example “Room 204”",
+      "stampConfirm": "Replace the tables with “{{name}}”",
+      "stampConfirmOverflow_one": "Replace with “{{name}}” — {{count}} pupil goes back to the list",
+      "stampConfirmOverflow_other": "Replace with “{{name}}” — {{count}} pupils go back to the list"
     }
   },
   "behaviour": {

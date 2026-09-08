@@ -8,6 +8,7 @@ import type {
   GradeColumn,
   GroupMember,
   Period,
+  Room,
   RubricAssessment,
   RubricScore,
   RubricTemplate,
@@ -30,6 +31,7 @@ export type {
   GradeColumn,
   GroupMember,
   Period,
+  Room,
   RubricAssessment,
   RubricScore,
   RubricTemplate,
@@ -63,6 +65,7 @@ export type AppDatabase = Dexie & {
   groupMembers: Table<GroupMember, [string, string]>;
   scheduleEntries: EntityTable<ScheduleEntry, "id">;
   diaryEntries: Table<DiaryEntry, [string, number]>;
+  rooms: EntityTable<Room, "id">;
 };
 
 /** The compound primary key of a cell. */
@@ -173,6 +176,14 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
   db.version(8).stores({
     seats: "id, layoutId, studentId, &[layoutId+x+y]",
     seatingLayouts: "id, classId",
+  });
+  // v9 adds saved rooms — a named shape a teacher can stamp onto any class.
+  // A plain add, so it is one version and no upgrade callback, per the standing
+  // rule; the drop-then-recreate pair v7/v8 used is only for a key that changes.
+  // `positions` is embedded in the row and therefore not indexed: a room is
+  // always read whole, and nothing ever queries one position.
+  db.version(9).stores({
+    rooms: "id, name",
   });
   return db;
 }

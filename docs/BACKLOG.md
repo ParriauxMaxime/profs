@@ -117,19 +117,33 @@ Decisions taken while building it:
 
 ## 4b. Named, reusable rooms
 
-Phase 7 replaced the seating plan's rectangular grid with a room of freely
-positioned tables, stamped from one of four templates (rows, arc, islands, U)
-and then hand-tuned — see
-`docs/superpowers/specs/2026-09-03-profs-room-layouts-design.md`. Every room is
-still owned by exactly one `SeatingLayout` per class, and a template stamp is
-one-way: nothing records that a room "is an arc", so re-stamping is
-destructive to the tables (`reseat` only preserves the *pupils*, not the
-hand-tuning). A teacher whose actual classroom does not change between two
-different classes she teaches there has to rebuild — or re-stamp and re-tune —
-the same room twice. Named, reusable rooms ("Ma salle 204", picked from a list
-rather than stamped from scratch) would need their own table and a management
-screen, and a decision on what happens to a room's occupants when it is
-detached from one class and attached to another. Not started.
+**Status: delivered, phase 8.** `rooms` table (v9), `src/db/rooms.ts`,
+`SavedRoomsBar` in the plan's layout-edit mode, and `RoomSection` in Réglages.
+
+The question this entry said needed deciding — "what happens to a room's
+occupants when it is detached from one class and attached to another" — needed
+no new answer, because **a saved room is a user-defined template**. Applying
+one goes through the same `applyTemplate` the four built-in templates use, so
+`reseat` pours the seated pupils into the new positions in reading order and
+hands back whoever no longer fits as overflow, before the write. The stamp
+confirm names that count.
+
+Consequences of that framing, all inherited rather than invented:
+
+- **A saved room stamps and ceases to exist.** Nothing on a `SeatingLayout`
+  records that it came from "Salle 204", so editing the saved room later cannot
+  reach a class already stamped from it, and deleting it changes no
+  arrangement. Same ruling as the built-in templates, for the same reason: a
+  live link cannot say whether a table dragged out of the arrangement should
+  follow a later edit. A test asserts the layout holds no reference back.
+- **A room stores positions and no pupils.** Those pupil ids do not exist in
+  another class; storing one would be storing a dangling reference. A test
+  asserts a seated pupil's id does not appear in the saved row.
+- **`positions` is embedded, not its own table** — the `RubricAssessment.criteria`
+  precedent. A position is never queried or deleted on its own and is always
+  read whole. A seat, written one cell at a time, is what earns a table.
+- **Saving happens in the plan, managing in Réglages.** There is nothing to
+  *create* in Réglages, since a room with no tables is a shape nobody drew.
 
 ## 5. Behaviour counts by period
 
