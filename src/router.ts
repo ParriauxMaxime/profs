@@ -13,15 +13,19 @@ export const Router = createRouter(
     // destination of its own rather than a panel inside one.
     Rooms: "/salles",
     Room: "/salles/:roomId",
-    // A class is one page with four tabs, and a route per tab: the back button
-    // steps between them, a reload keeps the one you were on, and Aujourd'hui
-    // can link straight to a lesson's seating plan. `Class` itself only
-    // redirects — see `app.tsx`.
+    // A class is ONE page: the séance, with the roster and the archive as
+    // detours that keep their own URLs. The four tab routes it replaced
+    // redirect, so older links and bookmarks still land somewhere real — see
+    // the *Legacy routes and `app.tsx`.
     Class: "/classes/:classId",
-    ClassPlan: "/classes/:classId/plan",
-    ClassStudents: "/classes/:classId/students",
-    ClassBooks: "/classes/:classId/books",
-    ClassDiary: "/classes/:classId/diary",
+    ClassStudents: "/classes/:classId/eleves",
+    ClassDiary: "/classes/:classId/journal",
+    // Kept only so an old link or bookmark to a tab still resolves — each
+    // redirects to `Class` in `app.tsx` rather than rendering.
+    ClassPlanLegacy: "/classes/:classId/plan",
+    ClassStudentsLegacy: "/classes/:classId/students",
+    ClassBooksLegacy: "/classes/:classId/books",
+    ClassDiaryLegacy: "/classes/:classId/diary",
     Student: "/students/:studentId",
     Gradebook: "/gradebooks/:gradebookId",
     Entry: "/gradebooks/:gradebookId/entry/:columnId",

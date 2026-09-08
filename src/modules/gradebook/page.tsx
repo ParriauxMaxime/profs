@@ -186,8 +186,9 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
               await deleteGradebook(db, gradebookId);
               // Nothing is left to render on this route once the gradebook is
               // gone, so leave it rather than show "Carnet introuvable" — back
-              // to the class's carnets, which is where the teacher came from.
-              Router.push("ClassBooks", { classId });
+              // to the class, which is where the teacher came from. Carnets is
+              // no longer its own destination.
+              Router.push("Class", { classId });
             }}
           />
         </div>

@@ -1,4 +1,5 @@
 import { ClassPage } from "./modules/class/page";
+import { ClassStudentsPage } from "./modules/class/students-page";
 import { ClassesPage } from "./modules/classes/page";
 import { DesignPage } from "./modules/design-system/page";
 import { DiaryPage } from "./modules/diary/page";
@@ -30,10 +31,12 @@ export function App() {
     "Rooms",
     "Room",
     "Class",
-    "ClassPlan",
     "ClassStudents",
-    "ClassBooks",
     "ClassDiary",
+    "ClassPlanLegacy",
+    "ClassStudentsLegacy",
+    "ClassBooksLegacy",
+    "ClassDiaryLegacy",
     "Student",
     "Gradebook",
     "Entry",
@@ -66,10 +69,12 @@ type AppRoute = NonNullable<
       | "Rooms"
       | "Room"
       | "Class"
-      | "ClassPlan"
       | "ClassStudents"
-      | "ClassBooks"
       | "ClassDiary"
+      | "ClassPlanLegacy"
+      | "ClassStudentsLegacy"
+      | "ClassBooksLegacy"
+      | "ClassDiaryLegacy"
       | "Student"
       | "Gradebook"
       | "Entry"
@@ -98,19 +103,23 @@ function Routes({ route }: { route: AppRoute }) {
     case "Room":
       return <RoomEditorPage roomId={route.params.roomId} />;
     case "Class":
-      // A class opens on its seating plan: that is the view a teacher reaches
-      // for mid-lesson, and the tabs are routes, so the bare class URL has to
-      // resolve to one of them.
-      Router.replace("ClassPlan", { classId: route.params.classId });
-      return null;
-    case "ClassPlan":
-      return <ClassPage classId={route.params.classId} tab="plan" />;
+      // The class page renders the lesson directly now; there is no longer a
+      // separate tab route to redirect to.
+      return <ClassPage classId={route.params.classId} />;
     case "ClassStudents":
-      return <ClassPage classId={route.params.classId} tab="students" />;
-    case "ClassBooks":
-      return <ClassPage classId={route.params.classId} tab="books" />;
+      return <ClassStudentsPage classId={route.params.classId} />;
     case "ClassDiary":
-      return <ClassPage classId={route.params.classId} tab="diary" />;
+      // DiaryPage already accepts a classId that pins it to one class and
+      // hides the class selector — no wrapper needed.
+      return <DiaryPage classId={route.params.classId} />;
+    case "ClassPlanLegacy":
+    case "ClassStudentsLegacy":
+    case "ClassBooksLegacy":
+    case "ClassDiaryLegacy":
+      // The four tabs a class used to have as separate routes. Old links and
+      // bookmarks still resolve, just onto the one page a class is now.
+      Router.replace("Class", { classId: route.params.classId });
+      return null;
     case "Student":
       return <StudentPage studentId={route.params.studentId} />;
     case "Gradebook":

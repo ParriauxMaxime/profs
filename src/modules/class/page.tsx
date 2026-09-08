@@ -9,47 +9,37 @@ import { ConfirmButton } from "../design-system/components/confirm-button";
 import { ClassForm } from "./components/class-form";
 import { GroupFilter } from "./components/group-filter";
 import { ClassBooksTab } from "./tabs/books";
-import { ClassDiaryTab } from "./tabs/diary";
 import { ClassPlanTab } from "./tabs/plan";
-import { ClassStudentsTab } from "./tabs/students";
 import type { ClassTabProps } from "./tabs/types";
 
-export const CLASS_TABS = ["plan", "students", "books", "diary"] as const;
-export type ClassTab = (typeof CLASS_TABS)[number];
-
-function tabHref(tab: ClassTab, classId: string): string {
-  switch (tab) {
-    case "plan":
-      return Router.ClassPlan({ classId });
-    case "students":
-      return Router.ClassStudents({ classId });
-    case "books":
-      return Router.ClassBooks({ classId });
-    case "diary":
-      return Router.ClassDiary({ classId });
-  }
-}
+// The roster and the journal moved to their own routes (`/eleves`,
+// `/journal`) in the class-one-pager work — see ClassStudentsPage and the
+// ClassDiary route in app.tsx. What is left of the tab set lives only inside
+// this shell, switched locally rather than by URL, because the class route
+// itself no longer carries a tab segment. This whole shell is rewritten in
+// the next task, once the class becomes one page rather than a tab set.
+const HUB_TABS = ["plan", "books"] as const;
+type HubTab = (typeof HUB_TABS)[number];
 
 /**
- * A class is one page. The seating plan, the roster, the carnets and the
- * journal are tabs of it rather than four destinations reached through the
- * drawer, because a teacher does not think in carnets and rosters — they think
- * in 3°B, and everything about 3°B should be one page.
+ * A class, for now still mostly the tab set it has been since phase 6: the
+ * seating plan and the carnets switch in place, while the roster and the
+ * journal are separate destinations linked from the tab bar.
  *
- * The shell loads what every tab needs (the class, its pupils, its groups and
- * their memberships) exactly once, so changing tab never flashes "Chargement…"
- * over a class whose name is already on screen.
+ * The shell loads what its own tabs need (the class, its pupils, its groups
+ * and their memberships) exactly once, so switching between Plan and Carnets
+ * never flashes "Chargement…" over a class whose name is already on screen.
  */
-export function ClassPage({ classId, tab }: { classId: string; tab: ClassTab }) {
+export function ClassPage({ classId }: { classId: string }) {
   const { t } = useTranslation();
   const db = useDb();
   const [renaming, setRenaming] = useState(false);
+  const [tab, setTab] = useState<HubTab>("plan");
   // Held as a group id, never an index: a deleted group falls back to "Tous",
   // not to whatever now sits at that position.
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  // Held as a session id, never a position. The Plan tab keeps it in step with
-  // today's lesson; the roster only reads it, to decide whether the pupil card
-  // may record attendance at all.
+  // Held as a session id, never a position — the seating plan keeps it in
+  // step with today's lesson.
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
   // An explicit null distinguishes "no such class" from "still loading":
@@ -132,27 +122,41 @@ export function ClassPage({ classId, tab }: { classId: string; tab: ClassTab }) 
 
       <div className="flex flex-wrap items-end justify-between gap-2 border-border border-b">
         <nav className="flex gap-1" aria-label={t("class.tabs")}>
-          {CLASS_TABS.map((name) => (
-            <Link
+          {HUB_TABS.map((name) => (
+            <button
               key={name}
-              to={tabHref(name, classId)}
-              className="rounded-t px-3 py-2 font-medium text-sm text-text-muted hover:bg-bg-hover hover:text-text"
-              activeClassName="bg-bg-hover text-text"
-              // Chicane sets activeClassName on an exact match; aria-current
-              // has to be told separately or a screen reader never learns
-              // which tab is the current one.
+              type="button"
+              onClick={() => setTab(name)}
+              className={`rounded-t px-3 py-2 font-medium text-sm hover:bg-bg-hover hover:text-text ${
+                name === tab ? "bg-bg-hover text-text" : "text-text-muted"
+              }`}
               aria-current={name === tab ? "page" : undefined}
             >
               {t(`class.tab.${name}`)}
-            </Link>
+            </button>
           ))}
+          {/* The roster and the journal are separate destinations now, not
+              panels of this shell — plain navigation links rather than the
+              in-place tab buttons above. */}
+          <Link
+            to={Router.ClassStudents({ classId })}
+            className="rounded-t px-3 py-2 font-medium text-sm text-text-muted hover:bg-bg-hover hover:text-text"
+          >
+            {t("class.tab.students")}
+          </Link>
+          <Link
+            to={Router.ClassDiary({ classId })}
+            className="rounded-t px-3 py-2 font-medium text-sm text-text-muted hover:bg-bg-hover hover:text-text"
+          >
+            {t("class.tab.diary")}
+          </Link>
         </nav>
 
-        {/* One filter for the whole class, not one per tab: filtering the
-            roster to a group and finding the seating plan unfiltered reads as
-            a bug. It shows only on the two tabs that list pupils — a filter
-            that changes nothing on screen is worse than no filter. */}
-        {groups.length > 0 && (tab === "plan" || tab === "students") && (
+        {/* One filter for the whole shell, not one per tab: filtering the
+            plan to a group and finding the carnets unfiltered reads as a bug.
+            It shows only on the plan tab — a filter that changes nothing on
+            screen is worse than no filter. */}
+        {groups.length > 0 && tab === "plan" && (
           <div className="pb-1">
             <GroupFilter
               groups={groups}
@@ -164,9 +168,7 @@ export function ClassPage({ classId, tab }: { classId: string; tab: ClassTab }) 
       </div>
 
       {tab === "plan" && <ClassPlanTab {...tabProps} />}
-      {tab === "students" && <ClassStudentsTab {...tabProps} />}
       {tab === "books" && <ClassBooksTab {...tabProps} />}
-      {tab === "diary" && <ClassDiaryTab {...tabProps} />}
     </div>
   );
 }
