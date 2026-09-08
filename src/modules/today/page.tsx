@@ -59,10 +59,12 @@ export function TodayPage() {
   // page reads the same function — this used to be a copy in each.
   const scheduled: ScheduleEntry[] = entriesForDay(data.entries, termStart, now);
 
-  // A séance is matched to a scheduled entry by TIME, not by class —
-  // `slotsForDay` claims each entry at most once, keeps unmatched séances
-  // (a cover class, or a lesson opened before the timetable existed) and
-  // unmatched scheduled lessons, and orders earliest first with untimed last.
+  // Every class at once, which is what makes `slotsForDay`'s class rule load
+  // bearing here: it pairs a séance only with a lesson of its OWN class, so
+  // two classes taught at the same minute cannot claim each other's. It claims
+  // each entry at most once, keeps unmatched séances (a cover class, or a
+  // lesson opened before the timetable existed) and unmatched scheduled
+  // lessons, and orders earliest first with untimed last.
   const slots = slotsForDay(data.sessions, scheduled, today);
   const lessons: TodayLesson[] = slots.map((slot) => {
     const entry =

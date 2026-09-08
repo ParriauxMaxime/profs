@@ -250,7 +250,7 @@
     "late": "Late",
     "excused": "Excused",
     "title": "Attendance",
-    "needsSession": "Select a lesson in the seating plan to record attendance and behaviour."
+    "needsSession": "Attendance and behaviour are recorded on the class's lesson."
   },
   "plan": {
     "unseated": "Students without a seat",
@@ -404,7 +404,7 @@
     "today": "Today",
     "previous": "Previous",
     "next": "Next",
-    "entryLabel": "Note for the day",
+    "entryLabel": "Lesson note",
     "seanceAt": "{{time}}",
     "unscheduled": "Unscheduled lesson",
     "noNote": "No note",

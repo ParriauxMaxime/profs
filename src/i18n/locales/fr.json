@@ -250,7 +250,7 @@
     "late": "En retard",
     "excused": "Excusé",
     "title": "Présence",
-    "needsSession": "Sélectionnez une séance dans le plan de table pour noter la présence et le comportement."
+    "needsSession": "La présence et le comportement se notent sur la séance de la classe."
   },
   "plan": {
     "unseated": "Élèves sans place",
@@ -404,7 +404,7 @@
     "today": "Aujourd'hui",
     "previous": "Précédent",
     "next": "Suivant",
-    "entryLabel": "Note du jour",
+    "entryLabel": "Note de la séance",
     "seanceAt": "{{time}}",
     "unscheduled": "Séance non planifiée",
     "noNote": "Aucune note",

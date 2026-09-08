@@ -241,6 +241,10 @@ export function ClassPage({
   // resets it rather than carrying one hour's text onto the next.
   const noteKey = slotSessionId ?? `${seanceDay}-${slotStartsAt}`;
   const hasRoom = rooms.length > 0;
+  // Resolved ONCE, and every filter on this screen reads it. Resolving for the
+  // register but not for the rail would leave a deleted group showing "Tous"
+  // selected above a full register and an empty rail.
+  const groupId = resolveGroupSelection(groups, selectedGroupId);
 
   return (
     <div className="flex flex-col gap-4">
@@ -316,7 +320,7 @@ export function ClassPage({
               classId={classId}
               students={students}
               memberships={memberships ?? []}
-              selectedGroupId={selectedGroupId}
+              selectedGroupId={groupId}
               session={session}
               onRecord={ensureSeance}
             />
@@ -326,11 +330,7 @@ export function ClassPage({
             // row to open the pupil card, the only place a mark is set.
             <>
               <RosterRegister
-                students={filterByGroup(
-                  students,
-                  memberships ?? [],
-                  resolveGroupSelection(groups, selectedGroupId),
-                )}
+                students={filterByGroup(students, memberships ?? [], groupId)}
                 attendance={attendanceRecords ?? []}
                 onOpen={setSelectedStudentId}
               />

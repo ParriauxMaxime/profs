@@ -52,6 +52,7 @@ export function PlanPage({
   classId: string;
   students: Student[];
   memberships: GroupMember[];
+  /** Already through `resolveGroupSelection`: a deleted group reads as "Tous". */
   selectedGroupId: string | null;
   /** The séance being recorded against, or null while none exists yet. */
   session: Session | null;
