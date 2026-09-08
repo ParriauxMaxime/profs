@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 import { ConfirmButton } from "../design-system/components/confirm-button";
 import { ToggleOption } from "../design-system/components/primitives";
 import { useTheme } from "../shared/use-theme";
+import { RoomSection } from "./components/room-section";
 import { RubricTemplateForm } from "./components/rubric-template-form";
 import { SubjectForm } from "./components/subject-form";
 import { WorkspaceSection } from "./components/workspace-section";
@@ -302,6 +303,8 @@ export function SettingsPage() {
           </div>
         )}
       </section>
+
+      <RoomSection />
 
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">

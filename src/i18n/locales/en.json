@@ -212,7 +212,16 @@
     "termStart": "Start of the year",
     "termStartHint": "Used to work out A and B weeks. Without this date, lessons in week A or B are not shown.",
     "termStartUnset": "No date set",
-    "termStartClear": "Clear"
+    "termStartClear": "Clear",
+    "rooms": {
+      "title": "Saved rooms",
+      "help": "A room is saved from a seating plan, then applied to any class.",
+      "empty": "No saved rooms. Open “Edit layout” in a class to save one.",
+      "name": "Room name",
+      "tableCount_one": "{{count}} table",
+      "tableCount_other": "{{count}} tables",
+      "confirmDelete": "Delete “{{name}}” — classes already arranged this way are unaffected"
+    }
   },
   "csv": {
     "title": "Import a student list",
@@ -280,7 +289,25 @@
     "moveHere": "Move here",
     "addTable": "Add a table",
     "holdTable": "Move the table",
-    "emptyRoom": "This room has no tables. Pick a layout to fill it."
+    "emptyRoom": "This room has no tables. Pick a layout to fill it.",
+    "layouts": {
+      "label": "Rooms for this class",
+      "unnamed": "Main plan",
+      "add": "New room",
+      "namePlaceholder": "Room name",
+      "rename": "Rename",
+      "delete": "Delete room",
+      "deleteConfirm": "Delete “{{name}}” and the arrangement in it"
+    },
+    "rooms": {
+      "label": "Saved rooms:",
+      "none": "none yet",
+      "save": "Save this room",
+      "namePlaceholder": "Name, for example “Room 204”",
+      "stampConfirm": "Replace the tables with “{{name}}”",
+      "stampConfirmOverflow_one": "Replace with “{{name}}” — {{count}} pupil goes back to the list",
+      "stampConfirmOverflow_other": "Replace with “{{name}}” — {{count}} pupils go back to the list"
+    }
   },
   "behaviour": {
     "title": "Behaviour",
@@ -290,7 +317,13 @@
     "note": "Observation",
     "comment": "Comment",
     "none": "No events",
-    "confirmDelete": "Delete this event?"
+    "confirmDelete": "Delete this event?",
+    "rangeLabel": "Counter window",
+    "range": {
+      "all": "All",
+      "days30": "30 days",
+      "term": "Since term start"
+    }
   },
   "rubric": {
     "title": "Rubrics",
@@ -406,5 +439,27 @@
       "week": "Week",
       "month": "Month"
     }
+  },
+  "recovery": {
+    "title": "profs could not open its data",
+    "retry": {
+      "body": "The database did not open, but your data is intact. Reload the page. If it keeps happening, close any other profs tabs and try again."
+    },
+    "unsupported": {
+      "body": "This browser is refusing the local storage profs needs, which is common in a private window. Open the app in a normal window, then reload."
+    },
+    "quota": {
+      "body": "There is not enough space left to open this school. Free some up, or delete this school's data to reclaim what it was using."
+    },
+    "corrupt": {
+      "body": "This school's data cannot be opened. Try reloading first: if the error returns, deleting this school's data is the only way to get the app open again. That deletion is permanent."
+    },
+    "workspace": "School:",
+    "reload": "Reload",
+    "discard": "Delete this school's data",
+    "discardConfirm": "Permanently delete the marks, pupils and gradebooks for {{name}}",
+    "othersSafe_one": "Your other school is untouched.",
+    "othersSafe_other": "Your {{count}} other schools are untouched.",
+    "details": "Technical detail"
   }
 }

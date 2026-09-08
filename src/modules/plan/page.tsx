@@ -1,14 +1,24 @@
 import type { GroupMember, Student } from "@db";
+import { deleteSeatingLayout } from "@db/cascade";
 import { useDb } from "@db/provider";
 import {
   addTable,
+  createLayout,
   getOrCreateLayout,
+  listLayouts,
   moveTable,
   nudgeTable,
+  renameLayout,
   seatStudent,
   swapSeats,
 } from "@db/seating";
 import { createSession, getOrCreateTodaySession, sessionsForClass, startOfDay } from "@db/sessions";
+import {
+  clearActiveLayout,
+  readActiveLayout,
+  resolveActiveLayout,
+  writeActiveLayout,
+} from "@domain/active-layout";
 import { filterByGroup } from "@domain/group";
 import {
   type Held,
@@ -21,8 +31,10 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEscape } from "../shared/use-escape";
+import { LayoutBar } from "./components/layout-bar";
 import { RoomTemplateForm } from "./components/room-template-form";
 import { RoomView } from "./components/room-view";
+import { SavedRoomsBar } from "./components/saved-rooms-bar";
 import { SessionBar } from "./components/session-bar";
 import { StudentCard } from "./components/student-card";
 import { StudentRail } from "./components/student-rail";
@@ -125,9 +137,22 @@ export function PlanPage({
 
   const session = sessions?.find((s) => s.id === selectedSessionId) ?? null;
 
-  const layout = useLiveQuery(
-    async () => (await db.seatingLayouts.where("classId").equals(classId).first()) ?? null,
-    [db, classId],
+  const layouts = useLiveQuery(() => listLayouts(db, classId), [db, classId]);
+  // The selection is device-local and held as an id, never an index: deleting
+  // a room reorders the list, and an index would retarget onto its neighbour.
+  const [storedLayoutId, setStoredLayoutId] = useState(() => readActiveLayout(classId));
+  const activeLayoutId = resolveActiveLayout(layouts ?? [], storedLayoutId);
+  const layout = layouts?.find((l) => l.id === activeLayoutId) ?? null;
+
+  const selectLayout = useCallback(
+    (layoutId: string) => {
+      // Switching rooms releases the hand: a table held in one room does not
+      // exist in the next, exactly as leaving layout-edit mode releases it.
+      setHeld(null);
+      writeActiveLayout(classId, layoutId);
+      setStoredLayoutId(layoutId);
+    },
+    [classId],
   );
   const seats = useLiveQuery(
     async () => (layout ? await db.seats.where("layoutId").equals(layout.id).toArray() : []),
@@ -138,9 +163,11 @@ export function PlanPage({
   // `getOrCreateLayout` re-checks inside its transaction, so StrictMode's
   // double-invoked effect cannot produce two rooms for one class.
   useEffect(() => {
-    if (layout !== null) return;
+    // `undefined` is "still loading" and must not trigger a create; only an
+    // actually-empty list does.
+    if (layouts === undefined || layouts.length > 0) return;
     void getOrCreateLayout(db, classId);
-  }, [db, classId, layout]);
+  }, [db, classId, layouts]);
 
   // Half-tile precision by keyboard. Tapping the floor is whole-tile only, so
   // without this the odd coordinates an arc uses would be unreachable to
@@ -294,6 +321,39 @@ export function PlanPage({
           </button>
         </div>
       </div>
+
+      <LayoutBar
+        layouts={layouts ?? []}
+        activeLayoutId={activeLayoutId}
+        editing={resizing}
+        onSelect={selectLayout}
+        onCreate={(name) => {
+          void createLayout(db, classId, name).then((created) => selectLayout(created.id));
+        }}
+        onRename={(layoutId, name) => void renameLayout(db, layoutId, name)}
+        onDelete={(layoutId) => {
+          setHeld(null);
+          void deleteSeatingLayout(db, layoutId).then(() => {
+            // The stored selection now points at a room that is gone.
+            // `resolveActiveLayout` would fall back on its own, but clearing
+            // keeps localStorage from carrying a dead id indefinitely.
+            clearActiveLayout(classId);
+            setStoredLayoutId(null);
+          });
+        }}
+      />
+
+      {resizing && layout !== null && (
+        <SavedRoomsBar
+          key={`rooms-${layout.id}`}
+          layout={layout}
+          seats={seats ?? []}
+          onDone={() => {
+            setHeld(null);
+            setResizing(false);
+          }}
+        />
+      )}
 
       {resizing && (
         <RoomTemplateForm

@@ -212,7 +212,16 @@
     "termStart": "Début de l'année",
     "termStartHint": "Sert à calculer les semaines A et B. Sans cette date, les cours en semaine A ou B ne s'affichent pas.",
     "termStartUnset": "Aucune date définie",
-    "termStartClear": "Effacer"
+    "termStartClear": "Effacer",
+    "rooms": {
+      "title": "Salles enregistrées",
+      "help": "Une salle est enregistrée depuis un plan de table, puis appliquée à n'importe quelle classe.",
+      "empty": "Aucune salle enregistrée. Ouvrez « Modifier le plan » dans une classe pour en enregistrer une.",
+      "name": "Nom de la salle",
+      "tableCount_one": "{{count}} table",
+      "tableCount_other": "{{count}} tables",
+      "confirmDelete": "Supprimer « {{name}} » — les classes déjà disposées ainsi ne changent pas"
+    }
   },
   "csv": {
     "title": "Importer une liste d'élèves",
@@ -280,7 +289,25 @@
     "moveHere": "Déplacer ici",
     "addTable": "Ajouter une table",
     "holdTable": "Déplacer la table",
-    "emptyRoom": "Cette salle n'a aucune table. Choisissez une disposition pour la remplir."
+    "emptyRoom": "Cette salle n'a aucune table. Choisissez une disposition pour la remplir.",
+    "layouts": {
+      "label": "Salles de cette classe",
+      "unnamed": "Plan principal",
+      "add": "Nouvelle salle",
+      "namePlaceholder": "Nom de la salle",
+      "rename": "Renommer",
+      "delete": "Supprimer la salle",
+      "deleteConfirm": "Supprimer « {{name}} » et le placement qu'elle contient"
+    },
+    "rooms": {
+      "label": "Salles enregistrées :",
+      "none": "aucune pour l'instant",
+      "save": "Enregistrer cette salle",
+      "namePlaceholder": "Nom, par exemple « Salle 204 »",
+      "stampConfirm": "Remplacer les tables par « {{name}} »",
+      "stampConfirmOverflow_one": "Remplacer par « {{name}} » — {{count}} élève retournera à la liste",
+      "stampConfirmOverflow_other": "Remplacer par « {{name}} » — {{count}} élèves retourneront à la liste"
+    }
   },
   "behaviour": {
     "title": "Comportement",
@@ -290,7 +317,13 @@
     "note": "Observation",
     "comment": "Commentaire",
     "none": "Aucun événement",
-    "confirmDelete": "Supprimer cet événement ?"
+    "confirmDelete": "Supprimer cet événement ?",
+    "rangeLabel": "Période des compteurs",
+    "range": {
+      "all": "Tout",
+      "days30": "30 jours",
+      "term": "Depuis la rentrée"
+    }
   },
   "rubric": {
     "title": "Grilles d'évaluation",
@@ -406,5 +439,27 @@
       "week": "Semaine",
       "month": "Mois"
     }
+  },
+  "recovery": {
+    "title": "profs n'a pas pu ouvrir ses données",
+    "retry": {
+      "body": "L'ouverture a échoué, mais les données sont intactes. Rechargez la page. Si le problème persiste, fermez les autres onglets de profs et réessayez."
+    },
+    "unsupported": {
+      "body": "Ce navigateur refuse le stockage local dont profs a besoin, ce qui est fréquent en navigation privée. Ouvrez l'application dans une fenêtre normale, puis rechargez."
+    },
+    "quota": {
+      "body": "Il n'y a plus assez d'espace pour ouvrir cet établissement. Libérez de la place, ou supprimez les données de cet établissement pour récupérer l'espace qu'il occupe."
+    },
+    "corrupt": {
+      "body": "Les données de cet établissement ne peuvent pas être ouvertes. Rechargez d'abord : si l'erreur revient, supprimer les données de cet établissement est le seul moyen de rouvrir l'application. Cette suppression est définitive."
+    },
+    "workspace": "Établissement :",
+    "reload": "Recharger",
+    "discard": "Supprimer les données de cet établissement",
+    "discardConfirm": "Supprimer définitivement les notes, élèves et carnets de {{name}}",
+    "othersSafe_one": "Votre autre établissement n'est pas touché.",
+    "othersSafe_other": "Vos {{count}} autres établissements ne sont pas touchés.",
+    "details": "Détail technique"
   }
 }

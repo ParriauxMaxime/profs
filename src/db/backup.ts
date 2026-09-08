@@ -11,6 +11,7 @@ import type {
   GradeColumn,
   GroupMember,
   Period,
+  Room,
   RubricAssessment,
   RubricScore,
   RubricTemplate,
@@ -46,6 +47,7 @@ export interface WorkspaceBackup {
   groupMembers: GroupMember[];
   scheduleEntries: ScheduleEntry[];
   diaryEntries: DiaryEntry[];
+  rooms: Room[];
 }
 
 /**
@@ -130,6 +132,7 @@ const backupSchema = z.object({
   ),
   scheduleEntries: z.array(z.object({ id: z.string() }).loose()),
   diaryEntries: z.array(z.object({ classId: z.string(), date: z.number() }).loose()),
+  rooms: z.array(z.object({ id: z.string() }).loose()),
 });
 
 /**
@@ -160,6 +163,7 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     groupMembers,
     scheduleEntries,
     diaryEntries,
+    rooms,
   ] = await Promise.all([
     db.classes.toArray(),
     db.students.toArray(),
@@ -180,6 +184,7 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     db.groupMembers.toArray(),
     db.scheduleEntries.toArray(),
     db.diaryEntries.toArray(),
+    db.rooms.toArray(),
   ]);
 
   return {
@@ -217,6 +222,7 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     groupMembers,
     scheduleEntries,
     diaryEntries,
+    rooms,
   };
 }
 
@@ -287,6 +293,7 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     db.groupMembers,
     db.scheduleEntries,
     db.diaryEntries,
+    db.rooms,
   ];
 
   await db.transaction("rw", tables, async () => {
@@ -310,5 +317,6 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     await db.groupMembers.bulkPut(data.groupMembers);
     await db.scheduleEntries.bulkAdd(data.scheduleEntries);
     await db.diaryEntries.bulkPut(data.diaryEntries);
+    await db.rooms.bulkAdd(data.rooms);
   });
 }

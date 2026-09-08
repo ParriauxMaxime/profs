@@ -84,38 +84,104 @@ other event types.
 
 ## 4. Multiple seating layouts per class
 
-Phase 2A ships exactly one `SeatingLayout` per class (created lazily on first
-visit to the plan page). iDoceo's "a room can have several layouts (exam,
-group work)" was explicitly deferred: it needs a layout switcher in the UI and
-a decision on which layout attendance/behaviour attach to when more than one
-exists for the same session. `deleteSeatingLayout` in `src/db/cascade.ts`
-already supports removing one of several, so the schema is not the blocker —
-the UI and the "which layout is active" question are.
+**Status: delivered, phase 8.** `listLayouts` / `createLayout` / `renameLayout`
+in `src/db/seating.ts`, `LayoutBar` in `src/modules/plan/components/`, and the
+selection in `src/domain/active-layout.ts`.
+
+The blocker this entry named — "which layout attendance/behaviour attach to
+when more than one exists for the same session" — dissolved rather than being
+answered. **A layout is a view, never a record.** Attendance is already keyed
+`[sessionId+studentId]` and a `BehaviourEvent` already carries a `sessionId`,
+so neither has ever referred to a layout; switching rooms mid-lesson changes
+where a pupil is drawn, not what was recorded. That is the same invariant
+phase 2A set when it refused attendance as a column type.
+
+Decisions taken while building it:
+
+- **The selection is device-local**, in `localStorage` keyed by class, not a
+  field on `SchoolClass`. A selection is not a property of the school: two
+  devices would fight over it, and a backup would carry one device's view onto
+  another. It is held as an id and resolved through `resolveActiveLayout`, so a
+  deleted room falls back to the first instead of retargeting onto its
+  neighbour.
+- **The first room stays unnamed.** `getOrCreateLayout` runs before anybody has
+  named anything, and a translated default written into the row would be a
+  stored label that stops matching the interface language. The UI renders
+  `plan.layouts.unnamed`.
+- **The picker only appears once there are two.** One room is not a choice.
+- **Rename and delete live in layout-edit mode**, not beside the picker: the
+  lesson's gesture is placing pupils, and a delete within reach during a lesson
+  is a mis-tap that costs an arrangement. The last room is never deletable —
+  the class would be handed a fresh default on the next render, so the delete
+  would read as "reset" while destroying the arrangement.
 
 ## 4b. Named, reusable rooms
 
-Phase 7 replaced the seating plan's rectangular grid with a room of freely
-positioned tables, stamped from one of four templates (rows, arc, islands, U)
-and then hand-tuned — see
-`docs/superpowers/specs/2026-09-03-profs-room-layouts-design.md`. Every room is
-still owned by exactly one `SeatingLayout` per class, and a template stamp is
-one-way: nothing records that a room "is an arc", so re-stamping is
-destructive to the tables (`reseat` only preserves the *pupils*, not the
-hand-tuning). A teacher whose actual classroom does not change between two
-different classes she teaches there has to rebuild — or re-stamp and re-tune —
-the same room twice. Named, reusable rooms ("Ma salle 204", picked from a list
-rather than stamped from scratch) would need their own table and a management
-screen, and a decision on what happens to a room's occupants when it is
-detached from one class and attached to another. Not started.
+**Status: delivered, phase 8.** `rooms` table (v9), `src/db/rooms.ts`,
+`SavedRoomsBar` in the plan's layout-edit mode, and `RoomSection` in Réglages.
 
-## 5. Behaviour counts by period
+The question this entry said needed deciding — "what happens to a room's
+occupants when it is detached from one class and attached to another" — needed
+no new answer, because **a saved room is a user-defined template**. Applying
+one goes through the same `applyTemplate` the four built-in templates use, so
+`reseat` pours the seated pupils into the new positions in reading order and
+hands back whoever no longer fits as overflow, before the write. The stamp
+confirm names that count.
 
-The pupil page's behaviour counts (`countByType`) are deliberately computed
-over **all** events, with no period filter, by design in phase 2A. A
-teacher reporting "three warnings this trimestre" needs the count scoped to a
-period, which requires deciding how a session (dated, not period-bound) maps
-to a gradebook period. Left for a later pass rather than invented during
-phase 2A.
+Consequences of that framing, all inherited rather than invented:
+
+- **A saved room stamps and ceases to exist.** Nothing on a `SeatingLayout`
+  records that it came from "Salle 204", so editing the saved room later cannot
+  reach a class already stamped from it, and deleting it changes no
+  arrangement. Same ruling as the built-in templates, for the same reason: a
+  live link cannot say whether a table dragged out of the arrangement should
+  follow a later edit. A test asserts the layout holds no reference back.
+- **A room stores positions and no pupils.** Those pupil ids do not exist in
+  another class; storing one would be storing a dangling reference. A test
+  asserts a seated pupil's id does not appear in the saved row.
+- **`positions` is embedded, not its own table** — the `RubricAssessment.criteria`
+  precedent. A position is never queried or deleted on its own and is always
+  read whole. A seat, written one cell at a time, is what earns a table.
+- **Saving happens in the plan, managing in Réglages.** There is nothing to
+  *create* in Réglages, since a room with no tables is a shape nobody drew.
+
+## 5. Behaviour counts by period — delivered as counts by DATE
+
+**Status: delivered, phase 8**, and deliberately not as this entry asked.
+`src/domain/behaviour-range.ts`, with the selector on the pupil page.
+
+This entry said the blocker was "deciding how a session (dated, not
+period-bound) maps to a gradebook period". That mapping was not made, because
+it cannot be made honestly. A `Period` is `{ id, gradebookId, name, order }` —
+it carries **no dates** — and it belongs to a gradebook, so a class with three
+gradebooks has three period calendars that need not agree, while a `Session` is
+simply dated. Any mapping would be invented.
+
+Giving `Period` dates was the alternative and was rejected: periods are what
+`studentAverage` filters a bulletin by, and making them mean a span of time as
+well as a set of columns would change marking everywhere in order to put a
+filter on one count. The blast radius is not worth it, and the failure mode —
+a silently wrong bulletin — is the one this app cannot afford.
+
+So the counts filter by **date**, over three windows that need no boundary
+anyone invented: everything (the default, so the page keeps the behaviour it
+had), the last 30 days, and since the term anchor the app already keeps in
+`localStorage` for A/B week parity. "Ce trimestre" is deliberately absent:
+nothing in the app knows when a trimestre ends, and a guess printed beside a
+count of red cards is worse than an honest "depuis la rentrée".
+
+Two details worth keeping:
+
+- **The bound walks the calendar, never `30 * 86_400_000`.** Subtracting
+  milliseconds is an hour out after each clock change and, from a morning,
+  lands on the day *before* the intended one — silently dropping a day of
+  events from a count a teacher may repeat to a parent. A test walks 400 days,
+  both clock changes included, and asserts the bound is local midnight exactly
+  30 calendar days back, making no assumption about the suite's timezone. Same
+  discipline as `weekParity` and `monthGrid`.
+- **Only the counts are filtered; the timeline below stays complete.** A
+  behaviour log is a record of what was observed when, and hiding entries from
+  it would be a different claim than summarising a window of them.
 
 ## Source
 
@@ -328,44 +394,54 @@ Still inline, and deliberately left: five single-table v1-era writes in
 not in the recorded scope. Worth folding in the next time one of those forms
 is touched.
 
+## Technical debt — a failed `db.open()` (recorded and discharged 2026-09-08)
 
-## Technical debt — a failed `db.open()` is a blank page with no way back
+**Status: done.** `src/main.tsx` catches the rejection and renders
+`RecoveryShell` (`src/modules/recovery/shell.tsx`); the branch it takes comes
+from `classifyOpenFailure` in `src/domain/recovery.ts`.
 
-`src/db/init.ts` calls `db.open()` with no `catch`, and `src/main.tsx` calls
-`initWorkspace().then(...)` with no `.catch`. Any rejection — a Dexie
-`UpgradeError`, a corrupt store, a browser that denies IndexedDB in a private
-window, a quota failure — means the promise never resolves into `render`, so
-React never mounts. What the teacher sees is a blank page. Their pupils' names
-and grades are still in IndexedDB, and there is no route to the wipe in
-Réglages, to the JSON export, or to the workspace switcher, because none of
-those screens exist until React has mounted.
+The four questions this entry said had to be settled first, and how they were:
 
-Phase 6 hit exactly one instance of this and fixed only that instance: Dexie
-refuses to change a store's primary key in place and throws while opening, so
-the room migration was split into `version(7)` (drop) + `version(8)`
-(redeclare) specifically to avoid the throw. The class of failure is untouched.
-It matters more than a normal crash because the app is the only copy of the
-data — there is no server to log in to from another device, and `PRIVACY.md`
-says so.
+- **What does the fallback offer?** Reload always, and the discard only where
+  losing the data could help — `corrupt` and `quota`. A transient failure
+  (`DatabaseClosedError`, `VersionError`) offers reload alone, because inviting
+  a teacher to delete on a blip destroys a term of marks that was never at
+  risk. `unsupported` (a private window denying IndexedDB) offers reload too,
+  since the fix happens in the browser and then needs one.
+- **Can it export first?** No, and it does not try. An export needs the
+  database open, which is the thing that just failed, and a partial dump would
+  look like a backup while restoring short.
+- **Which errors are recoverable?** `classifyOpenFailure` maps them, and the
+  mapping is tested. The important half is the default: anything unrecognised
+  is `corrupt`, which is the branch that offers a way out. A future Dexie
+  error name nobody anticipated lands on the recoverable side, not on a dead
+  end.
+- **Where does it live?** A second, smaller shell, not a route. It renders
+  without `DbProvider`, without the router and without any `useLiveQuery`. It
+  reads the workspace registry from `localStorage`, so it can still name the
+  school. i18n is safe to use: `import "@i18n"` runs synchronously at the top
+  of `main.tsx`, before `initWorkspace`.
 
-What has to be settled before anything is built, and the reason this is a
-backlog entry rather than a fix:
+Two decisions taken while building it, neither of them in the original entry:
 
-- **What does the fallback offer?** A wipe is the one recovery that always
-  works and the one that destroys a term of marks. Offering it on a transient
-  error — a locked database because another tab is mid-upgrade, a quota blip —
-  invites a teacher to delete data that was never lost. Offering nothing but
-  "reload" is honest and often useless.
-- **Can it export first?** An export needs the database open, which is the
-  thing that just failed. A partial export from a half-open database may be
-  worse than none.
-- **Which errors are recoverable?** `DatabaseClosedError` and `VersionError`
-  want a reload; `UpgradeError` and `InvalidStateError` do not. The panel
-  cannot be one message.
-- **Where does it live?** It must render without `DbProvider`, without
-  `useLiveQuery`, and arguably without i18n if the failure is early enough —
-  which makes it a second, smaller shell rather than a route.
+- **The discard deletes the database and keeps the registry entry.** The
+  workspace returns on the next boot with its name and year and no data, which
+  is what "disposable, not migrated" was always supposed to mean. Removing the
+  registry entry as well would turn a recoverable schema into a lost school.
+  Other workspaces are untouched, and the panel says so.
+- **`initWorkspace` now opens the database explicitly.** It did not before:
+  `seedIfEmpty` returns immediately for an already-seeded workspace without
+  touching it, so on every boot after the very first, nothing in `initWorkspace`
+  opened anything and an open failure surfaced later inside a `useLiveQuery` —
+  past the only place that handles it. This was the real gap; the missing
+  `.catch` was only the visible half.
 
-Related: the standing rule that schema changes are disposable, not migrated.
-Disposable has to mean *wiped on the next boot*, never *bricked*, and today
-nothing enforces that but review.
+The standing rule that schema changes are disposable, not migrated, is now
+enforced by a test rather than by review: `src/domain/recovery.test.ts` asserts
+that an `UpgradeError` — what a primary-key change throws — always offers the
+discard, and that an unknown error name does too.
+
+Still open: a failure *after* React has mounted. `DbProvider` opens lazily, so
+a database that dies mid-session surfaces inside a `useLiveQuery` rather than
+at boot. That is a different shape of problem (the app is up, the screens
+exist, a route to Réglages is reachable) and wants its own entry if it bites.

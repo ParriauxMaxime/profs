@@ -22,6 +22,7 @@ describe("schema v2", () => {
         "grades",
         "groupMembers",
         "periods",
+        "rooms",
         "rubricAssessments",
         "rubricScores",
         "rubricTemplates",
