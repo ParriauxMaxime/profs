@@ -1,17 +1,26 @@
 import { deleteSession } from "@db/cascade";
 import { useDb } from "@db/provider";
+import { startOfDay } from "@db/sessions";
 import { minutesToHm } from "@domain/schedule";
 import type { Slot } from "@domain/seance";
 import { useTranslation } from "react-i18next";
 import { ConfirmButton } from "../../design-system/components/confirm-button";
 
 /**
- * Which lesson is on screen, and the ones either side of it.
+ * Which day is on screen, and which of that day's lessons.
  *
- * It states the day rather than offering a list: the séance is resolved from
- * the URL, from the clock, or from the last one taught, and the strip exists
- * so the neighbours are one tap away — not so a teacher has to choose before
- * they can take the register. That was the `<select>` this replaces.
+ * Two controls, because they are two questions. The strip used to answer both
+ * in one row — the day's slots PLUS one slot from the nearest lesson either
+ * side, all styled alike — so `7 sept. 8h00 | 10h00 | 10 sept. 14h00` put
+ * three days in one list and marked none of them as a different day.
+ *
+ * The day is a menu again, and the objection that removed the last one does
+ * not apply to this one. **That select gated the register**: nothing resolved
+ * until the teacher chose. This one does not — `defaultDay` still resolves the
+ * day from the URL, from the clock, or from the last one taught, and the page
+ * opens on it ready to mark. The menu is how you LEAVE a day, never how you
+ * arrive at one. If that ever stops being true, bring the strip back, because
+ * the objection will have become true again.
  *
  * Nothing here writes on its own. A slot with no `sessionId` is a lesson the
  * timetable predicts and nobody has recorded yet, and tapping it only changes
@@ -20,14 +29,18 @@ import { ConfirmButton } from "../../design-system/components/confirm-button";
  * séance", never on arrival.
  */
 export function SeanceStrip({
+  days,
   slots,
   current,
   canStart,
   className,
+  onSelectDay,
   onSelect,
   onStart,
 }: {
-  /** The neighbouring slots, earliest first, current one included. */
+  /** Days offering a lesson, oldest first, always including the one on screen. */
+  days: number[];
+  /** THIS day's slots, earliest first. */
   slots: Slot[];
   current: Slot | null;
   /**
@@ -37,13 +50,13 @@ export function SeanceStrip({
    */
   canStart: boolean;
   className?: string;
+  onSelectDay: (day: number) => void;
   onSelect: (slot: Slot) => void;
   onStart: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const db = useDb();
   const dayFormat = new Intl.DateTimeFormat(i18n.language, { dateStyle: "long" });
-  const shortFormat = new Intl.DateTimeFormat(i18n.language, { day: "numeric", month: "short" });
 
   const label = (slot: Slot): string => {
     if (slot.startsAt === null) return t("seance.unscheduled");
@@ -60,11 +73,30 @@ export function SeanceStrip({
 
   const currentSessionId = current?.sessionId ?? null;
 
+  const today = startOfDay(Date.now());
+  // The day on screen, or — with no slot at all — whatever the caller listed
+  // last, so the select never shows a value absent from its own options.
+  const selectedDay = current?.date ?? days[days.length - 1] ?? today;
+
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className ?? ""}`}>
-      <span className="font-semibold">
-        {current === null ? t("seance.none") : dayFormat.format(current.date)}
-      </span>
+      <label className="sr-only" htmlFor="seance-day">
+        {t("seance.day")}
+      </label>
+      <select
+        id="seance-day"
+        className="field"
+        style={{ width: "auto" }}
+        value={selectedDay}
+        onChange={(e) => onSelectDay(Number(e.target.value))}
+      >
+        {days.map((day) => (
+          <option key={day} value={day}>
+            {dayFormat.format(day)}
+            {day === today ? ` — ${t("seance.today")}` : ""}
+          </option>
+        ))}
+      </select>
 
       <div className="flex flex-wrap gap-1">
         {slots.map((slot) => {
@@ -77,12 +109,12 @@ export function SeanceStrip({
               key={`${slot.date}-${slot.startsAt ?? "x"}`}
               type="button"
               aria-current={isCurrent ? "true" : undefined}
-              className={`btn h-9 min-h-9 ${isCurrent ? "border-accent text-accent" : ""}`}
+              // No height override: these are tapped mid-lesson, so they keep
+              // the 44px floor `.btn` carries. The old `h-9` put them under it.
+              className={`btn ${isCurrent ? "border-accent text-accent" : ""}`}
               onClick={() => onSelect(slot)}
             >
-              {slot.date === current?.date
-                ? label(slot)
-                : `${shortFormat.format(slot.date)} ${label(slot)}`}
+              {label(slot)}
             </button>
           );
         })}
@@ -94,6 +126,8 @@ export function SeanceStrip({
         </button>
       )}
 
+      <span className="flex-1" />
+
       {/* Deleting cascades the register and the behaviour with it, so it sits
           behind a confirm rather than under a thumb operating this page
           one-handed with a class in front of it. */}
@@ -103,7 +137,8 @@ export function SeanceStrip({
           // neighbour when the teacher taps another lesson in the strip.
           key={currentSessionId}
           variant="link"
-          label={t("seance.delete")}
+          danger
+          label={t("common.delete")}
           confirmLabel={t("seance.confirmDelete", { day: dayFormat.format(current.date) })}
           body={t("seance.confirmDeleteBody")}
           onConfirm={() => deleteSession(db, currentSessionId)}
