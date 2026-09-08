@@ -27,7 +27,7 @@ describe("getOrCreateLayout", () => {
     const db = freshDb("layout");
     const layout = await getOrCreateLayout(db, "c1");
     const seats = await seatsForLayout(db, layout.id);
-    expect(seats).toHaveLength(30);
+    expect(seats).toHaveLength(24);
     expect(seats.every((s) => s.studentId === null)).toBe(true);
     expect(layout.width).toBeGreaterThan(0);
     db.close();
@@ -378,7 +378,7 @@ describe("applyTemplate", () => {
     const { overflow } = await applyTemplate(
       db,
       layout.id,
-      buildRoom({ id: "rows", rows: 1, cols: 1 }),
+      buildRoom({ id: "rows", rows: 1, tables: 1, perTable: 1 }),
     );
     expect(overflow).toHaveLength(1);
     db.close();
@@ -389,7 +389,7 @@ describe("applyTemplate", () => {
     const { overflow } = await applyTemplate(
       db,
       "missing",
-      buildRoom({ id: "rows", rows: 2, cols: 2 }),
+      buildRoom({ id: "rows", rows: 2, tables: 1, perTable: 2 }),
     );
     expect(overflow).toEqual([]);
     expect(await db.seats.count()).toBe(0);
@@ -429,7 +429,7 @@ describe("several rooms for one class", () => {
     await seatStudent(db, (await seatsForLayout(db, first.id))[0].id, "s1");
 
     const secondSeats = await seatsForLayout(db, second.id);
-    expect(secondSeats).toHaveLength(30);
+    expect(secondSeats).toHaveLength(24);
     expect(secondSeats.every((seat) => seat.studentId === null)).toBe(true);
     // Seating a pupil in one room must not touch the other.
     expect((await seatsForLayout(db, first.id)).filter((s) => s.studentId === "s1")).toHaveLength(
@@ -458,7 +458,7 @@ describe("several rooms for one class", () => {
     const layouts = await listLayouts(db, "c1");
     expect(layouts.find((l) => l.id === first.id)?.name).toBe("Habituel");
     expect(layouts.find((l) => l.id === second.id)?.name).toBe("Contrôle");
-    expect(await seatsForLayout(db, first.id)).toHaveLength(30);
+    expect(await seatsForLayout(db, first.id)).toHaveLength(24);
     db.close();
   });
 

@@ -17,6 +17,29 @@ export const TABLE = 2;
 export const PITCH = TABLE + 1;
 
 /**
+ * Air between two TABLES in the same row, and between rows.
+ *
+ * `PITCH` used to be planted between every DESK, which is why no two desks
+ * could touch, why the îlots template made 2×N spaced desks rather than a
+ * block, and why a French classroom's table de deux could not be expressed at
+ * all. Air belongs between groups.
+ */
+export const AISLE = 2;
+export const ROW_GAP = 1;
+
+/**
+ * Bare floor left around the furniture when a template is stamped.
+ *
+ * Two units, not one, and the difference is the whole of whether the room can
+ * be edited afterwards. `canPlace` refuses a position within `TABLE` of an
+ * existing table ON BOTH AXES, and whole-tile candidates step by `TABLE` — so
+ * with a single unit of margin a fully stamped room offers no free square
+ * anywhere, and "Ajouter une table" has nowhere to place. Lifting a table then
+ * revealed only the two squares a hair either side of where it already sat.
+ */
+export const FLOOR_MARGIN = 2;
+
+/**
  * The step along and between curved rows.
  *
  * Larger than PITCH, and the difference is load-bearing. `canPlace` is
@@ -84,7 +107,7 @@ export function compareReadingOrder(a: Position, b: Position): number {
 }
 
 /** A room with nothing in it still has to be a room. */
-const MIN_EXTENT = TABLE + 2;
+const MIN_EXTENT = TABLE + 2 * FLOOR_MARGIN;
 
 /**
  * Shift a bag of positions to the origin with a one-unit margin, and size the
@@ -109,9 +132,12 @@ export function frame(positions: Position[]): RoomShape {
   }
   const minX = Math.min(...positions.map((p) => p.x));
   const minY = Math.min(...positions.map((p) => p.y));
-  const shifted = positions.map((p) => ({ x: p.x - minX + 1, y: p.y - minY + 1 }));
-  const width = Math.max(...shifted.map((p) => p.x)) + TABLE + 1;
-  const height = Math.max(...shifted.map((p) => p.y)) + TABLE + 1;
+  const shifted = positions.map((p) => ({
+    x: p.x - minX + FLOOR_MARGIN,
+    y: p.y - minY + FLOOR_MARGIN,
+  }));
+  const width = Math.max(...shifted.map((p) => p.x)) + TABLE + FLOOR_MARGIN;
+  const height = Math.max(...shifted.map((p) => p.y)) + TABLE + FLOOR_MARGIN;
   return { width, height, positions: shifted };
 }
 

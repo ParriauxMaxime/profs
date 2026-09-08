@@ -2,6 +2,7 @@ import {
   ARC_SPACING,
   canPlace,
   compareReadingOrder,
+  FLOOR_MARGIN,
   fitsRoom,
   frame,
   type Held,
@@ -110,24 +111,43 @@ describe("compareReadingOrder", () => {
 });
 
 describe("frame", () => {
-  it("shifts positions to a one-unit margin and sizes the room around them", () => {
+  it("shifts positions to a two-unit margin and sizes the room around them", () => {
     const shape = frame([
       { x: -4, y: 2 },
       { x: 2, y: 8 },
     ]);
     expect(shape.positions).toEqual([
-      { x: 1, y: 1 },
-      { x: 7, y: 7 },
+      { x: FLOOR_MARGIN, y: FLOOR_MARGIN },
+      { x: 6 + FLOOR_MARGIN, y: 6 + FLOOR_MARGIN },
     ]);
-    expect(shape.width).toBe(7 + TABLE + 1);
-    expect(shape.height).toBe(7 + TABLE + 1);
+    expect(shape.width).toBe(6 + FLOOR_MARGIN + TABLE + FLOOR_MARGIN);
+    expect(shape.height).toBe(6 + FLOOR_MARGIN + TABLE + FLOOR_MARGIN);
   });
 
   it("gives an empty room a minimum size rather than a zero one", () => {
     const shape = frame([]);
     expect(shape.positions).toEqual([]);
-    expect(shape.width).toBeGreaterThanOrEqual(TABLE + 2);
-    expect(shape.height).toBeGreaterThanOrEqual(TABLE + 2);
+    expect(shape.width).toBeGreaterThanOrEqual(TABLE + 2 * FLOOR_MARGIN);
+    expect(shape.height).toBeGreaterThanOrEqual(TABLE + 2 * FLOOR_MARGIN);
+  });
+
+  it("leaves placeable floor around a full stamp, so a table can still be added", () => {
+    // With a one-unit margin a fully stamped room offered NO free square at
+    // all: every whole-tile candidate sat within a unit of some table on both
+    // axes. "Ajouter une table" then had nowhere to go.
+    const shape = frame([
+      { x: 0, y: 0 },
+      { x: PITCH, y: 0 },
+      { x: 0, y: PITCH },
+      { x: PITCH, y: PITCH },
+    ]);
+    const free: Position[] = [];
+    for (let y = 0; y + TABLE <= shape.height; y += TABLE) {
+      for (let x = 0; x + TABLE <= shape.width; x += TABLE) {
+        if (canPlace(shape.positions, { x, y }, shape)) free.push({ x, y });
+      }
+    }
+    expect(free.length).toBeGreaterThan(0);
   });
 
   it("every position it returns fits inside the room it returns, even far outside ROOM_MAX", () => {

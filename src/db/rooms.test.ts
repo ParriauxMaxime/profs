@@ -88,7 +88,11 @@ describe("a saved room stamps like a template", () => {
       await seatStudent(db, seat.id, `s${i}`);
     }
 
-    const small = await saveRoom(db, "Petite salle", buildRoom({ id: "rows", rows: 2, cols: 2 }));
+    const small = await saveRoom(
+      db,
+      "Petite salle",
+      buildRoom({ id: "rows", rows: 2, tables: 1, perTable: 2 }),
+    );
     const { overflow } = await applyTemplate(db, layout.id, roomShape(small));
 
     const after = await seatsForLayout(db, layout.id);

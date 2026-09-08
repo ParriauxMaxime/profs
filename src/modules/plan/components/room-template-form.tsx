@@ -141,11 +141,18 @@ export function RoomTemplateForm({
             autoFocus
           />
           <NumberField
-            label={t("plan.paramCols")}
-            value={template.cols}
-            min={TEMPLATE_LIMITS.rows.cols[0]}
-            max={TEMPLATE_LIMITS.rows.cols[1]}
-            onChange={(cols) => set({ cols })}
+            label={t("plan.paramTables")}
+            value={template.tables}
+            min={TEMPLATE_LIMITS.rows.tables[0]}
+            max={TEMPLATE_LIMITS.rows.tables[1]}
+            onChange={(tables) => set({ tables })}
+          />
+          <NumberField
+            label={t("plan.paramPerTable")}
+            value={template.perTable}
+            min={TEMPLATE_LIMITS.rows.perTable[0]}
+            max={TEMPLATE_LIMITS.rows.perTable[1]}
+            onChange={(perTable) => set({ perTable })}
           />
         </>
       )}

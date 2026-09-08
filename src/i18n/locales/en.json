@@ -275,6 +275,8 @@
     "templateU": "Horseshoe",
     "paramRows": "Rows",
     "paramCols": "Columns",
+    "paramTables": "Tables per row",
+    "paramPerTable": "Seats per table",
     "paramPerRow": "Seats per row",
     "paramCurve": "Curve",
     "paramIslands": "Islands",

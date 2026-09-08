@@ -275,6 +275,8 @@
     "templateU": "Fer à cheval",
     "paramRows": "Rangées",
     "paramCols": "Colonnes",
+    "paramTables": "Tables par rang",
+    "paramPerTable": "Places par table",
     "paramPerRow": "Places par rang",
     "paramCurve": "Courbure",
     "paramIslands": "Îlots",

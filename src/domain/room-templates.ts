@@ -1,4 +1,13 @@
-import { ARC_SPACING, frame, MAX_POSITIONS, PITCH, type Position, type RoomShape } from "./room";
+import {
+  AISLE,
+  ARC_SPACING,
+  frame,
+  MAX_POSITIONS,
+  type Position,
+  ROW_GAP,
+  type RoomShape,
+  TABLE,
+} from "./room";
 
 /**
  * The four room templates.
@@ -18,7 +27,7 @@ export const TEMPLATE_IDS = ["rows", "arc", "islands", "u"] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 
 export type RoomTemplate =
-  | { id: "rows"; rows: number; cols: number }
+  | { id: "rows"; rows: number; tables: number; perTable: number }
   | { id: "arc"; perRow: number; rows: number; curve: number }
   | { id: "islands"; islands: number; perIsland: number }
   | { id: "u"; cols: number; rows: number };
@@ -31,8 +40,8 @@ export type RoomTemplate =
  *
  * They are not the whole clamp, and a form must not read them as if they were.
  * `clampTemplate` also brings the SEAT TOTAL under `MAX_POSITIONS`, and it does
- * that by lowering whichever parameter multiplies fastest — so with `cols: 20`
- * any `rows` above 5 is silently reduced, well short of the 20 this table
+ * that by lowering whichever parameter multiplies fastest — so with ten tables
+ * of four, any `rows` above 2 is silently reduced, well short of the 20 this table
  * allows. The effective ceiling on one parameter depends on the others and is
  * not expressible here; only `clampTemplate` knows it. The silent correction is
  * the right outcome — the class ceiling is a hard rule — but it does mean a
@@ -41,14 +50,14 @@ export type RoomTemplate =
  * sees it happen.
  */
 export const TEMPLATE_LIMITS = {
-  rows: { rows: [1, 20], cols: [1, 20] },
+  rows: { rows: [1, 20], tables: [1, 10], perTable: [1, 4] },
   arc: { perRow: [1, 20], rows: [1, 4], curve: [1, 5] },
   islands: { islands: [1, 12], perIsland: [2, 8] },
   u: { cols: [2, 20], rows: [1, 10] },
 } as const;
 
 /** The grid phase 5 shipped, kept as the default a new room is stamped from. */
-export const DEFAULT_TEMPLATE: RoomTemplate = { id: "rows", rows: 5, cols: 6 };
+export const DEFAULT_TEMPLATE: RoomTemplate = { id: "rows", rows: 4, tables: 3, perTable: 2 };
 
 export function defaultTemplate(id: TemplateId): RoomTemplate {
   switch (id) {
@@ -70,7 +79,7 @@ function clampValue(value: number, [min, max]: readonly [number, number]): numbe
 export function seatCount(template: RoomTemplate): number {
   switch (template.id) {
     case "rows":
-      return template.rows * template.cols;
+      return template.rows * template.tables * template.perTable;
     case "arc":
       return template.perRow * template.rows;
     case "islands":
@@ -93,7 +102,8 @@ export function clampTemplate(template: RoomTemplate): RoomTemplate {
       clamped = {
         id: "rows",
         rows: clampValue(template.rows, TEMPLATE_LIMITS.rows.rows),
-        cols: clampValue(template.cols, TEMPLATE_LIMITS.rows.cols),
+        tables: clampValue(template.tables, TEMPLATE_LIMITS.rows.tables),
+        perTable: clampValue(template.perTable, TEMPLATE_LIMITS.rows.perTable),
       };
       while (seatCount(clamped) > MAX_POSITIONS && clamped.id === "rows" && clamped.rows > 1) {
         clamped = { ...clamped, rows: clamped.rows - 1 };
@@ -129,12 +139,26 @@ export function clampTemplate(template: RoomTemplate): RoomTemplate {
   }
 }
 
-/** Rectilinear rows: phase 5's grid, at pitch. */
-function buildRows(rows: number, cols: number): Position[] {
+/**
+ * Rows of TABLES, each seating `perTable`.
+ *
+ * The places of one table sit edge to edge, so they draw as a single surface —
+ * a table de deux by default, which is what a French classroom is furnished
+ * with. Air goes between tables (`AISLE`) and between rows (`ROW_GAP`), never
+ * between the places of one table, which is what phase 5's `PITCH` grid did
+ * and why no two desks could ever touch.
+ */
+function buildRows(rows: number, tables: number, perTable: number): Position[] {
   const positions: Position[] = [];
+  const tableStep = perTable * TABLE + AISLE;
   for (let row = 0; row < rows; row += 1) {
-    for (let col = 0; col < cols; col += 1) {
-      positions.push({ x: col * PITCH, y: row * PITCH });
+    for (let table = 0; table < tables; table += 1) {
+      for (let place = 0; place < perTable; place += 1) {
+        positions.push({
+          x: table * tableStep + place * TABLE,
+          y: row * (TABLE + ROW_GAP),
+        });
+      }
     }
   }
   return positions;
@@ -189,23 +213,29 @@ function buildArc(perRow: number, rows: number, curve: number): Position[] {
 const ISLANDS_PER_BAND = 3;
 
 /**
- * Clusters of tables, two wide.
+ * Clusters of tables, two wide — and now actually clusters.
  *
- * The gap BETWEEN islands has to read as bigger than the gap inside one, or
- * the room is just a grid with odd spacing — so islands step by twice pitch.
+ * The places WITHIN an island sit edge to edge, so an island draws as one
+ * block. Until this changed, `îlots` stepped by `PITCH` inside the island too,
+ * which made 2×N desks with aisles between them: a grid with odd spacing, not
+ * an island. The gap between islands still has to read as clearly bigger than
+ * anything inside one.
  */
 function buildIslands(islands: number, perIsland: number): Position[] {
   const islandCols = 2;
   const islandRows = Math.ceil(perIsland / islandCols);
-  const bandStep = { x: (islandCols + 2) * PITCH, y: (islandRows + 1) * PITCH };
+  const bandStep = {
+    x: islandCols * TABLE + AISLE * 2,
+    y: islandRows * TABLE + AISLE,
+  };
   const positions: Position[] = [];
   for (let island = 0; island < islands; island += 1) {
     const originX = (island % ISLANDS_PER_BAND) * bandStep.x;
     const originY = Math.floor(island / ISLANDS_PER_BAND) * bandStep.y;
     for (let i = 0; i < perIsland; i += 1) {
       positions.push({
-        x: originX + (i % islandCols) * PITCH,
-        y: originY + Math.floor(i / islandCols) * PITCH,
+        x: originX + (i % islandCols) * TABLE,
+        y: originY + Math.floor(i / islandCols) * TABLE,
       });
     }
   }
@@ -221,14 +251,16 @@ function buildIslands(islands: number, perIsland: number): Position[] {
  */
 function buildU(cols: number, rows: number): Position[] {
   const positions: Position[] = [];
-  const backY = (rows - 1) * PITCH;
+  // Edge to edge along both arms and the base, so the horseshoe is ONE
+  // continuous surface rather than a ring of separate desks.
+  const backY = (rows - 1) * TABLE;
   for (let arm = 0; arm < rows - 1; arm += 1) {
-    const y = arm * PITCH;
+    const y = arm * TABLE;
     positions.push({ x: 0, y });
-    positions.push({ x: (cols - 1) * PITCH, y });
+    positions.push({ x: (cols - 1) * TABLE, y });
   }
   for (let col = 0; col < cols; col += 1) {
-    positions.push({ x: col * PITCH, y: backY });
+    positions.push({ x: col * TABLE, y: backY });
   }
   return positions;
 }
@@ -237,7 +269,7 @@ export function buildRoom(template: RoomTemplate): RoomShape {
   const t = clampTemplate(template);
   switch (t.id) {
     case "rows":
-      return frame(buildRows(t.rows, t.cols));
+      return frame(buildRows(t.rows, t.tables, t.perTable));
     case "arc":
       return frame(buildArc(t.perRow, t.rows, t.curve));
     case "islands":
