@@ -3,7 +3,6 @@ import { openWorkspaceDb } from ".";
 import {
   createSession,
   getOrCreateSessionAt,
-  getOrCreateTodaySession,
   sessionsForClass,
   sessionsForDay,
   sessionsInRange,
@@ -27,58 +26,6 @@ describe("startOfDay", () => {
   });
 });
 
-describe("getOrCreateTodaySession", () => {
-  it("creates one when none exists today", async () => {
-    const db = freshDb("create");
-    const session = await getOrCreateTodaySession(db, "c1");
-    expect(session.classId).toBe("c1");
-    expect(await db.sessions.count()).toBe(1);
-    db.close();
-  });
-
-  it("reuses today's session instead of making a second", async () => {
-    const db = freshDb("reuse");
-    const first = await getOrCreateTodaySession(db, "c1");
-    const second = await getOrCreateTodaySession(db, "c1");
-    expect(second.id).toBe(first.id);
-    expect(await db.sessions.count()).toBe(1);
-    db.close();
-  });
-
-  it("does not reuse another class's session", async () => {
-    const db = freshDb("other-class");
-    await getOrCreateTodaySession(db, "c1");
-    await getOrCreateTodaySession(db, "c2");
-    expect(await db.sessions.count()).toBe(2);
-    db.close();
-  });
-
-  it("does not reuse yesterday's session", async () => {
-    const db = freshDb("yesterday");
-    const yesterday = startOfDay(Date.now()) - 86_400_000;
-    await db.sessions.put({
-      id: "old",
-      classId: "c1",
-      date: yesterday,
-      createdAt: yesterday,
-    });
-    const session = await getOrCreateTodaySession(db, "c1");
-    expect(session.id).not.toBe("old");
-    expect(await db.sessions.count()).toBe(2);
-    db.close();
-  });
-
-  it("returns the most recent when a second was forced today", async () => {
-    const db = freshDb("forced");
-    await getOrCreateTodaySession(db, "c1");
-    const forced = await createSession(db, "c1", startOfDay(Date.now()));
-    const found = await getOrCreateTodaySession(db, "c1");
-    expect(found.id).toBe(forced.id);
-    expect(await db.sessions.count()).toBe(2);
-    db.close();
-  });
-});
-
 describe("sessionsForClass", () => {
   it("returns newest first", async () => {
     const db = freshDb("order");
@@ -89,22 +36,6 @@ describe("sessionsForClass", () => {
       { id: "c", classId: "c2", date: day, createdAt: 3 },
     ]);
     expect((await sessionsForClass(db, "c1")).map((s) => s.id)).toEqual(["b", "a"]);
-    db.close();
-  });
-});
-
-describe("getOrCreateTodaySession — concurrency", () => {
-  it("creates exactly one session when two callers race", async () => {
-    const db = freshDb("race");
-    // React 19 StrictMode double-invokes effects, so both calls start before
-    // either finishes. Without a transaction both reads saw an empty table
-    // and both wrote, giving the class two sessions for one lesson.
-    const [a, b] = await Promise.all([
-      getOrCreateTodaySession(db, "c1"),
-      getOrCreateTodaySession(db, "c1"),
-    ]);
-    expect(await db.sessions.count()).toBe(1);
-    expect(a.id).toBe(b.id);
     db.close();
   });
 });

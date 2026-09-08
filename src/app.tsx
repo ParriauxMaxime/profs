@@ -104,8 +104,11 @@ function Routes({ route }: { route: AppRoute }) {
       return <RoomEditorPage roomId={route.params.roomId} />;
     case "Class":
       // The class page renders the lesson directly now; there is no longer a
-      // separate tab route to redirect to.
-      return <ClassPage classId={route.params.classId} />;
+      // separate tab route to redirect to. `date` and `at` say which lesson,
+      // and are absent far more often than not.
+      return (
+        <ClassPage classId={route.params.classId} date={route.params.date} at={route.params.at} />
+      );
     case "ClassStudents":
       return <ClassStudentsPage classId={route.params.classId} />;
     case "ClassDiary":

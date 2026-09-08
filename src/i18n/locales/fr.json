@@ -88,14 +88,12 @@
     "confirmDeleteClass": "Supprimer cette classe ?",
     "confirmDeleteClassBody": "Ses élèves et toutes leurs notes partent avec elle.",
     "rosterFull": "Cette classe a atteint {{max}} élèves : impossible d'en ajouter un autre.",
-    "tabs": "Sections de la classe",
     "tab": {
-      "plan": "Plan de table",
       "students": "Élèves",
-      "books": "Carnets",
       "diary": "Journal"
     },
-    "openCard": "Ouvrir la fiche de l'élève"
+    "openCard": "Ouvrir la fiche de l'élève",
+    "books": "Carnets"
   },
   "group": {
     "title": "Groupes",
@@ -170,7 +168,9 @@
     "noPeriods": "Ce carnet n'a plus aucune période. Ajoutez-en une pour pouvoir y créer des colonnes.",
     "note": "Note",
     "notePlaceholder": "Ajouter une note…",
-    "hasNote": "Note : {{note}}"
+    "hasNote": "Note : {{note}}",
+    "none": "Aucun carnet pour cette classe.",
+    "open": "Ouvrir"
   },
   "entry": {
     "next": "Suivant",
@@ -253,11 +253,6 @@
     "needsSession": "Sélectionnez une séance dans le plan de table pour noter la présence et le comportement."
   },
   "plan": {
-    "newSession": "Nouvelle séance",
-    "session": "Séance",
-    "deleteSession": "Supprimer la séance",
-    "confirmDeleteSession": "Supprimer la séance du {{date}} ?",
-    "confirmDeleteSessionBody": "Sa présence et son comportement partent avec elle.",
     "unseated": "Élèves sans place",
     "allSeated": "Tous les élèves sont placés",
     "hintPick": "Touchez un élève, puis une place.",
@@ -481,5 +476,14 @@
     "cols": "Colonnes",
     "rows": "Rangées",
     "addTable": "Ajouter une table"
+  },
+  "seance": {
+    "at": "{{hours}}h{{minutes}}",
+    "unscheduled": "Hors emploi du temps",
+    "none": "Aucune séance",
+    "start": "Commencer une séance",
+    "delete": "Supprimer la séance",
+    "confirmDelete": "Supprimer la séance du {{day}} ?",
+    "confirmDeleteBody": "Sa présence et son comportement partent avec elle."
   }
 }

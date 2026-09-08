@@ -15,15 +15,24 @@ import { useTranslation } from "react-i18next";
  * day are two séances, each with its own note, and a caller must key this
  * component by `sessionId` so switching séance resets the draft instead of
  * carrying one lesson's text onto another.
+ *
+ * `sessionId` may be null, because writing down what a lesson covered is one
+ * of the four things that bring a séance into being — the class page hands
+ * over `onEnsureSession` and the row is created by the blur that saves the
+ * first text, never by opening the page. An idle focus writes nothing at all:
+ * an unchanged draft returns before either call.
  */
 export function SeanceNote({
   sessionId,
   text,
   readOnly = false,
+  onEnsureSession,
 }: {
-  sessionId: string;
+  sessionId: string | null;
   text: string;
   readOnly?: boolean;
+  /** Supplies the séance id when there is not one yet. */
+  onEnsureSession?: () => Promise<string>;
 }) {
   const { t } = useTranslation();
   const db = useDb();
@@ -56,9 +65,13 @@ export function SeanceNote({
       onBlur={() => {
         focused.current = false;
         // Nothing typed and nothing stored: no write at all, so an idle focus
-        // does not touch the séance.
+        // neither touches the séance nor brings one into being.
         if (draft === text) return;
-        void setSessionNote(db, sessionId, draft);
+        void (async () => {
+          const id = sessionId ?? (await onEnsureSession?.());
+          if (id === undefined) return;
+          await setSessionNote(db, id, draft);
+        })();
       }}
     />
   );

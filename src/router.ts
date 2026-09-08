@@ -17,7 +17,13 @@ export const Router = createRouter(
     // detours that keep their own URLs. The four tab routes it replaced
     // redirect, so older links and bookmarks still land somewhere real — see
     // the *Legacy routes and `app.tsx`.
-    Class: "/classes/:classId",
+    //
+    // `date` and `at` name WHICH lesson is on screen — the day at local
+    // midnight, and minutes from midnight. Both optional: without them the
+    // page resolves the day itself, and neither creates anything. They are
+    // search params rather than path segments because a lesson is one page
+    // seen from a different hour, not a different destination.
+    Class: "/classes/:classId?:date&:at",
     ClassStudents: "/classes/:classId/eleves",
     ClassDiary: "/classes/:classId/journal",
     // Kept only so an old link or bookmark to a tab still resolves — each
