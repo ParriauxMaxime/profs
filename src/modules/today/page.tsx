@@ -2,6 +2,7 @@ import type { ScheduleEntry, Session } from "@db";
 import { useDb } from "@db/provider";
 import { startOfDay } from "@db/sessions";
 import { entriesForDay, formatTimeRange } from "@domain/schedule";
+import { slotsForDay } from "@domain/seance";
 import { readTermStart } from "@domain/term";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -58,45 +59,23 @@ export function TodayPage() {
   // page reads the same function — this used to be a copy in each.
   const scheduled: ScheduleEntry[] = entriesForDay(data.entries, termStart, now);
 
-  // The merge. A session is matched to a scheduled entry by class: a teacher
-  // taking the same class twice in one day is rare enough that pairing the
-  // session with the earliest of that class's lessons is right far more often
-  // than showing it as an extra unscheduled row would be.
-  const claimed = new Set<string>();
-  const lessons: TodayLesson[] = scheduled.map((entry) => {
+  // A séance is matched to a scheduled entry by TIME, not by class —
+  // `slotsForDay` claims each entry at most once, keeps unmatched séances
+  // (a cover class, or a lesson opened before the timetable existed) and
+  // unmatched scheduled lessons, and orders earliest first with untimed last.
+  const slots = slotsForDay(data.sessions, scheduled, today);
+  const lessons: TodayLesson[] = slots.map((slot) => {
+    const entry =
+      slot.entryId === null ? null : (scheduled.find((e) => e.id === slot.entryId) ?? null);
     const session =
-      data.sessions.find((s) => s.classId === entry.classId && !claimed.has(s.id)) ?? null;
-    if (session) claimed.add(session.id);
+      slot.sessionId === null ? null : (data.sessions.find((s) => s.id === slot.sessionId) ?? null);
     return {
-      key: entry.id,
-      classId: entry.classId,
+      key: slot.sessionId ?? slot.entryId ?? "",
+      classId: entry?.classId ?? session?.classId ?? "",
       entry,
       session,
-      startMinute: entry.startMinute,
+      startMinute: slot.startsAt,
     };
-  });
-
-  // Anything started that no scheduled lesson claimed: a cover class, or a
-  // lesson opened before the timetable existed. Both are real days of work
-  // and must not vanish because they were not predicted.
-  for (const session of data.sessions) {
-    if (claimed.has(session.id)) continue;
-    lessons.push({
-      key: session.id,
-      classId: session.classId,
-      entry: null,
-      session,
-      startMinute: null,
-    });
-  }
-
-  // Unscheduled sessions sort last: they have no time to sort by, and a
-  // teacher reads Today as a clock.
-  lessons.sort((a, b) => {
-    if (a.startMinute === null && b.startMinute === null) return 0;
-    if (a.startMinute === null) return 1;
-    if (b.startMinute === null) return -1;
-    return a.startMinute - b.startMinute;
   });
 
   const nextIndex = lessons.findIndex(
@@ -121,7 +100,11 @@ export function TodayPage() {
           {lessons.map((lesson, index) => (
             <li key={lesson.key}>
               <Link
-                to={Router.Class({ classId: lesson.classId })}
+                to={Router.Class({
+                  classId: lesson.classId,
+                  date: String(startOfDay(now)),
+                  at: lesson.startMinute === null ? undefined : String(lesson.startMinute),
+                })}
                 className={`paper flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded border p-3 hover:bg-bg-hover ${
                   index === nextIndex ? "border-accent" : "border-border"
                 }`}
