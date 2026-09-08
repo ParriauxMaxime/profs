@@ -12,10 +12,13 @@ describe("seedIfEmpty", () => {
     const seeded = await seedIfEmpty(db, "seed-empty");
 
     expect(seeded).toBe(true);
-    expect(await db.classes.count()).toBe(2);
-    expect(await db.subjects.count()).toBe(2);
-    expect(await db.gradebooks.count()).toBe(2);
-    expect(await db.students.count()).toBe(46);
+    // A whole collège: 6e to 3e, four classes each, one carnet per class.
+    // A music teacher sees every pupil in the building, which is why the demo
+    // school is the school rather than two sample classes.
+    expect(await db.classes.count()).toBe(16);
+    expect(await db.subjects.count()).toBe(1);
+    expect(await db.gradebooks.count()).toBe(16);
+    expect(await db.students.count()).toBe(360);
     db.close();
   });
 
@@ -105,12 +108,12 @@ describe("seedIfEmpty", () => {
 
     const templates = await db.rubricTemplates.toArray();
     expect(templates).toHaveLength(1);
-    expect(templates[0].name).toBe("Exposé oral");
+    expect(templates[0].name).toBe("Projet musical");
     expect(templates[0].criteria.map((c) => c.label)).toEqual([
-      "Clarté",
-      "Contenu",
-      "Support",
-      "Interaction",
+      "Justesse",
+      "Rythme",
+      "Écoute",
+      "Engagement",
     ]);
 
     const gradebooks = await db.gradebooks.toArray();

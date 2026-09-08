@@ -17,6 +17,21 @@ import {
 import { seedIfEmpty } from "./seed";
 import { createSession, startOfDay } from "./sessions";
 
+/**
+ * These run against the demo collège — 360 pupils, 1275 grades, 968 rubric
+ * scores — and `fake-indexeddb` is slow in a way real IndexedDB is not. A
+ * cascade that Chrome completes in about 650ms takes nearly five seconds here,
+ * past Jest's 5s default.
+ *
+ * The gap was measured, not assumed, before this timeout was raised: every
+ * column these deletes filter on is indexed (`grades` carries `gradebookId`,
+ * `columnId` and `studentId`; `attendance` carries `sessionId` and
+ * `studentId`), and the cost scales linearly with table size rather than
+ * quadratically. If a cascade ever becomes slow in the BROWSER, this timeout
+ * is not the thing to raise.
+ */
+jest.setTimeout(30_000);
+
 describe("cascading deletes", () => {
   it("deleteColumn removes the column and every grade in it, and nothing else", async () => {
     const db = openWorkspaceDb("cascade-column");
@@ -224,7 +239,7 @@ describe("deleteGradebook", () => {
     expect(await db.grades.where("gradebookId").equals(survivor.id).count()).toBeGreaterThan(0);
     // Students and classes are not owned by a gradebook.
     expect(await db.students.count()).toBeGreaterThan(0);
-    expect(await db.classes.count()).toBe(2);
+    expect(await db.classes.count()).toBe(16);
     db.close();
   });
 
@@ -371,8 +386,8 @@ describe("deleteClass", () => {
     // The other class keeps its students, gradebook, periods, columns, grades.
     expect(await db.classes.get(survivorClass.id)).toBeDefined();
     expect(await db.students.where("classId").equals(survivorClass.id).count()).toBeGreaterThan(0);
-    const survivorGradebook = (await db.gradebooks.toArray())[0];
-    expect(survivorGradebook.classId).toBe(survivorClass.id);
+    const survivorGradebook = await db.gradebooks.where("classId").equals(survivorClass.id).first();
+    if (!survivorGradebook) throw new Error("the surviving class lost its carnet");
     expect(
       await db.periods.where("gradebookId").equals(survivorGradebook.id).count(),
     ).toBeGreaterThan(0);
@@ -380,7 +395,7 @@ describe("deleteClass", () => {
       await db.grades.where("gradebookId").equals(survivorGradebook.id).count(),
     ).toBeGreaterThan(0);
     // Subjects belong to the workspace, not to a class.
-    expect(await db.subjects.count()).toBe(2);
+    expect(await db.subjects.count()).toBe(1);
     db.close();
   });
 
@@ -486,12 +501,15 @@ describe("deleteSubject", () => {
 
     const result = await deleteSubject(db, subjectId);
 
-    expect(result).toEqual({
-      deleted: false,
-      reason: "in-use",
-      gradebookCount: 1,
-      sessionCount: 0,
-    });
+    // Narrowed rather than read through the union: `DeleteSubjectResult` has
+    // no `reason` on its success branch.
+    if (result.deleted) throw new Error("expected the delete to be refused");
+    expect(result.reason).toBe("in-use");
+    // Every class in the demo collège has a carnet, and they all teach the one
+    // subject. The séance count is deliberately NOT asserted exactly: the seed
+    // builds history from the rentrée to today, so it grows with the calendar.
+    expect(result.gradebookCount).toBe(16);
+    expect(result.sessionCount).toBeGreaterThan(0);
     expect(await db.subjects.get(subjectId)).toBeDefined();
     expect(await db.subjects.count()).toBe(before.subjects);
     expect(await db.gradebooks.count()).toBe(before.gradebooks);
@@ -503,11 +521,21 @@ describe("deleteSubject", () => {
     const db = openWorkspaceDb("cascade-subject-used-twice");
     await seedIfEmpty(db, "cascade-subject-used-twice");
 
-    // Point both gradebooks at the same subject.
+    // A second subject, referenced by exactly two carnets, so the reported
+    // count is a real subset rather than "all of them".
     const [first, second] = await db.gradebooks.toArray();
-    await db.gradebooks.update(second.id, { subjectId: first.subjectId });
+    const subjectId = crypto.randomUUID();
+    await db.subjects.add({
+      id: subjectId,
+      name: "Chorale",
+      color: "#2563eb",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await db.gradebooks.update(first.id, { subjectId });
+    await db.gradebooks.update(second.id, { subjectId });
 
-    const result = await deleteSubject(db, first.subjectId);
+    const result = await deleteSubject(db, subjectId);
 
     expect(result).toEqual({
       deleted: false,

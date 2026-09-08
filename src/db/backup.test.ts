@@ -58,7 +58,8 @@ describe("workspace backup", () => {
     await seedIfEmpty(target, "backup-replace-target");
     await importWorkspace(target, JSON.parse(JSON.stringify(backup)));
 
-    expect(await target.classes.count()).toBe(2);
+    // The demo collège, not the demo collège twice: import replaces.
+    expect(await target.classes.count()).toBe(16);
     source.close();
     target.close();
   });
