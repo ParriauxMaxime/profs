@@ -109,6 +109,7 @@ export function ClassPage({ classId, tab }: { classId: string; tab: ClassTab }) 
             danger
             label={t("class.deleteClass")}
             confirmLabel={t("class.confirmDeleteClass")}
+            body={t("class.confirmDeleteClassBody")}
             onConfirm={async () => {
               await deleteClass(db, classId);
               // The class page cannot survive its own class: without this the

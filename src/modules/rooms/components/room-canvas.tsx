@@ -8,7 +8,7 @@ import {
   tableGroups,
 } from "@domain/room";
 import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 /**
@@ -128,10 +128,25 @@ function chairStyle(
   return { display: "none" };
 }
 
-/** Snap a pointer offset, in unscaled px, to the whole-tile cell under it. */
-function cellAt(offsetX: number, offsetY: number): Position {
-  const toCell = (px: number) => Math.max(0, Math.round(px / UNIT_PX / TABLE) * TABLE);
-  return { x: toCell(offsetX - (TABLE * UNIT_PX) / 2), y: toCell(offsetY - (TABLE * UNIT_PX) / 2) };
+/**
+ * A pointer offset, in unscaled px, as a point in the room's own units.
+ *
+ * Deliberately NOT snapped: which square a table should land on depends on the
+ * furniture already there, and the canvas does not know which table is in the
+ * teacher's hand. It reports where the pointer is; `snapToPlace` decides.
+ * Half a table is subtracted from each axis so the pointer sits at the table's
+ * centre rather than its top-left corner.
+ */
+function pointAt(offsetX: number, offsetY: number): Position {
+  return {
+    x: (offsetX - (TABLE * UNIT_PX) / 2) / UNIT_PX,
+    y: (offsetY - (TABLE * UNIT_PX) / 2) / UNIT_PX,
+  };
+}
+
+export interface FloorHandle {
+  /** Where a client point falls, in room units, or null if it is off the floor. */
+  pointAtClient: (clientX: number, clientY: number) => Position | null;
 }
 
 export interface RoomCanvasProps {
@@ -143,10 +158,16 @@ export interface RoomCanvasProps {
   placeProps?: (desk: Desk) => React.HTMLAttributes<HTMLDivElement> & { className?: string };
   /** Anchored to a whole table rather than a place: the editor's × control. */
   renderTableOverlay?: (group: TableGroup<Desk>) => React.ReactNode;
-  /** The floor was tapped, or something was dropped on it, at this cell. */
+  /** The floor was tapped at this point, in room units — fractional, unsnapped. */
   onFloor?: (at: Position) => void;
   /** Shown centred when the salle holds no furniture at all. */
   emptyHint?: string;
+  /** Where a table being dragged would land, and whether it may. */
+  ghost?: { at: Position; allowed: boolean } | null;
+  /** Lets the caller turn a pointer's client position into a cell. */
+  floorRef?: React.Ref<FloorHandle>;
+  /** The table currently in the teacher's hand, drawn raised off the floor. */
+  liftedDeskId?: string | null;
 }
 
 export function RoomCanvas({
@@ -157,6 +178,9 @@ export function RoomCanvas({
   renderTableOverlay,
   onFloor,
   emptyHint,
+  ghost,
+  floorRef,
+  liftedDeskId,
 }: RoomCanvasProps) {
   const { t } = useTranslation();
   const roomWidthPx = room.width * UNIT_PX;
@@ -164,19 +188,30 @@ export function RoomCanvas({
   const [wrapperRef, scale] = useFitScale(roomWidthPx);
 
   const groups = tableGroups(desks);
+  const floorElement = useRef<HTMLDivElement>(null);
+
+  // The floor's rect is already scaled, so dividing by the scale gives the
+  // room's own unscaled pixels, which `pointAt` turns into room units.
+  useImperativeHandle(
+    floorRef,
+    () => ({
+      pointAtClient: (clientX, clientY) => {
+        const element = floorElement.current;
+        if (!element) return null;
+        const rect = element.getBoundingClientRect();
+        const x = (clientX - rect.left) / scale;
+        const y = (clientY - rect.top) / scale;
+        if (x < 0 || y < 0 || x > roomWidthPx || y > roomHeightPx) return null;
+        return pointAt(x, y);
+      },
+    }),
+    [scale, roomWidthPx, roomHeightPx],
+  );
 
   const floorHandlers = onFloor
     ? {
         onClick: (e: React.MouseEvent<HTMLDivElement>) => {
-          onFloor(cellAt(e.nativeEvent.offsetX, e.nativeEvent.offsetY));
-        },
-        onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
-          // Without this the drop never fires: the default is to refuse.
-          e.preventDefault();
-        },
-        onDrop: (e: React.DragEvent<HTMLDivElement>) => {
-          e.preventDefault();
-          onFloor(cellAt(e.nativeEvent.offsetX, e.nativeEvent.offsetY));
+          onFloor(pointAt(e.nativeEvent.offsetX, e.nativeEvent.offsetY));
         },
       }
     : {};
@@ -190,7 +225,14 @@ export function RoomCanvas({
     // Below `MIN_SCALE` the room deliberately stops shrinking, so it can be
     // wider than its column — and a `w-fit` wall then pushes its siblings off
     // the screen instead of scrolling. That is how the rail disappeared.
-    <div ref={wrapperRef} className="w-full overflow-x-auto">
+    <div
+      ref={wrapperRef}
+      className="flex w-full overflow-x-auto"
+      // `safe` is the whole point: a room wider than its column falls back to
+      // start-aligned, so the left wall stays reachable by scrolling. Plain
+      // `center` clips the overflowing start, which no scrollbar can recover.
+      style={{ justifyContent: "safe center" }}
+    >
       <div
         className="w-fit rounded-lg border-6 p-0"
         style={{
@@ -219,7 +261,25 @@ export function RoomCanvas({
           >
             {/* The floor sits UNDER the furniture, so a drop on a table is the
               table's business and a drop on bare floor is the room's. */}
-            <div className="absolute inset-0" {...floorHandlers} />
+            <div ref={floorElement} className="absolute inset-0" {...floorHandlers} />
+
+            {/* Where the table in hand would land. Drawn under the furniture
+                and never interactive: it is the answer to "if I let go now",
+                not a thing to aim at. */}
+            {ghost ? (
+              <div
+                className="pointer-events-none absolute rounded"
+                style={{
+                  left: ghost.at.x * UNIT_PX,
+                  top: ghost.at.y * UNIT_PX,
+                  width: TABLE * UNIT_PX,
+                  height: TABLE * UNIT_PX,
+                  border: `2px dashed ${ghost.allowed ? "var(--wood-edge)" : "var(--color-danger)"}`,
+                  background: ghost.allowed ? "var(--wood)" : "transparent",
+                  opacity: 0.55,
+                }}
+              />
+            ) : null}
 
             {/* Fixed at the top and not a control: an arc and a horseshoe are
               meaningless without something to face, and this is the whole of
@@ -254,6 +314,10 @@ export function RoomCanvas({
                   top: group.y * UNIT_PX,
                   width: group.width * UNIT_PX,
                   height: group.height * UNIT_PX,
+                  // A raised table has to clear its neighbours, and groups are
+                  // siblings: without this the one in hand is overlapped by
+                  // whichever group is drawn after it.
+                  zIndex: group.desks.some((desk) => desk.id === liftedDeskId) ? 5 : undefined,
                 }}
               >
                 {group.desks.map((desk) => {
@@ -263,8 +327,22 @@ export function RoomCanvas({
                   // merged table: the seam down a table de deux disappears, and
                   // a horseshoe keeps the opening it is built around instead of
                   // being outlined as the rectangle enclosing it.
-                  const edge = freeEdges(desk, group.desks);
+                  // The place in hand is not part of the surface any more, so
+                  // its neighbours close up behind it: a pair whose right half
+                  // was lifted draws as a single table with a finished edge,
+                  // not as one whose side is missing.
+                  const surface =
+                    liftedDeskId == null
+                      ? group.desks
+                      : group.desks.filter((sibling) => sibling.id !== liftedDeskId);
+                  const edge = freeEdges(desk, surface);
                   const line = "2px solid var(--wood-edge)";
+                  // A table in hand is LIFTED rather than outlined: it rises,
+                  // grows a little and throws a longer shadow, which is what
+                  // picking something up looks like. An outline had to compete
+                  // with the borders that draw the furniture itself, and the
+                  // label that said so in words is gone with it.
+                  const lifted = desk.id === liftedDeskId;
                   return (
                     <div
                       key={desk.id}
@@ -278,20 +356,33 @@ export function RoomCanvas({
                         height: TABLE * UNIT_PX,
                         background: "var(--wood)",
                         color: "var(--wood-ink)",
-                        borderTop: edge.top ? line : undefined,
-                        borderRight: edge.right ? line : undefined,
-                        borderBottom: edge.bottom ? line : undefined,
-                        borderLeft: edge.left ? line : undefined,
-                        borderTopLeftRadius: edge.top && edge.left ? 4 : 0,
-                        borderTopRightRadius: edge.top && edge.right ? 4 : 0,
-                        borderBottomLeftRadius: edge.bottom && edge.left ? 4 : 0,
-                        borderBottomRightRadius: edge.bottom && edge.right ? 4 : 0,
+                        // A place in hand is drawn WHOLE. Borders are normally
+                        // painted only where no sibling abuts, which is what
+                        // makes a table de deux one continuous surface — so
+                        // lifting the right half of a pair exposed its missing
+                        // left edge and the tile read as a torn fragment. Off
+                        // the floor it is a table on its own, so it is drawn as
+                        // one, and it rises above its former neighbour rather
+                        // than leaving DOM order to decide who covers whom.
+                        borderTop: lifted || edge.top ? line : undefined,
+                        borderRight: lifted || edge.right ? line : undefined,
+                        borderBottom: lifted || edge.bottom ? line : undefined,
+                        borderLeft: lifted || edge.left ? line : undefined,
+                        borderTopLeftRadius: lifted || (edge.top && edge.left) ? 4 : 0,
+                        borderTopRightRadius: lifted || (edge.top && edge.right) ? 4 : 0,
+                        borderBottomLeftRadius: lifted || (edge.bottom && edge.left) ? 4 : 0,
+                        borderBottomRightRadius: lifted || (edge.bottom && edge.right) ? 4 : 0,
+                        zIndex: lifted ? 2 : undefined,
                         // The front edge and the floor shadow belong to the
                         // OUTSIDE of a table, so only a place with open air
                         // below it carries them.
-                        boxShadow: edge.bottom
-                          ? "inset 0 3px 0 var(--wood-hi), 0 4px 0 var(--wood-edge), 0 7px 10px var(--room-shadow)"
-                          : "inset 0 3px 0 var(--wood-hi)",
+                        boxShadow: lifted
+                          ? "inset 0 3px 0 var(--wood-hi), 0 6px 0 var(--wood-edge), 0 16px 22px rgb(0 0 0 / 0.38)"
+                          : edge.bottom
+                            ? "inset 0 3px 0 var(--wood-hi), 0 4px 0 var(--wood-edge), 0 7px 10px var(--room-shadow)"
+                            : "inset 0 3px 0 var(--wood-hi)",
+                        transform: lifted ? "translateY(-6px) scale(1.06)" : undefined,
+                        transition: "transform 120ms ease-out, box-shadow 120ms ease-out",
                       }}
                       {...rest}
                     >

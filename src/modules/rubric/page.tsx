@@ -108,7 +108,8 @@ export function RubricsPage({ gradebookId }: { gradebookId: string }) {
                   danger
                   variant="link"
                   label={t("common.delete")}
-                  confirmLabel={t("rubric.confirmDeleteAssessment", {
+                  confirmLabel={t("rubric.confirmDeleteAssessment")}
+                  body={t("rubric.confirmDeleteAssessmentBody", {
                     count: levelCount(data.scores, assessment.id),
                   })}
                   onConfirm={() => deleteRubricAssessment(db, assessment.id)}

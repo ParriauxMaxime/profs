@@ -100,6 +100,7 @@ export function ClassStudentsTab({
                 danger
                 label={t("common.delete")}
                 confirmLabel={t("class.confirmDelete")}
+                body={t("class.confirmDeleteBody")}
                 onConfirm={() => deleteStudent(db, student.id)}
               />
             </div>
@@ -187,7 +188,8 @@ export function ClassStudentsTab({
                       key={group.id}
                       danger
                       label={t("common.delete")}
-                      confirmLabel={t("group.confirmDelete", { count })}
+                      confirmLabel={t("group.confirmDelete")}
+                      body={t("group.confirmDeleteBody", { count })}
                       onConfirm={async () => {
                         await deleteGroup(db, group.id);
                         if (selectedGroupId === group.id) onSelectGroup(null);

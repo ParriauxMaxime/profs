@@ -178,6 +178,7 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
             danger
             label={t("gradebook.deleteGradebook")}
             confirmLabel={t("gradebook.confirmDeleteGradebook")}
+            body={t("gradebook.confirmDeleteGradebookBody")}
             onConfirm={async () => {
               // Read the class off the loaded row BEFORE the delete: after it,
               // there is no row to read it from.
@@ -280,6 +281,7 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
                         variant="link"
                         label={t("common.delete")}
                         confirmLabel={t("gradebook.confirmDeleteColumn")}
+                        body={t("gradebook.confirmDeleteColumnBody")}
                         onConfirm={async () => {
                           await deleteColumn(db, column.id);
                           setEditingColumn((current) =>

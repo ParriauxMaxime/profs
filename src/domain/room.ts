@@ -76,12 +76,97 @@ export function fitsRoom(at: Position, room: { width: number; height: number }):
 
 /** The single rule for whether a table may go somewhere. */
 export function canPlace(
-  taken: Position[],
+  taken: readonly Position[],
   at: Position,
   room: { width: number; height: number },
 ): boolean {
   if (!fitsRoom(at, room)) return false;
   return !taken.some((position) => overlaps(position, at));
+}
+
+/**
+ * The square a point lands on, given in the room's own units.
+ *
+ * ONE unit, not one TABLE, and that distinction is the whole function. The
+ * generators step rows by `TABLE + ROW_GAP`, so half of every room's rows sit
+ * on odd coordinates; a grid of whole tables cannot express them. While the
+ * floor snapped that way, a table lifted out of an odd row could never be
+ * dropped back onto its own square — it landed a unit high or low, out of line
+ * with its row and unable to re-form the table it came from, and only the
+ * arrow keys could put it right. The gesture that lifts a table must be able
+ * to put it back.
+ *
+ * Tables still MERGE only at exact adjacency, which is a whole table apart;
+ * this just means the teacher aims for it rather than being rounded onto it.
+ */
+export function snapCell(x: number, y: number): Position {
+  return { x: Math.max(0, Math.round(x)), y: Math.max(0, Math.round(y)) };
+}
+
+/**
+ * How far the furniture pulls a table being placed, in units.
+ *
+ * Deliberately under one unit. The generators space ROWS three units apart,
+ * which is not abutment, so a stronger pull would fight the room's own shape:
+ * a table aimed at a new row would stick to the row above it instead.
+ */
+const MAGNET = 0.6;
+
+/** How far from the pointer a square may be and still be considered. */
+const SNAP_REACH = 2;
+
+/** Does this square share a full edge with a table already in the room? */
+function abuts(at: Position, taken: readonly Placed[]): boolean {
+  return taken.some(
+    (desk) =>
+      (desk.y === at.y && Math.abs(desk.x - at.x) === TABLE) ||
+      (desk.x === at.x && Math.abs(desk.y - at.y) === TABLE),
+  );
+}
+
+/**
+ * The square a table should land on, given where the pointer let go.
+ *
+ * `snapCell` alone is not enough, and the two bugs that led here bracket the
+ * problem. A grid of whole TABLES could not express the odd rows the
+ * generators produce, so a table lifted out of one could never go back. A grid
+ * of single units can express every square — and lost all its magnetism: the
+ * eight squares around a notch are legal too, so an aim a unit off dropped the
+ * table BESIDE the gap it came from, silently, and the pair never re-formed.
+ *
+ * So the grid stays one unit and the pull comes from the FURNITURE. A square
+ * that shares a full edge with an existing table — the same adjacency that
+ * makes two desks draw as one surface — costs `MAGNET` less than its distance,
+ * so it wins whenever the pointer is near it and loses when the teacher aims
+ * somewhere else. Illegal squares are never candidates, which is what makes
+ * the notch beat its own neighbours rather than merely tie with them.
+ *
+ * Returns null when nothing within reach can hold a table; the caller treats
+ * that as an ordinary refusal, exactly as `canPlace` returning false.
+ */
+export function snapToPlace(
+  point: Position,
+  taken: readonly Placed[],
+  room: { width: number; height: number },
+): Position | null {
+  const raw = snapCell(point.x, point.y);
+  let best: Position | null = null;
+  let bestCost = Number.POSITIVE_INFINITY;
+
+  for (let x = raw.x - SNAP_REACH; x <= raw.x + SNAP_REACH; x++) {
+    for (let y = raw.y - SNAP_REACH; y <= raw.y + SNAP_REACH; y++) {
+      const at = { x, y };
+      if (x < 0 || y < 0) continue;
+      if (!canPlace(taken, at, room)) continue;
+      const distance = Math.hypot(x - point.x, y - point.y);
+      const cost = distance - (abuts(at, taken) ? MAGNET : 0);
+      if (cost < bestCost) {
+        bestCost = cost;
+        best = at;
+      }
+    }
+  }
+  return best;
 }
 
 /**

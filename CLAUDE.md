@@ -23,6 +23,10 @@ yarn test        # jest
 **Validation gate — all four must be green before any change is done:**
 `yarn format && yarn lint && yarn typecheck && yarn test`
 
+Node is installed through `fnm` and is **not on the default PATH** — every one
+of those commands fails with `command not found` until you prepend it:
+`export PATH="$HOME/.local/share/fnm/node-versions/<version>/installation/bin:$PATH"`.
+
 ```bash
 yarn test src/domain/gradebook/average.test.ts
 yarn test -t "normalises a /100 column"
@@ -119,18 +123,114 @@ the depth of the bow, which is what a teacher means by it. This is also why
 `ARC_SPACING` and its sqrt(2) derivation are gone: neighbours differ by `PITCH`
 on X, and a per-axis test clears on X alone whatever the bow does to Y.
 
-**A template stamps and ceases to exist**, unchanged from before, and so does a
-preset. Nothing records that a salle "is an arc". `applyShape` destroys the
-tables and spares the ARRANGEMENT: each plan's pupils are poured back in reading
-order, and whoever no longer fits is reported as `overflow` per plan **before**
-the write — a salle is shared, so a stamp reseats every class taught in it.
+**A template stamps and ceases to exist**, and so does a preset. Nothing
+records that a salle "is an arc". A shape is chosen **once, at creation**, in
+the sheet behind *Nouvelle salle*: `createRoom(db, name, buildRoom(preset))`.
 
-**Drag is primary on the salle editor; tap is kept as its equivalent.** This
-departs from the no-drag ruling deliberately. That ruling was written for the
-plan a teacher taps mid-lesson; the salle editor is used once, sitting down.
-Keeping the tap path costs nothing (both share one `heldDeskId`), supplies the
-keyboard equivalent, and is the only reason the screen can be verified at all —
-a synthesised drag fires no HTML5 drag events. **The class tab has no drag.**
+There is no way to re-stamp a salle that already exists, and that is a
+deliberate removal, not an oversight. The editor's *Disposition* panel and the
+`applyShape`/`stampOverflow` pair behind it are gone; re-arranging 204 from rows
+to îlots now means dragging its tables. The cost is real — git has the code if
+it needs to come back — but a live re-stamp could not coexist with the draft
+below: a stamp reads as "every desk removed, N added", which is exactly the diff
+that drops every `Assignment` in the salle.
+
+**`/salles` is a grid of cards, each drawn from the salle's OWN desks** by
+`RoomThumbnail` — the same component that draws a preset, so a card cannot
+promise îlots and open onto rows. The whole card is the link to the editor.
+There is no delete on the list: `deleteRoom` cascades into every plan taught in
+the salle, so it belongs on the room's own page, one navigation away from a
+mis-tap.
+
+**The editor edits a DRAFT; only *Enregistrer* writes.** `RoomDraft`
+(`src/domain/room-draft.ts`) holds the name, the floor and every desk; every
+gesture goes through `addToDraft`/`moveInDraft`/`nudgeInDraft`/`removeFromDraft`
+/`resizeDraft`, and `draftChanged` decides whether the button is enabled — it
+asks "is there something to save", not "did you touch something", so a table
+moved and moved back disarms it. `saveRoomDraft` commits the lot as one diff.
+
+Two things about that commit are load-bearing. A desk that MOVES keeps its id,
+because `Assignment` is `[planId+deskId]` and a fresh id would silently empty
+the seating plan of every class in the salle; only a desk actually removed loses
+its occupants. And every changed row is DELETED before the survivors are
+re-added, rather than updated in place: `&[roomId+x+y]` admits no two desks on
+one square, so two tables swapping — a move a teacher makes constantly — would
+abort the transaction on whichever went first. Deleting a desk row is not
+deleting the place; assignments are their own rows and only the removal branch
+touches them.
+
+**Nothing warns on the way out.** Chicane's `useBlocker` calls `window.confirm`
+and `beforeunload` raises a native dialog — both banned here — so leaving with
+an unsaved arrangement loses it. The red *Modifications non enregistrées* marker
+and *Annuler* are the whole guard. Do not "fix" this with either mechanism.
+
+The floor steppers show `Math.ceil(extent / TABLE)`. A stamped arc's frame need
+not be an even number of units, and dividing rendered `7.5 Rangées` with a `+`
+that stepped to 8.5.
+
+**The salle editor drags on POINTER events, never HTML5 drag and drop.**
+`draggable`/`dragstart` has no touch implementation anywhere: not in Chrome's
+device emulation, not on a real tablet. While the editor used it, drag was
+mouse-only — on the device this app is for, tap was not drag's equivalent but
+the only gesture there was, and the table palette, which was drag-only, could
+not add a table at all.
+
+`usePointerDrag` (`src/modules/rooms/use-pointer-drag.ts`) covers mouse, pen and
+touch in one path. **A press is not yet a drag**, and the wait differs by
+pointer type: a mouse drags after 5px of movement, a finger must rest 250ms
+first, and movement before that hold is left to the browser so a swipe starting
+on a table still scrolls a room wider than the screen. That is why
+`touch-action` is NOT pinned to `none` on the tiles. Once dragging has begun,
+`touchmove` is cancelled for the rest of the gesture, or the browser starts
+panning mid-drag and takes the pointer away as a `pointercancel`. Movement is
+tracked on the document rather than through `setPointerCapture`, which refuses a
+pointer id it has no live pointer for — exactly the case when a test dispatches
+the sequence.
+
+Drag and tap are one gesture with two entrances: `held` is either a desk in the
+room or a new table from the palette, both end in `place`, and tapping the
+palette arms a table the way tapping a desk picks one up. **The class tab has no
+drag.**
+
+**A table in hand is LIFTED, not labelled.** It rises, grows a little and throws
+a longer shadow, and its group takes a `z-index` so it clears its neighbours —
+which is what picking something up looks like. It replaced an "En main" caption
+and a blue outline: the outline competed with the borders that draw the
+furniture itself, and the caption wrote a word on a table. The ghost says where
+it will land, so nothing needs saying twice.
+
+The editor is one card and the plan, and nothing else. The card stacks
+everything about the salle ITSELF — its name, its places, its floor, and the
+table you add to it, drawn as the thing it becomes. It replaced a panel holding
+a single control and two paragraphs of instructions. With those gone the
+keyboard path lives in `aria-keyshortcuts` and the tile's accessible name, where
+it costs no pixels — if you add a gesture here, put it there too, because there
+is no longer anywhere on screen to explain it. The floor's minimum is said by
+`−` disabling at it, not by a sentence beside it. The plan centres with
+`justify-content: safe center`: plain `center` clips the start of a room wider
+than its column, and no scrollbar recovers it.
+
+**Where a dropped table lands is `snapToPlace`, and the two bugs behind it
+bracket the problem.** A grid of whole TABLES could not express the odd rows the
+generators produce — they step rows by `TABLE + ROW_GAP` — so a table lifted out
+of one could never be dropped back on its own square. A grid of single units
+(`snapCell`) expresses every square and lost all magnetism: the eight squares
+around a notch are legal too, so an aim a unit off dropped the table BESIDE the
+gap it came from, silently, and the pair never re-formed.
+
+So the grid stays one unit and the pull comes from the FURNITURE. A square
+sharing a full edge with an existing table — the same adjacency that draws two
+desks as one surface — costs `MAGNET` (0.6 units) less than its distance, so it
+wins when the pointer is near it and loses when the teacher aims elsewhere.
+Illegal squares are never candidates, which is what lets a notch beat its own
+neighbours. The magnet is deliberately under one unit: rows sit three units
+apart, which is not abutment, and a stronger pull would stick a new row to the
+row above it. Tests cover both bugs — every template's squares are expressible,
+and a sloppy aim near a notch lands in it.
+
+The canvas reports where the pointer IS, unsnapped; the editor resolves the
+square, because which square you get depends on the furniture and on which
+table is in hand — neither of which `RoomCanvas` knows.
 
 **Salles is a seventh drawer destination.** That looks like a violation of the
 rule keeping workspace management out of the drawer and is not: that rule is
@@ -140,13 +240,17 @@ to a class, a salle is *content*, like Élèves.
 `deleteRoom` **cascades rather than refuses**, unlike `deleteSubject`. Destroying
 gradebooks as a side effect of removing a subject is too much to do implicitly;
 an arrangement is rebuilt in a minute, and refusing would strand a salle behind
-classes no longer taught. The `ConfirmButton` names the classes that lose one.
+classes no longer taught. The confirm dialog names the classes that lose one.
 `deleteClass` takes its plans and leaves the salle standing. `deleteStudent`
 deletes their assignments rather than emptying them — an assignment is the pair,
 and there is no row left without the pupil.
 
 `RoomCanvas` owns the floor, the scale, the board and the merged tables, and no
-gesture beyond reporting where the floor was touched. Two layout facts it
+gesture beyond reporting where the floor was touched. It also answers
+`cellAtClient` through a ref, because a pointer drag ends wherever the finger is
+— possibly over a table — so the drop cell cannot come from an event's
+`offsetX` on the floor the way a click's does, and it draws the `ghost` of where
+the table in hand would land. Two layout facts it
 earned the hard way: the element that MEASURES available width must be full
 width while the one that draws the wall must be content-sized (one element
 cannot be both, or the observed width becomes the room's own and the scale never
@@ -194,6 +298,8 @@ There is no top bar. `AdminLayout` renders one floating hamburger at the top lef
 
 The drawer is not a `<dialog>`, since blocking dialogs are banned here, so it implements the discipline by hand: Escape closes, focus moves in on open and returns to the button on close, Tab is trapped, the backdrop closes on click, body scroll is locked, and the panel carries `inert` when closed so a translated-off drawer never sits silently in the tab order. Anything added to it keeps all of that.
 
+That list now has one shared implementation, `design-system/components/modal.tsx`, behind the creation `Sheet` (bottom, kept mounted so it can slide) and every `ConfirmButton` dialog (centred, mounted only while open — a hidden panel per delete button is thirty panels in a table of thirty rows). `AppDrawer` deliberately keeps its own copy: it is the control every lesson goes through, and folding it in wants its own review rather than a ride along with someone else's screen.
+
 `WorkspaceSwitcher` sits above the destinations and changes which établissement is open. It is not a destination and deliberately not inside the `<nav>`; its buttons are still trapped, because the trap queries the panel rather than the nav. With one école it collapses to a line of text — a switcher with nothing to switch to is a control that does nothing, sitting above the navigation used every lesson.
 
 ### One workspace per school
@@ -222,7 +328,7 @@ Management (create, rename, delete) lives in Réglages rather than the drawer: a
 
 ### Conventions that will trip you up
 
-- **Never `window.confirm`, `alert`, or any blocking browser dialog.** They freeze the browser automation used to verify these pages. Destructive actions use a two-step in-place confirm: first click arms, second acts, with a cancel beside it.
+- **Never `window.confirm`, `alert`, `beforeunload`, or any blocking browser dialog.** They freeze the browser automation used to verify these pages. That ban reaches library code: Chicane's `useBlocker` calls `window.confirm`, so a screen with unsaved work cannot warn on the way out and must make the unsaved state visible instead. Destructive actions open a `ConfirmButton` dialog — a heading that asks the question, a body naming what else goes, and Annuler focused so a stray Return cannot delete anything. It used to arm in place, which moved the page at the moment of the decision and forced every cascade to fit inside a button.
 - **Typography.** The app is set in **Luciole** (CC BY 4.0), bundled under `src/assets/fonts/` and emitted as a hashed asset — never fetched, because a font CDN would break the no-network promise as surely as an analytics call. It is sans-only, so heading hierarchy comes from weight and size; do not reintroduce Georgia.
 
   `.carreaux` in `global.css` is the squared writing surface — petits carreaux, the 5mm grid used from collège onward — applied to **exactly one element**, the journal textarea. Ruling was tried app-wide and cut for reading as texture.
@@ -310,7 +416,7 @@ Every multi-table delete lives in `src/db/cascade.ts`, each a single `rw` transa
 
 `deleteSubject` **refuses** rather than cascades: it returns `{ deleted: false, reason: "in-use", gradebookCount }` and writes nothing while a gradebook still references the subject. Destroying gradebooks as a side effect of removing a subject is too much to do implicitly.
 
-Destructive actions go through `ConfirmButton` (two-step, in place). Its confirm label should say what else goes — the column delete names its grades, the class delete names its pupils and their grades.
+Destructive actions go through `ConfirmButton`, which opens a dialog. `confirmLabel` is the heading and asks the question; `body` says what else goes — the column delete names its grades, the class delete names its pupils and their grades, the salle delete names the classes that lose a plan. Omit `body` only when there is no cascade to name.
 
 ## Known gaps
 
@@ -323,7 +429,9 @@ Destructive actions go through `ConfirmButton` (two-step, in place). Its confirm
 - The timetable is weekly with A/B alternation only. French secondary runs weekly, and an n-day rotation would cost every teacher editor complexity for a case this audience rarely has.
 - The journal is one free-text box per class per day — no objectives, homework or competency fields. Structure was considered and rejected: the writing happens mid-lesson or at 21h, and search compensates. The cross-class week view is `/diary` with the class filter off.
 - Attachments do not exist and are not a small addition: they are the resources manager, parked with its storage-budget question unanswered, and the journal is the back door they would arrive through.
-- The seating plan has no drag and drop, deliberately: it is the one gesture the browser automation cannot drive, and a keyboard equivalent is needed regardless, so pick-up-then-place stays the gesture.
+- The CLASS seating plan has no drag and drop, deliberately: a keyboard equivalent is needed regardless, so pick-up-then-place stays the gesture there. The salle editor does drag, on pointer events — the old "automation cannot drive it" half of this ruling was true only of HTML5 drag, and a synthesised pointer sequence drives the new one fine.
+- Changing the layout of an existing salle means moving its tables by hand. Re-stamping a shape went with the Disposition panel, and with it `applyShape`, the one piece of code that could destroy the furniture while pouring each class's pupils back in reading order.
+- An unsaved arrangement is lost by navigating away from the salle editor, silently. The marker and *Annuler* are the only guard the no-blocking-dialogs rule leaves available.
 
 ## Reference
 

@@ -154,6 +154,7 @@ export function SchedulePage() {
                           variant="link"
                           label={t("common.delete")}
                           confirmLabel={t("schedule.confirmDelete")}
+                          body={t("schedule.confirmDeleteBody")}
                           onConfirm={() => deleteScheduleEntry(db, entry.id)}
                         />
                       </div>

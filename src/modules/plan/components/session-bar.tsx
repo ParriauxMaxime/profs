@@ -63,6 +63,7 @@ export function SessionBar({
           confirmLabel={t("plan.confirmDeleteSession", {
             date: formatter.format(selected.date),
           })}
+          body={t("plan.confirmDeleteSessionBody")}
           onConfirm={() => deleteSession(db, selected.id)}
         />
       )}

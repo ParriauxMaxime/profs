@@ -93,6 +93,7 @@ export function WorkspaceSection() {
               variant="link"
               label={t("common.delete")}
               confirmLabel={t("workspace.confirmDelete")}
+              body={t("workspace.confirmDeleteBody")}
               // The armed state is anchored by the <li> key being the
               // workspace id: deleting or renaming another school while this
               // one is armed must not retarget the delete onto whoever ends
