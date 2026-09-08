@@ -406,5 +406,27 @@
       "week": "Week",
       "month": "Month"
     }
+  },
+  "recovery": {
+    "title": "profs could not open its data",
+    "retry": {
+      "body": "The database did not open, but your data is intact. Reload the page. If it keeps happening, close any other profs tabs and try again."
+    },
+    "unsupported": {
+      "body": "This browser is refusing the local storage profs needs, which is common in a private window. Open the app in a normal window, then reload."
+    },
+    "quota": {
+      "body": "There is not enough space left to open this school. Free some up, or delete this school's data to reclaim what it was using."
+    },
+    "corrupt": {
+      "body": "This school's data cannot be opened. Try reloading first: if the error returns, deleting this school's data is the only way to get the app open again. That deletion is permanent."
+    },
+    "workspace": "School:",
+    "reload": "Reload",
+    "discard": "Delete this school's data",
+    "discardConfirm": "Permanently delete the marks, pupils and gradebooks for {{name}}",
+    "othersSafe_one": "Your other school is untouched.",
+    "othersSafe_other": "Your {{count}} other schools are untouched.",
+    "details": "Technical detail"
   }
 }

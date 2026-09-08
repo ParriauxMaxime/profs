@@ -160,6 +160,40 @@ Two regression tests in `src/db/index.test.ts` build a real v2→v6 database wit
 
 You do **not** need to touch `wipeWorkspace` or the backup's clear list when adding a table — both read `db.tables`. You **do** need to add it to `backup.ts` by hand, since the export builds a literal, and to seed a row for it into the wipe test and the schema table-list test. Those two will fail until you do; that is the guard, not an oversight. The backup case earned its own guard the hard way: `diaryEntries` was missing from export and import for a whole commit while every backup test passed, because the double-import test compares row counts across two imports and a table missing *entirely* keeps its count on both passes.
 
+### A database that will not open must never be a blank page
+
+`src/main.tsx` catches `initWorkspace()` rejecting and renders `RecoveryShell`
+(`src/modules/recovery/shell.tsx`) instead of the app. Without that catch the
+promise never reaches `render`, React never mounts, and the teacher gets a
+blank page — with their pupils still in IndexedDB and no route to the wipe in
+Réglages, to the export, or to the workspace switcher, because none of those
+screens exist until React has mounted. The app is the only copy of the data.
+
+`classifyOpenFailure` (`src/domain/recovery.ts`) picks the branch, and **the
+default is the recoverable one**: anything unrecognised is `corrupt`, which
+offers the discard. That is what makes "disposable, not migrated" mean *wiped
+on the next boot* rather than *bricked*, and a test asserts it for
+`UpgradeError` — what a primary-key change throws — and for an unknown name.
+Reload is offered unconditionally and has no predicate, so no branch can render
+a panel with nothing on it. The discard is offered only for `corrupt` and
+`quota`: inviting a teacher to delete on a transient failure would destroy a
+term of marks that was never at risk.
+
+The discard deletes the database and **keeps the registry entry**, so the
+workspace returns named and empty rather than lost. No export is attempted —
+an export needs the database open, which is what just failed.
+
+`initWorkspace` opens the database explicitly rather than letting the first
+query do it. `seedIfEmpty` returns immediately for an already-seeded workspace
+without touching it, so on every boot after the first, nothing there opened
+anything and a failure surfaced later inside a `useLiveQuery`, past the only
+place that handles it.
+
+The shell renders without `DbProvider`, without the router and without any
+`useLiveQuery`, and reads the workspace registry from `localStorage` so it can
+still name the school. It may use `t()`: `import "@i18n"` runs synchronously at
+the top of `main.tsx`, before `initWorkspace`.
+
 ### The demo school seeds exactly once
 
 `seedIfEmpty(db, workspaceId)` gates on a marker in `localStorage` (`profs-seeded-workspaces`), not on the tables being empty, because wiping all data in Réglages must stay wiped — `PRIVACY.md` promises the erase is permanent, and gating on emptiness resurrected the demo school on the next reload.

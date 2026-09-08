@@ -406,5 +406,27 @@
       "week": "Semaine",
       "month": "Mois"
     }
+  },
+  "recovery": {
+    "title": "profs n'a pas pu ouvrir ses données",
+    "retry": {
+      "body": "L'ouverture a échoué, mais les données sont intactes. Rechargez la page. Si le problème persiste, fermez les autres onglets de profs et réessayez."
+    },
+    "unsupported": {
+      "body": "Ce navigateur refuse le stockage local dont profs a besoin, ce qui est fréquent en navigation privée. Ouvrez l'application dans une fenêtre normale, puis rechargez."
+    },
+    "quota": {
+      "body": "Il n'y a plus assez d'espace pour ouvrir cet établissement. Libérez de la place, ou supprimez les données de cet établissement pour récupérer l'espace qu'il occupe."
+    },
+    "corrupt": {
+      "body": "Les données de cet établissement ne peuvent pas être ouvertes. Rechargez d'abord : si l'erreur revient, supprimer les données de cet établissement est le seul moyen de rouvrir l'application. Cette suppression est définitive."
+    },
+    "workspace": "Établissement :",
+    "reload": "Recharger",
+    "discard": "Supprimer les données de cet établissement",
+    "discardConfirm": "Supprimer définitivement les notes, élèves et carnets de {{name}}",
+    "othersSafe_one": "Votre autre établissement n'est pas touché.",
+    "othersSafe_other": "Vos {{count}} autres établissements ne sont pas touchés.",
+    "details": "Détail technique"
   }
 }

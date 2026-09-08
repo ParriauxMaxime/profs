@@ -328,44 +328,54 @@ Still inline, and deliberately left: five single-table v1-era writes in
 not in the recorded scope. Worth folding in the next time one of those forms
 is touched.
 
+## Technical debt — a failed `db.open()` (recorded and discharged 2026-09-08)
 
-## Technical debt — a failed `db.open()` is a blank page with no way back
+**Status: done.** `src/main.tsx` catches the rejection and renders
+`RecoveryShell` (`src/modules/recovery/shell.tsx`); the branch it takes comes
+from `classifyOpenFailure` in `src/domain/recovery.ts`.
 
-`src/db/init.ts` calls `db.open()` with no `catch`, and `src/main.tsx` calls
-`initWorkspace().then(...)` with no `.catch`. Any rejection — a Dexie
-`UpgradeError`, a corrupt store, a browser that denies IndexedDB in a private
-window, a quota failure — means the promise never resolves into `render`, so
-React never mounts. What the teacher sees is a blank page. Their pupils' names
-and grades are still in IndexedDB, and there is no route to the wipe in
-Réglages, to the JSON export, or to the workspace switcher, because none of
-those screens exist until React has mounted.
+The four questions this entry said had to be settled first, and how they were:
 
-Phase 6 hit exactly one instance of this and fixed only that instance: Dexie
-refuses to change a store's primary key in place and throws while opening, so
-the room migration was split into `version(7)` (drop) + `version(8)`
-(redeclare) specifically to avoid the throw. The class of failure is untouched.
-It matters more than a normal crash because the app is the only copy of the
-data — there is no server to log in to from another device, and `PRIVACY.md`
-says so.
+- **What does the fallback offer?** Reload always, and the discard only where
+  losing the data could help — `corrupt` and `quota`. A transient failure
+  (`DatabaseClosedError`, `VersionError`) offers reload alone, because inviting
+  a teacher to delete on a blip destroys a term of marks that was never at
+  risk. `unsupported` (a private window denying IndexedDB) offers reload too,
+  since the fix happens in the browser and then needs one.
+- **Can it export first?** No, and it does not try. An export needs the
+  database open, which is the thing that just failed, and a partial dump would
+  look like a backup while restoring short.
+- **Which errors are recoverable?** `classifyOpenFailure` maps them, and the
+  mapping is tested. The important half is the default: anything unrecognised
+  is `corrupt`, which is the branch that offers a way out. A future Dexie
+  error name nobody anticipated lands on the recoverable side, not on a dead
+  end.
+- **Where does it live?** A second, smaller shell, not a route. It renders
+  without `DbProvider`, without the router and without any `useLiveQuery`. It
+  reads the workspace registry from `localStorage`, so it can still name the
+  school. i18n is safe to use: `import "@i18n"` runs synchronously at the top
+  of `main.tsx`, before `initWorkspace`.
 
-What has to be settled before anything is built, and the reason this is a
-backlog entry rather than a fix:
+Two decisions taken while building it, neither of them in the original entry:
 
-- **What does the fallback offer?** A wipe is the one recovery that always
-  works and the one that destroys a term of marks. Offering it on a transient
-  error — a locked database because another tab is mid-upgrade, a quota blip —
-  invites a teacher to delete data that was never lost. Offering nothing but
-  "reload" is honest and often useless.
-- **Can it export first?** An export needs the database open, which is the
-  thing that just failed. A partial export from a half-open database may be
-  worse than none.
-- **Which errors are recoverable?** `DatabaseClosedError` and `VersionError`
-  want a reload; `UpgradeError` and `InvalidStateError` do not. The panel
-  cannot be one message.
-- **Where does it live?** It must render without `DbProvider`, without
-  `useLiveQuery`, and arguably without i18n if the failure is early enough —
-  which makes it a second, smaller shell rather than a route.
+- **The discard deletes the database and keeps the registry entry.** The
+  workspace returns on the next boot with its name and year and no data, which
+  is what "disposable, not migrated" was always supposed to mean. Removing the
+  registry entry as well would turn a recoverable schema into a lost school.
+  Other workspaces are untouched, and the panel says so.
+- **`initWorkspace` now opens the database explicitly.** It did not before:
+  `seedIfEmpty` returns immediately for an already-seeded workspace without
+  touching it, so on every boot after the very first, nothing in `initWorkspace`
+  opened anything and an open failure surfaced later inside a `useLiveQuery` —
+  past the only place that handles it. This was the real gap; the missing
+  `.catch` was only the visible half.
 
-Related: the standing rule that schema changes are disposable, not migrated.
-Disposable has to mean *wiped on the next boot*, never *bricked*, and today
-nothing enforces that but review.
+The standing rule that schema changes are disposable, not migrated, is now
+enforced by a test rather than by review: `src/domain/recovery.test.ts` asserts
+that an `UpgradeError` — what a primary-key change throws — always offers the
+discard, and that an unknown error name does too.
+
+Still open: a failure *after* React has mounted. `DbProvider` opens lazily, so
+a database that dies mid-session surfaces inside a `useLiveQuery` rather than
+at boot. That is a different shape of problem (the app is up, the screens
+exist, a route to Réglages is reachable) and wants its own entry if it bites.
