@@ -109,7 +109,6 @@ describe("workspace backup", () => {
         studentGroups: [],
         groupMembers: [],
         scheduleEntries: [],
-        diaryEntries: [],
         rooms: [],
         desks: [],
         seatingPlans: [],
@@ -148,7 +147,6 @@ describe("workspace backup", () => {
         studentGroups: [],
         groupMembers: [],
         scheduleEntries: [],
-        diaryEntries: [],
         rooms: [],
       }),
     ).toThrow();
@@ -180,7 +178,6 @@ describe("workspace backup", () => {
         studentGroups: [],
         groupMembers: [],
         scheduleEntries: [],
-        diaryEntries: [],
         rooms: [],
       }),
     ).toThrow();
@@ -492,8 +489,8 @@ describe("export completeness", () => {
     // The hole the double-import guard does NOT cover, found the hard way:
     // that test compares counts before and after a second import, so a table
     // missing from the backup ENTIRELY keeps its count on both passes and
-    // looks perfectly healthy. `diaryEntries` was absent from export and
-    // import for a whole commit while every backup test passed.
+    // looks perfectly healthy. The journal's day-keyed table was absent from
+    // export and import for a whole commit while every backup test passed.
     //
     // Asserted over db.tables so the next schema version is covered the day
     // it is declared.
@@ -509,13 +506,6 @@ describe("export completeness", () => {
   it("restores every table, so nothing is exported and then dropped on the way back", async () => {
     const db = openWorkspaceDb(`backup-restore-${crypto.randomUUID()}`);
     await seedIfEmpty(db, `backup-restore-${crypto.randomUUID()}`);
-    await db.diaryEntries.put({
-      classId: (await db.classes.toArray())[0].id,
-      date: new Date(2030, 0, 15).getTime(),
-      text: "on a fait les fractions",
-      createdAt: 1,
-      updatedAt: 1,
-    });
 
     const before: Record<string, number> = {};
     for (const table of db.tables) before[table.name] = await table.count();
@@ -546,15 +536,6 @@ describe("importing twice", () => {
     // schema version is covered the day it is declared.
     const db = openWorkspaceDb(`backup-double-${crypto.randomUUID()}`);
     await seedIfEmpty(db, `backup-double-${crypto.randomUUID()}`);
-    await db.diaryEntries.put({
-      classId: (await db.classes.toArray())[0].id,
-      // A date far from anything the demo seed places, so this setup can
-      // never collide with seeded content on the compound key.
-      date: new Date(2030, 0, 15).getTime(),
-      text: "on a fait les fractions",
-      createdAt: 1,
-      updatedAt: 1,
-    });
     await db.scheduleEntries.add({
       id: "sch1",
       classId: (await db.classes.toArray())[0].id,
@@ -615,7 +596,6 @@ describe("class-size ceiling on import", () => {
       studentGroups: [],
       groupMembers: [],
       scheduleEntries: [],
-      diaryEntries: [],
       rooms: [],
       desks: [],
       seatingPlans: [],

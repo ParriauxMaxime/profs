@@ -101,8 +101,8 @@ export interface AgendaDay<TLesson, TEntry> {
  * grid on a phone.
  *
  * Generic over the lesson and entry types so this stays pure: it never learns
- * what a `ScheduleEntry`, a `Session` or a `DiaryEntry` is, only how to ask
- * which day each one falls on.
+ * what a `ScheduleEntry` or a `Session` is, only how to ask which day each one
+ * falls on.
  */
 export function agendaDays<TLesson, TEntry>(
   from: number,

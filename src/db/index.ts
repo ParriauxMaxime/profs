@@ -4,7 +4,6 @@ import type {
   AttendanceRecord,
   BehaviourEvent,
   Desk,
-  DiaryEntry,
   Grade,
   Gradebook,
   GradeColumn,
@@ -28,7 +27,6 @@ export type {
   AttendanceRecord,
   BehaviourEvent,
   Desk,
-  DiaryEntry,
   Grade,
   Gradebook,
   GradeColumn,
@@ -68,7 +66,6 @@ export type AppDatabase = Dexie & {
   studentGroups: EntityTable<StudentGroup, "id">;
   groupMembers: Table<GroupMember, [string, string]>;
   scheduleEntries: EntityTable<ScheduleEntry, "id">;
-  diaryEntries: Table<DiaryEntry, [string, number]>;
 };
 
 /** The compound primary key of a cell. */
@@ -92,11 +89,6 @@ export function rubricScoreKey(
   studentId: string,
 ): [string, string, string] {
   return [assessmentId, criterionId, studentId];
-}
-
-/** The compound primary key of one day's journal entry for one class. */
-export function diaryKey(classId: string, date: number): [string, number] {
-  return [classId, date];
 }
 
 /** The compound primary key of one pupil's membership in one group. */
@@ -250,5 +242,15 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
   db.version(13).stores({
     scheduleEntries: "id, classId, weekday, gradebookId, roomId",
   });
+  /**
+   * A note belongs to a séance, not to a day.
+   *
+   * The store is dropped rather than migrated, per the standing rule: schema
+   * changes are disposable, and a stale workspace is wiped rather than
+   * upgraded. Every existing journal entry goes, which is accepted — the text
+   * now lives on `Session.note`, which needed no version of its own because
+   * `.stores()` declares indexes, not fields.
+   */
+  db.version(14).stores({ diaryEntries: null });
   return db;
 }
