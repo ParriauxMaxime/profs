@@ -21,7 +21,7 @@ import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { ConfirmButton } from "../design-system/components/confirm-button";
 import { useEscape } from "../shared/use-escape";
-import { type FloorHandle, RoomCanvas } from "./components/room-canvas";
+import { type FloorHandle, RoomCanvas, UNIT_PX } from "./components/room-canvas";
 import { usePointerDrag } from "./use-pointer-drag";
 
 /**
@@ -503,14 +503,25 @@ export function RoomEditorPage({ roomId }: { roomId: string }) {
               // control beside every place is a mis-tap waiting to happen.
               const selected = group.desks.find((d) => d.id === selectedDeskId);
               if (!selected) return null;
+              // Anchored to the SELECTED place, not to the group's box. Pinned
+              // to the group's top-right corner it landed on whichever place
+              // happened to sit there — on an L-shaped island, a delete for the
+              // bottom-left table appeared over the top-right one.
+              const lifted = heldDeskId === selected.id;
               return (
                 <button
                   key={`x-${selected.id}`}
                   type="button"
                   aria-label={t("rooms.removeTable")}
                   title={t("rooms.removeTable")}
-                  className="-top-3 absolute flex h-[30px] w-[30px] items-center justify-center rounded-full border-2 border-danger bg-bg text-danger text-[15px] leading-none"
-                  style={{ left: "calc(100% - 15px)" }}
+                  className="absolute flex h-[30px] w-[30px] items-center justify-center rounded-full border-2 border-danger bg-bg text-danger text-[15px] leading-none"
+                  style={{
+                    left: (selected.x - group.x + TABLE) * UNIT_PX - 15,
+                    // Rides along when its table is off the floor, so the two
+                    // do not drift apart while one is in hand.
+                    top: (selected.y - group.y) * UNIT_PX - 12 - (lifted ? 6 : 0),
+                    zIndex: 3,
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedDeskId(null);
