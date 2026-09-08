@@ -91,7 +91,7 @@ describe("workspace backup", () => {
     // asserting nothing about the version at all.
     await expect(
       importWorkspace(db, {
-        version: 11,
+        version: 12,
         exportedAt: 0,
         classes: [],
         students: [],
@@ -119,6 +119,44 @@ describe("workspace backup", () => {
     expect(await db.classes.count()).toBe(classCountBefore);
     expect(await db.students.count()).toBe(studentCountBefore);
     expect(await db.classes.get(sampleBefore.id)).toEqual(sampleBefore);
+    db.close();
+  });
+
+  it("rejects a version 10 backup rather than silently dropping its journal", async () => {
+    // A v10 file predates the séance-owned note: its journal lived in
+    // `diaryEntries`, a day-keyed store that no longer exists. Before the
+    // schema literal was bumped to 11, this exact payload PARSED — zod strips
+    // an object's unrecognised top-level key rather than failing on it — so
+    // importing an old backup silently threw away every journal entry with no
+    // error at all. `diaryEntries` is included here to pin that regression.
+    const db = openWorkspaceDb("backup-import-v10");
+    expect(() =>
+      parseBackup({
+        version: 10,
+        exportedAt: 1,
+        classes: [],
+        students: [],
+        subjects: [],
+        gradebooks: [],
+        periods: [],
+        columns: [],
+        grades: [],
+        sessions: [],
+        attendance: [],
+        behaviourEvents: [],
+        rooms: [],
+        desks: [],
+        seatingPlans: [],
+        assignments: [],
+        rubricTemplates: [],
+        rubricAssessments: [],
+        rubricScores: [],
+        studentGroups: [],
+        groupMembers: [],
+        scheduleEntries: [],
+        diaryEntries: [],
+      }),
+    ).toThrow();
     db.close();
   });
 
@@ -229,7 +267,7 @@ describe("workspace backup", () => {
     });
     await db.groupMembers.put({ groupId: "g1", studentId: "p1" });
     const backup = await exportWorkspace(db);
-    expect(backup.version).toBe(10);
+    expect(backup.version).toBe(11);
     expect(backup.sessions).toHaveLength(1);
     expect(backup.attendance).toHaveLength(1);
     expect(backup.rubricTemplates).toHaveLength(1);
@@ -571,7 +609,7 @@ describe("class-size ceiling on import", () => {
   /** A minimal, schema-valid backup carrying `count` pupils in one class. */
   function backupWithRoster(count: number) {
     return {
-      version: 10,
+      version: 11,
       exportedAt: Date.now(),
       classes: [{ id: "c1", name: "3°B", createdAt: 1, updatedAt: 1 }],
       students: Array.from({ length: count }, (_, i) => ({

@@ -26,7 +26,7 @@ import type {
 } from "./types";
 
 export interface WorkspaceBackup {
-  version: 10;
+  version: 11;
   exportedAt: number;
   classes: SchoolClass[];
   students: Student[];
@@ -62,13 +62,16 @@ export interface WorkspaceBackup {
  * version 5 the journal, and version 6 the rectangular seating grid that
  * predates the free-position room. There is no version 7 file: 7 exists only
  * as a schema version, the one that drops the grid store so the primary key
- * can change, and nothing was ever exported at it.
+ * can change, and nothing was ever exported at it. Version 10 predates the
+ * séance-owned note: its journal lived in a day-keyed store that no longer
+ * exists, so its text has nowhere to land — half-importing it would silently
+ * drop every entry rather than refuse the file that held them.
  * The rule for the next schema change is unchanged: bump the version, do not
  * write an upgrade — importing a file half-populated is worse than refusing
  * it, because half a workspace looks like a whole one.
  */
 const backupSchema = z.object({
-  version: z.literal(10),
+  version: z.literal(11),
   exportedAt: z.number(),
   classes: z.array(z.object({ id: z.string() }).loose()),
   students: z.array(z.object({ id: z.string() }).loose()),
@@ -184,7 +187,7 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
   ]);
 
   return {
-    version: 10,
+    version: 11,
     exportedAt: Date.now(),
     classes,
     students: students.map(({ photo: _photo, ...rest }) => rest),
