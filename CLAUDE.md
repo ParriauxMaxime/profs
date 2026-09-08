@@ -42,52 +42,117 @@ Rubric criteria are embedded in `RubricAssessment.criteria`, but a score is its 
 
 **`src/modules/<name>/page.tsx`** — one page per route, with module-local `components/`. `design-system/` holds shared UI, `shared/` the layout. There is no `src/routes/` folder. Components read the database through `useLiveQuery` and hold UI state only. Routes live in `src/router.ts` (Chicane).
 
-### The room
+### The room: a salle, and a class in it
 
-A `Seat` row encodes **two** states: `studentId: null` is an empty table, a `studentId` an occupied one. There is no "gap" state. The old gap existed only because a rectangular grid forces every cell to exist, so an aisle had to be a cell rendering nothing; tables now carry their own `x`/`y`, so an aisle is the absence of a table, which is the absence of a row. `removeTable` *is* carving the aisle.
+A **salle** is physical. It belongs to the établissement, holds tables and no
+pupils, and exists whether or not 3°B is in it. A **plan de table** is one class
+poured into a salle. Moving Adam away from Lucas mid-lesson is neither — it is
+the lesson.
 
-The gesture is pick-up-then-place, not drag. `Held` carries `pool`, `seat` or `table`, and `resolveDrop` / `resolveFloorDrop` in `src/domain/room.ts` are the two pure rules for what a tap means, so the grammar lives in tested functions rather than a click handler. A pupil held from the rail *seats*, displacing any occupant back to the rail. A pupil held from a table *swaps* with the target, degrading to a move when the target is empty. A table held in layout-edit mode moves to the next bare floor tapped. A bare tap on a seated pupil opens their card — that stays the gesture of the lesson itself — so moving that pupil goes through the card's `Déplacer`. In layout-edit mode a bare tap picks up the TABLE, not its occupant. Two further controls are two different gestures: `×` removes the table (changing the room), `↩` frees the place but leaves it standing (changing only the arrangement).
+That split is the whole design, and it exists because the previous room served
+three activities behind two modes. *Modifier le plan* reads as "who sits where"
+but turned on **furniture** editing, and did so by redefining a tap on a pupil
+to mean "pick up the table underneath them". Same pixel, same tile, two
+objects. Every other complication followed: three `Held` kinds, three hint
+sentences, two near-identical corner buttons, floor tiles meaning *add* or
+*move* or nothing depending on invisible state.
 
-`PITCH` (table plus one unit of air) steps anything rectilinear, but `canPlace`'s overlap test is per-axis, not Euclidean: on a diagonal `max(|dx|,|dy|)` is only `distance / sqrt(2)` before integer rounding costs up to another unit per axis. A curved row therefore needs the wider `ARC_SPACING`, or seats on an arc collide where a straight row would have cleared.
+So furniture lives on `/salles/:roomId` with **no pupils drawn**, and the class
+tab holds pupils with **no furniture drawn**. Each screen then has one mode,
+because on each a tap has only one thing it could mean. Do not put a furniture
+control back on the class tab.
 
-A room starts from one of four templates (`src/domain/room-templates.ts`: `rows`, `arc`, `islands`, `u`, built by `buildRoom`) — but **a template stamps and then ceases to exist**. Nothing records that a room "is an arc". A live template with stored parameters was rejected because it cannot answer whether a table dragged out of the arc should follow a later curvature change or stay behind; both answers are wrong half the time. A stamp has one state, and the state is the room.
+**Four stores.** `Room` (id, name, width, height) is the salle; `Desk` (id,
+roomId, x, y) is one place and carries no occupant; `SeatingPlan` is one class
+in one salle; `Assignment` is `[planId+deskId] → studentId`, keyed exactly as
+`Grade` is. `Desk` rather than `Table` because a Dexie store named `tables`
+would shadow `db.tables`, which `wipeWorkspace` and the backup's clear list both
+read — the same reason `SchoolClass` is not `class`.
 
-Applying a template destroys the TABLES and deliberately spares the ARRANGEMENT. `reseat` pours the seated pupils into the new positions in reading order, so a grid restamped as an arc keeps its front row in front. Whoever no longer fits returns as `overflow` for the caller to warn about **before** the write, never silently dropped. That is what makes a destructive stamp survivable for a teacher who spent a term arranging 28 pupils: they lose the exact chairs, not the arrangement.
+**Three unique indexes carry rules that used to live only in careful code.**
+`&[roomId+x+y]` — no two desks share a point. `&[classId+roomId]` — one plan per
+class per salle, so `getOrCreatePlan` need not be trusted to keep it.
+`&[planId+studentId]` — one pupil is never in two chairs, and this one is
+load-bearing: seating an already-seated pupil **throws** unless the write clears
+their old row first, so `applyPlacement` deletes before it puts. Tests assert
+the DATABASE refuses each, not merely that our code avoids it; without them the
+ordering is untested ceremony a reader could reverse.
 
-Every template parameter counts TABLES, never pupils, and `TEMPLATE_LIMITS` plus `clampTemplate` live in the domain rather than the form. A seat total plus a row count is not a shape until something decides how they split.
+**One placement rule.** `resolvePlacement(held, target)` where `held` is
+`{ studentId, fromDeskId: string | null }`: whoever occupies the target goes
+where the held pupil came from. From a desk they swap; from the rail, "there" is
+the rail, so displacement is the general rule with an empty origin rather than a
+case of its own. An empty target degrades it to a move with no branch. There is
+one hint sentence, because there is one rule.
 
-`swapSeats` takes no `expectedStudentId`. A table has an id now, and the id is the guard — reading a removed or reassigned table by id simply fails, so the write never happens.
+**A tap on a pupil opens their card. Always.** That is the gesture of the lesson
+— attendance and behaviour — and it has no exceptions now. *Déplacer* is the
+card's primary action, above the register, because mid-lesson rearrangement is
+frequent and has no other path. *Retirer de sa place* replaces the old `↩` and
+reads as an action on a person rather than a symbol on a tile.
 
-A class may hold **several rooms** — the ordinary arrangement, one for
-assessments, one for group work. Which one is on screen is device-local
-(`src/domain/active-layout.ts`, `localStorage`), not a field on `SchoolClass`:
-a selection is not a property of the school, two devices would fight over it,
-and a backup would carry one device's view onto another. It is held as an id
-and resolved through `resolveActiveLayout`, so a deleted room falls back to the
-first rather than retargeting onto its neighbour.
+**Merging is a rendering, never a datum.** Two desks exactly `TABLE` apart draw
+as one continuous surface, so *tables de deux*, *îlots* and a *fer à cheval* all
+fall out of adjacency. `tableGroups` finds the components; `freeEdges` borders
+each place only where no sibling abuts, which is what gives a horseshoe its
+opening — outlining a group's bounding box paints the aisle solid. If the merge
+changed capacity, "is this one table or two" would become a question the
+assignment model has to answer, and it would answer it wrong every time a desk
+moved.
 
-**A layout is a view, never a record.** Attendance is keyed
-`[sessionId+studentId]` and a `BehaviourEvent` carries a `sessionId`, so
-neither has ever referred to a layout; switching rooms mid-lesson changes where
-a pupil is drawn, not what was recorded. Do not add a `layoutId` to either.
+**Adjacency was always legal.** `overlaps` tests `|dx| < TABLE`, so touching
+desks have always passed `canPlace`. What kept them apart was the generators
+stepping by `PITCH` between every DESK. Air belongs between GROUPS: `AISLE`
+between tables in a row, `ROW_GAP` between rows. A consequence worth knowing —
+the old `îlots` template did not make islands, it made 2×N spaced desks.
 
-`SeatingLayout.name` is optional and must stay so: `getOrCreateLayout` runs
-before anybody has named anything, and a *translated* default written into the
-row would be a stored label that stops matching the interface language — the UI
-renders `plan.layouts.unnamed` instead. The picker appears only once there are
-two rooms, rename and delete only in layout-edit mode, and the last room is
-never deletable, since the class would be handed a fresh default on the next
-render and the delete would read as "reset".
+**`frame` keeps two units of margin, not one.** With one, a fully stamped room
+has zero placeable squares — `canPlace` refuses anything within `TABLE` on both
+axes and candidates step by `TABLE` — so "Ajouter une table" has nowhere to go.
 
-A **saved room** (`rooms`, v9; `src/db/rooms.ts`) is a named shape — "Salle
-204" — stampable onto any class. It is a *user-defined template*, so applying
-one goes through `applyTemplate` and inherits every ruling the built-in
-templates already had: it stamps and then ceases to exist (nothing records
-where a layout's shape came from, so editing or deleting a saved room cannot
-reach a class already stamped from it), and `reseat` reports overflow before
-the write. It stores positions and **no pupils** — those ids do not exist in
-another class. `positions` is embedded rather than given its own table, the
-`RubricAssessment.criteria` precedent: never queried alone, always read whole.
+**The arc is a parabola, not a circle.** It used to derive a radius from an
+angular span with seats spaced ALONG the arc, which meant ten seats needed an
+enormous radius: ~1580px wide and two units deep at every setting, with `curve`
+barely moving the width. Seats now step by `PITCH` on X and bow on Y, so width
+is `(perRow - 1) * PITCH + TABLE` — the same as a straight row — and `curve` is
+the depth of the bow, which is what a teacher means by it. This is also why
+`ARC_SPACING` and its sqrt(2) derivation are gone: neighbours differ by `PITCH`
+on X, and a per-axis test clears on X alone whatever the bow does to Y.
+
+**A template stamps and ceases to exist**, unchanged from before, and so does a
+preset. Nothing records that a salle "is an arc". `applyShape` destroys the
+tables and spares the ARRANGEMENT: each plan's pupils are poured back in reading
+order, and whoever no longer fits is reported as `overflow` per plan **before**
+the write — a salle is shared, so a stamp reseats every class taught in it.
+
+**Drag is primary on the salle editor; tap is kept as its equivalent.** This
+departs from the no-drag ruling deliberately. That ruling was written for the
+plan a teacher taps mid-lesson; the salle editor is used once, sitting down.
+Keeping the tap path costs nothing (both share one `heldDeskId`), supplies the
+keyboard equivalent, and is the only reason the screen can be verified at all —
+a synthesised drag fires no HTML5 drag events. **The class tab has no drag.**
+
+**Salles is a seventh drawer destination.** That looks like a violation of the
+rule keeping workspace management out of the drawer and is not: that rule is
+about *configuration*. Once furniture belongs to the établissement rather than
+to a class, a salle is *content*, like Élèves.
+
+`deleteRoom` **cascades rather than refuses**, unlike `deleteSubject`. Destroying
+gradebooks as a side effect of removing a subject is too much to do implicitly;
+an arrangement is rebuilt in a minute, and refusing would strand a salle behind
+classes no longer taught. The `ConfirmButton` names the classes that lose one.
+`deleteClass` takes its plans and leaves the salle standing. `deleteStudent`
+deletes their assignments rather than emptying them — an assignment is the pair,
+and there is no row left without the pupil.
+
+`RoomCanvas` owns the floor, the scale, the board and the merged tables, and no
+gesture beyond reporting where the floor was touched. Two layout facts it
+earned the hard way: the element that MEASURES available width must be full
+width while the one that draws the wall must be content-sized (one element
+cannot be both, or the observed width becomes the room's own and the scale never
+shrinks), and the scroll belongs on the measurer — below `MIN_SCALE` the room
+deliberately stops shrinking, and a content-sized wall then pushes the rail off
+the screen instead of scrolling.
 
 ### The class is the page
 
@@ -251,7 +316,8 @@ Destructive actions go through `ConfirmButton` (two-step, in place). Its confirm
 
 - No sync of any kind. JSON export/import in Réglages is the only way to move data between devices, and it omits student photos (`Blob`s cannot survive `JSON.stringify`); both documents say so, and any change must keep them accurate. `Student.notes` — which can carry accommodations such as PAP, PPRE, tiers-temps — **is** included, and `PRIVACY.md` says so explicitly.
 - Behaviour counts on the pupil page filter by **date**, not by gradebook period, and that is deliberate: a `Period` carries no dates and belongs to a gradebook, so a class with three gradebooks has three period calendars that need not agree, while a `Session` is simply dated. Giving `Period` dates would change what marking filters by in order to fix one count. The windows are everything (default), 30 days, and the term anchor — no "trimestre", because nothing knows when one ends. `rangeStart` walks the calendar rather than subtracting milliseconds, for the `weekParity` reason. Only the counts narrow; the timeline stays complete.
-- One seating layout per class (`docs/BACKLOG.md` #4) — the schema supports several, the UI does not. A room cannot yet be saved as a named layout reusable by another class.
+- One plan per (class, salle). A class taught in two salles has two plans and picks between them by picking the salle; several NAMED arrangements of the same salle were considered and cut, since rearranging and rearranging back is cheaper than a feature. This closes `docs/BACKLOG.md` #4 differently from how it was written.
+- `ScheduleEntry.room` is still free text ("B12", "Labo") and is not wired to `Room.id`. Doing so would let Today open a lesson straight onto the right salle, but it is a second migration with its own question — what happens to a timetable naming a room nobody created.
 - A gradebook cannot be renamed after creation, and periods cannot be reordered.
 - `src/modules/classes/page.tsx` imports `ClassForm` from the class module, crossing the boundary described above. An accepted exception, since both screens create classes.
 - The timetable is weekly with A/B alternation only. French secondary runs weekly, and an n-day rotation would cost every teacher editor complexity for a case this audience rarely has.

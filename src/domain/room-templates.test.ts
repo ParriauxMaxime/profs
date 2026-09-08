@@ -194,10 +194,22 @@ describe("arc", () => {
     }
   });
 
-  it("is wider when the curve is shallow — which is why ROOM_MAX is 120", () => {
-    const shallow = buildRoom({ id: "arc", perRow: 20, rows: 1, curve: 1 });
-    const deep = buildRoom({ id: "arc", perRow: 20, rows: 1, curve: 5 });
-    expect(shallow.width).toBeGreaterThan(deep.width);
+  it("is no wider than the straight row of the same length", () => {
+    // The old arc derived its radius from an angular span, so ten seats came
+    // out ~44 units across at EVERY curvature — a flat line stretched over
+    // 1600px. Width is now fixed by the seat spacing, and only the depth moves.
+    const straight = buildRoom({ id: "rows", rows: 1, tables: 10, perTable: 1 });
+    for (const curve of [1, 3, 5]) {
+      const arc = buildRoom({ id: "arc", perRow: 10, rows: 1, curve });
+      expect(arc.width).toBeLessThanOrEqual(straight.width);
+    }
+  });
+
+  it("bows deeper as the curve rises, and only deeper", () => {
+    const shallow = buildRoom({ id: "arc", perRow: 10, rows: 1, curve: 1 });
+    const deep = buildRoom({ id: "arc", perRow: 10, rows: 1, curve: 5 });
+    expect(deep.height).toBeGreaterThan(shallow.height);
+    expect(deep.width).toBe(shallow.width);
   });
 });
 

@@ -39,18 +39,6 @@ export const ROW_GAP = 1;
  */
 export const FLOOR_MARGIN = 2;
 
-/**
- * The step along and between curved rows.
- *
- * Larger than PITCH, and the difference is load-bearing. `canPlace` is
- * per-axis, and on a diagonal `max(|dx|,|dy|)` is only `distance / sqrt(2)`;
- * rounding then costs up to a further unit per axis. Post-rounding we need 2,
- * so pre-rounding 3, so a centre distance of `3 * sqrt(2) ~= 4.25`, so — a
- * chord being about 0.93 of its arc at the widest step in range — an arc step
- * of 4.57. Five is that, rounded up.
- */
-export const ARC_SPACING = 5;
-
 /** The largest room in either direction. */
 export const ROOM_MAX = 120;
 
@@ -160,19 +148,6 @@ export function occupantsInReadingOrder(seats: Seated[]): string[] {
     .sort(compareReadingOrder)
     .map((seat) => seat.studentId)
     .filter((studentId): studentId is string => studentId !== null);
-}
-
-/**
- * Pupils holding no table, in the order they were given.
- *
- * With two seat states rather than three, this is the whole of "who is in the
- * rail": a pupil is unseated when no table names them — including because
- * their table was removed, which is why `removeTable` needs no companion
- * write to put them back.
- */
-export function unseatedStudentIds(students: { id: string }[], seats: Seated[]): string[] {
-  const seated = new Set(seats.map((s) => s.studentId).filter((id): id is string => id !== null));
-  return students.filter((s) => !seated.has(s.id)).map((s) => s.id);
 }
 
 /**
@@ -297,6 +272,35 @@ export function tableGroups<T extends Placed>(desks: T[]): TableGroup<T>[] {
   return groups;
 }
 
+/** Which sides of a desk face open air rather than a neighbour. */
+export interface FreeEdges {
+  top: boolean;
+  right: boolean;
+  bottom: boolean;
+  left: boolean;
+}
+
+/**
+ * The sides of `desk` that no sibling in `group` abuts.
+ *
+ * This is what draws a merged table. Outlining a group's BOUNDING BOX works
+ * only while the group is a rectangle: a horseshoe or an L would come out as a
+ * filled rectangle enclosing the aisle it is built around. Bordering each
+ * place on its free sides only gives the true silhouette for any shape, and
+ * suppresses exactly the internal seams that would otherwise cut a table de
+ * deux down the middle.
+ */
+export function freeEdges(desk: Placed, group: readonly Placed[]): FreeEdges {
+  const at = (dx: number, dy: number): boolean =>
+    !group.some((other) => other.x === desk.x + dx && other.y === desk.y + dy);
+  return {
+    top: at(0, -TABLE),
+    right: at(TABLE, 0),
+    bottom: at(0, TABLE),
+    left: at(-TABLE, 0),
+  };
+}
+
 /**
  * A pupil in the teacher's hand.
  *
@@ -341,42 +345,4 @@ export function resolvePlacement(held: HeldPupil, target: Seated | undefined): P
     deskId: target.id,
     displaced: occupant === null ? null : { studentId: occupant, deskId: held.fromDeskId },
   };
-}
-
-export type Held =
-  | { kind: "pool"; studentId: string }
-  | { kind: "seat"; seatId: string }
-  | { kind: "table"; seatId: string };
-
-/** What a drop resolves to. The caller turns it into exactly one write. */
-export type DropAction =
-  | { kind: "none" }
-  | { kind: "seat"; studentId: string; seatId: string }
-  | { kind: "swap"; fromSeatId: string; toSeatId: string }
-  | { kind: "moveTable"; seatId: string; to: Position };
-
-/**
- * Dropping on a TABLE.
- *
- * A pupil from the rail seats and displaces; a pupil from a table swaps, which
- * degrades to a move when the target is empty; furniture is never dropped onto
- * furniture.
- */
-export function resolveDrop(held: Held, target: Seated | undefined): DropAction {
-  if (target === undefined) return { kind: "none" };
-  switch (held.kind) {
-    case "pool":
-      return { kind: "seat", studentId: held.studentId, seatId: target.id };
-    case "seat":
-      if (held.seatId === target.id) return { kind: "none" };
-      return { kind: "swap", fromSeatId: held.seatId, toSeatId: target.id };
-    case "table":
-      return { kind: "none" };
-  }
-}
-
-/** Dropping on bare FLOOR. Only furniture goes there. */
-export function resolveFloorDrop(held: Held, at: Position): DropAction {
-  if (held.kind !== "table") return { kind: "none" };
-  return { kind: "moveTable", seatId: held.seatId, to: at };
 }

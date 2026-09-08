@@ -19,8 +19,6 @@ import type {
   RubricTemplate,
   ScheduleEntry,
   SchoolClass,
-  Seat,
-  SeatingLayout,
   SeatingPlan,
   Session,
   Student,
@@ -29,7 +27,7 @@ import type {
 } from "./types";
 
 export interface WorkspaceBackup {
-  version: 9;
+  version: 10;
   exportedAt: number;
   classes: SchoolClass[];
   students: Student[];
@@ -41,8 +39,6 @@ export interface WorkspaceBackup {
   sessions: Session[];
   attendance: AttendanceRecord[];
   behaviourEvents: BehaviourEvent[];
-  seatingLayouts: SeatingLayout[];
-  seats: Seat[];
   rooms: Room[];
   desks: Desk[];
   seatingPlans: SeatingPlan[];
@@ -74,7 +70,7 @@ export interface WorkspaceBackup {
  * it, because half a workspace looks like a whole one.
  */
 const backupSchema = z.object({
-  version: z.literal(9),
+  version: z.literal(10),
   exportedAt: z.number(),
   classes: z.array(z.object({ id: z.string() }).loose()),
   students: z.array(z.object({ id: z.string() }).loose()),
@@ -104,18 +100,6 @@ const backupSchema = z.object({
       .loose(),
   ),
   behaviourEvents: z.array(z.object({ id: z.string() }).loose()),
-  seatingLayouts: z.array(z.object({ id: z.string() }).loose()),
-  seats: z.array(
-    z
-      .object({
-        id: z.string(),
-        layoutId: z.string(),
-        x: z.number(),
-        y: z.number(),
-        studentId: z.string().nullable(),
-      })
-      .loose(),
-  ),
   rooms: z.array(z.object({ id: z.string() }).loose()),
   desks: z.array(
     z.object({ id: z.string(), roomId: z.string(), x: z.number(), y: z.number() }).loose(),
@@ -169,8 +153,6 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     sessions,
     attendance,
     behaviourEvents,
-    seatingLayouts,
-    seats,
     rooms,
     desks,
     seatingPlans,
@@ -193,8 +175,6 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     db.sessions.toArray(),
     db.attendance.toArray(),
     db.behaviourEvents.toArray(),
-    db.seatingLayouts.toArray(),
-    db.seats.toArray(),
     db.rooms.toArray(),
     db.desks.toArray(),
     db.seatingPlans.toArray(),
@@ -209,7 +189,7 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
   ]);
 
   return {
-    version: 9,
+    version: 10,
     exportedAt: Date.now(),
     classes,
     students: students.map(({ photo: _photo, ...rest }) => rest),
@@ -234,8 +214,6 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     sessions,
     attendance,
     behaviourEvents,
-    seatingLayouts,
-    seats,
     rooms,
     desks,
     seatingPlans,
@@ -308,8 +286,6 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     db.sessions,
     db.attendance,
     db.behaviourEvents,
-    db.seatingLayouts,
-    db.seats,
     db.rooms,
     db.desks,
     db.seatingPlans,
@@ -335,8 +311,6 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     await db.sessions.bulkAdd(data.sessions);
     await db.attendance.bulkPut(data.attendance);
     await db.behaviourEvents.bulkAdd(data.behaviourEvents);
-    await db.seatingLayouts.bulkAdd(data.seatingLayouts);
-    await db.seats.bulkPut(data.seats);
     await db.rooms.bulkAdd(data.rooms);
     await db.desks.bulkAdd(data.desks);
     await db.seatingPlans.bulkAdd(data.seatingPlans);

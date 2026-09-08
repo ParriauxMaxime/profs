@@ -250,15 +250,10 @@
     "unseated": "Students without a seat",
     "allSeated": "All students are seated",
     "hintPick": "Tap a pupil, then a seat.",
-    "hintPlaceFromRail": "Drop them on a seat. If it is taken, whoever is sitting there goes back to the list.",
-    "hintPlaceFromSeat": "Drop them on a seat. If it is taken, the two pupils swap.",
-    "hintPlaceTable": "Drop the table, or nudge it with the arrow keys.",
     "searchPupil": "Search for a pupil",
     "movePupil": "Move",
     "emptySeat": "Empty seat",
     "board": "Board",
-    "removeTable": "Remove the table",
-    "freeSeat": "Free the seat",
     "confirmStamp": "Replace every table",
     "template": "Layout",
     "templateRows": "Rows",
@@ -278,11 +273,6 @@
     "apply": "Apply",
     "resizeWarning_one": "{{count}} student will lose their seat.",
     "resizeWarning_other": "{{count}} students will lose their seat.",
-    "editLayout": "Edit layout",
-    "doneEditing": "Done",
-    "moveHere": "Move here",
-    "addTable": "Add a table",
-    "holdTable": "Move the table",
     "emptyRoom": "This room has no tables. Pick a layout to fill it.",
     "layouts": {
       "label": "Rooms for this class",
@@ -292,7 +282,13 @@
       "rename": "Rename",
       "delete": "Delete room",
       "deleteConfirm": "Delete “{{name}}” and the arrangement in it"
-    }
+    },
+    "room": "Room",
+    "manageRooms": "Manage rooms →",
+    "noRoom": "No room in this school yet. Create one before you can seat your pupils.",
+    "hintPlace": "Drop them on a seat. The two pupils swap.",
+    "placeHere": "Place here",
+    "unseat": "Take out of their seat"
   },
   "behaviour": {
     "title": "Behaviour",
@@ -452,8 +448,6 @@
     "help": "A room belongs to the school. Each class taught in it keeps its own seating plan.",
     "name": "Room name",
     "namePlaceholder": "204",
-    "add": "Create room",
-    "addHint": "Created with {{count}} seats, to rearrange afterwards.",
     "empty": "No rooms yet. Create one — this is where the tables live, and your classes come to sit at them.",
     "open": "Open",
     "delete": "Delete room",
@@ -474,6 +468,14 @@
     "emptyRoom": "This room has no tables. Drag one from “Add”, or choose a layout.",
     "model": "Layout",
     "stampWarning_one": "{{count}} pupil will lose their seat, across all classes.",
-    "stampWarning_other": "{{count}} pupils will lose their seats, across all classes."
+    "stampWarning_other": "{{count}} pupils will lose their seats, across all classes.",
+    "pickShape": "Pick a starting layout — everything stays editable afterwards.",
+    "preset": {
+      "pairs": "Tables for two",
+      "single": "Single desks",
+      "islands": "Islands",
+      "arc": "Curved rows",
+      "u": "Horseshoe"
+    }
   }
 }

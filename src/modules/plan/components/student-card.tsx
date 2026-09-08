@@ -37,12 +37,15 @@ export function StudentCard({
   session,
   onClose,
   onMove,
+  onUnseat,
 }: {
   student: Student;
   session?: Session | null;
   onClose: () => void;
   /** Only the seating plan can pick a pupil back up. */
   onMove?: () => void;
+  /** Only offered when they actually hold a place. */
+  onUnseat?: () => void;
 }) {
   const { t } = useTranslation();
   const db = useDb();
@@ -107,17 +110,31 @@ export function StudentCard({
             </Link>
           </div>
         </div>
-        <div className="flex gap-2">
+        <button type="button" className="btn" onClick={onClose}>
+          {t("common.close")}
+        </button>
+      </div>
+
+      {/* Above the register, and the larger of the two.
+          Moving a pupil mid-lesson — Adam is chatting, put him at the front —
+          is frequent and has NO other path: a tap on a pupil opens this card,
+          always, so the card is where the move has to start. `Retirer de sa
+          place` is what the old `↩` on a seat tile was, and reads as an action
+          on a person rather than as a symbol on a case. */}
+      {(onMove || onUnseat) && (
+        <div className="flex flex-col gap-2">
           {onMove && (
-            <button type="button" className="btn" onClick={onMove}>
+            <button type="button" className="btn btn-primary w-full" onClick={onMove}>
               {t("plan.movePupil")}
             </button>
           )}
-          <button type="button" className="btn" onClick={onClose}>
-            {t("common.close")}
-          </button>
+          {onUnseat && (
+            <button type="button" className="btn w-full" onClick={onUnseat}>
+              {t("plan.unseat")}
+            </button>
+          )}
         </div>
-      </div>
+      )}
 
       {session ? (
         <>

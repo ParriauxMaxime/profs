@@ -16,8 +16,6 @@ import type {
   RubricTemplate,
   ScheduleEntry,
   SchoolClass,
-  Seat,
-  SeatingLayout,
   SeatingPlan,
   Session,
   Student,
@@ -42,8 +40,6 @@ export type {
   RubricTemplate,
   ScheduleEntry,
   SchoolClass,
-  Seat,
-  SeatingLayout,
   SeatingPlan,
   Session,
   Student,
@@ -62,8 +58,6 @@ export type AppDatabase = Dexie & {
   sessions: EntityTable<Session, "id">;
   attendance: Table<AttendanceRecord, [string, string]>;
   behaviourEvents: EntityTable<BehaviourEvent, "id">;
-  seatingLayouts: EntityTable<SeatingLayout, "id">;
-  seats: EntityTable<Seat, "id">;
   rooms: EntityTable<Room, "id">;
   desks: EntityTable<Desk, "id">;
   seatingPlans: EntityTable<SeatingPlan, "id">;
@@ -230,6 +224,18 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
     desks: "id, roomId, &[roomId+x+y]",
     seatingPlans: "id, classId, roomId, &[classId+roomId]",
     assignments: "[planId+deskId], planId, deskId, studentId, &[planId+studentId]",
+  });
+  // v12 drops the per-class layout, now that the plan tab reads the salle.
+  //
+  // Both stores changed SHAPE rather than key, which is the case v7's comment
+  // generalised: a Seat carried a `studentId` and a SeatingLayout carried a
+  // `classId`, and neither means anything once furniture belongs to a salle
+  // and the assignation is its own row. Carried forward, a v11 seat would feed
+  // a `layoutId` into code reading `planId` — a room that renders nothing and
+  // cannot be told from an empty one.
+  db.version(12).stores({
+    seats: null,
+    seatingLayouts: null,
   });
   return db;
 }

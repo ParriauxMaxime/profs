@@ -51,11 +51,12 @@ export async function deleteColumn(db: AppDatabase, columnId: string): Promise<v
 }
 
 /**
- * A pupil's rows reach into six tables. The seat is emptied rather than
- * deleted: a seat row is a TABLE, furniture the teacher placed, and a pupil
- * leaving the class is no reason to take their table out of the room. Deleting
- * it would redraw the layout behind the teacher's back — the room would come
- * back one table short, with nothing to say why.
+ * A pupil's rows reach into six tables.
+ *
+ * Their ASSIGNMENT is deleted rather than emptied: an assignment is the pair
+ * (place, pupil), so without the pupil there is no row left to hold. The DESK
+ * is untouched — it is furniture in a salle, and a pupil leaving the class is
+ * no reason to take a table out of the room.
  */
 export async function deleteStudent(db: AppDatabase, studentId: string): Promise<void> {
   await db.transaction(
@@ -65,7 +66,6 @@ export async function deleteStudent(db: AppDatabase, studentId: string): Promise
       db.grades,
       db.attendance,
       db.behaviourEvents,
-      db.seats,
       db.assignments,
       db.rubricScores,
       db.groupMembers,
@@ -74,7 +74,6 @@ export async function deleteStudent(db: AppDatabase, studentId: string): Promise
       await db.grades.where("studentId").equals(studentId).delete();
       await db.attendance.where("studentId").equals(studentId).delete();
       await db.behaviourEvents.where("studentId").equals(studentId).delete();
-      await db.seats.where("studentId").equals(studentId).modify({ studentId: null });
       // Deleted rather than emptied: an assignment is the pair (place, pupil),
       // so without the pupil there is no row left to keep — unlike a Seat,
       // which is furniture that survives its occupant.
@@ -174,8 +173,6 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
       db.sessions,
       db.attendance,
       db.behaviourEvents,
-      db.seatingLayouts,
-      db.seats,
       db.seatingPlans,
       db.assignments,
       db.rubricAssessments,
@@ -213,7 +210,6 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
         // pupil it describes.
         await db.attendance.where("studentId").anyOf(studentIds).delete();
         await db.behaviourEvents.where("studentId").anyOf(studentIds).delete();
-        await db.seats.where("studentId").anyOf(studentIds).modify({ studentId: null });
         await db.rubricScores.where("studentId").anyOf(studentIds).delete();
         await db.students.bulkDelete(studentIds);
       }
@@ -224,12 +220,6 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
         await db.sessions.bulkDelete(sessionIds);
       }
       await db.behaviourEvents.where("classId").equals(classId).delete();
-
-      const layoutIds = await db.seatingLayouts.where("classId").equals(classId).primaryKeys();
-      if (layoutIds.length > 0) {
-        await db.seats.where("layoutId").anyOf(layoutIds).delete();
-        await db.seatingLayouts.bulkDelete(layoutIds);
-      }
 
       // The class's arrangements go; the SALLES they were made in do not. A
       // room belongs to the établissement and outlives every class taught in
@@ -304,13 +294,6 @@ export async function deleteBehaviourEvent(db: AppDatabase, eventId: string): Pr
 }
 
 /** The room and every table in it. */
-export async function deleteSeatingLayout(db: AppDatabase, layoutId: string): Promise<void> {
-  await db.transaction("rw", [db.seatingLayouts, db.seats], async () => {
-    await db.seats.where("layoutId").equals(layoutId).delete();
-    await db.seatingLayouts.delete(layoutId);
-  });
-}
-
 /**
  * A salle, its furniture, and every arrangement made in it.
  *

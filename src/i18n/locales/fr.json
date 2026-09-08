@@ -250,15 +250,10 @@
     "unseated": "Élèves sans place",
     "allSeated": "Tous les élèves sont placés",
     "hintPick": "Touchez un élève, puis une place.",
-    "hintPlaceFromRail": "Posez-le sur une place. Occupée, l'élève qui s'y trouve retourne dans la liste.",
-    "hintPlaceFromSeat": "Posez-le sur une place. Occupée, les deux élèves échangent.",
-    "hintPlaceTable": "Posez la table, ou ajustez-la aux flèches.",
     "searchPupil": "Rechercher un élève",
     "movePupil": "Déplacer",
     "emptySeat": "Place libre",
     "board": "Tableau",
-    "removeTable": "Retirer la table",
-    "freeSeat": "Libérer la place",
     "confirmStamp": "Remplacer toutes les tables",
     "template": "Disposition",
     "templateRows": "Rangées",
@@ -278,11 +273,6 @@
     "apply": "Appliquer",
     "resizeWarning_one": "{{count}} élève perdra sa place.",
     "resizeWarning_other": "{{count}} élèves perdront leur place.",
-    "editLayout": "Modifier le plan",
-    "doneEditing": "Terminer",
-    "moveHere": "Déplacer ici",
-    "addTable": "Ajouter une table",
-    "holdTable": "Déplacer la table",
     "emptyRoom": "Cette salle n'a aucune table. Choisissez une disposition pour la remplir.",
     "layouts": {
       "label": "Salles de cette classe",
@@ -292,7 +282,13 @@
       "rename": "Renommer",
       "delete": "Supprimer la salle",
       "deleteConfirm": "Supprimer « {{name}} » et le placement qu'elle contient"
-    }
+    },
+    "room": "Salle",
+    "manageRooms": "Gérer les salles →",
+    "noRoom": "Aucune salle dans cet établissement. Créez-en une pour pouvoir y placer vos élèves.",
+    "hintPlace": "Posez-le sur une place. Les deux élèves permutent.",
+    "placeHere": "Poser ici",
+    "unseat": "Retirer de sa place"
   },
   "behaviour": {
     "title": "Comportement",
@@ -452,8 +448,6 @@
     "help": "Une salle appartient à l'établissement. Les classes qui y passent gardent chacune leur plan de table.",
     "name": "Nom de la salle",
     "namePlaceholder": "204",
-    "add": "Créer la salle",
-    "addHint": "Créée avec {{count}} places, à réarranger ensuite.",
     "empty": "Aucune salle pour l'instant. Créez-en une : c'est là que vivent les tables, et vos classes viendront s'y asseoir.",
     "open": "Ouvrir",
     "delete": "Supprimer la salle",
@@ -474,6 +468,14 @@
     "emptyRoom": "Cette salle n'a aucune table. Glissez-en une depuis « Ajouter », ou choisissez une disposition.",
     "model": "Modèle",
     "stampWarning_one": "{{count}} élève perdra sa place, toutes classes confondues.",
-    "stampWarning_other": "{{count}} élèves perdront leur place, toutes classes confondues."
+    "stampWarning_other": "{{count}} élèves perdront leur place, toutes classes confondues.",
+    "pickShape": "Choisissez une disposition de départ — tout reste modifiable ensuite.",
+    "preset": {
+      "pairs": "Tables de deux",
+      "single": "Tables individuelles",
+      "islands": "Îlots",
+      "arc": "Arc de cercle",
+      "u": "Fer à cheval"
+    }
   }
 }

@@ -1,51 +1,41 @@
-import type { GroupMember, Student } from "@db";
-import { deleteSeatingLayout } from "@db/cascade";
+import type { Assignment, Desk, GroupMember, Student } from "@db";
+import { applyPlacement, assignmentsForPlan, getOrCreatePlan, unassign } from "@db/plans";
 import { useDb } from "@db/provider";
-import {
-  addTable,
-  createLayout,
-  getOrCreateLayout,
-  listLayouts,
-  moveTable,
-  nudgeTable,
-  renameLayout,
-  seatStudent,
-  swapSeats,
-} from "@db/seating";
+import { desksForRoom, listRooms } from "@db/rooms";
 import { createSession, getOrCreateTodaySession, sessionsForClass, startOfDay } from "@db/sessions";
-import {
-  clearActiveLayout,
-  readActiveLayout,
-  resolveActiveLayout,
-  writeActiveLayout,
-} from "@domain/active-layout";
+import { readActiveRoom, resolveActiveRoom, writeActiveRoom } from "@domain/active-room";
 import { filterByGroup } from "@domain/group";
-import {
-  type Held,
-  type Position,
-  resolveDrop,
-  resolveFloorDrop,
-  unseatedStudentIds,
-} from "@domain/room";
+import { type HeldPupil, resolvePlacement } from "@domain/room";
+import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Router } from "../../router";
+import { PupilName } from "../design-system/components/pupil-name";
+import { RoomCanvas } from "../rooms/components/room-canvas";
 import { useEscape } from "../shared/use-escape";
-import { LayoutBar } from "./components/layout-bar";
-import { RoomTemplateForm } from "./components/room-template-form";
-import { RoomView } from "./components/room-view";
+import { PupilDisc } from "./components/pupil-disc";
 import { SessionBar } from "./components/session-bar";
 import { StudentCard } from "./components/student-card";
 import { StudentRail } from "./components/student-rail";
 
 /**
- * The seating plan, rendered as the class hub's first tab.
+ * The seating plan: a class poured into a salle.
+ *
+ * NO furniture on this screen. Not a `×`, not a floor slot, not a template
+ * form, not a mode toggle — those live where the salle lives, and moving them
+ * there is the whole of the redesign. The screen a teacher touches every hour
+ * lost every control that could damage the room.
+ *
+ * So a tap has exactly one meaning again: on a pupil it opens their card, and
+ * that is the gesture of the lesson itself. Moving somebody starts from the
+ * card's `Déplacer`, which is frequent enough to be its primary action and has
+ * no other path.
  *
  * The pupils, the groups and the two shared selections come from the shell:
- * the group filter and the selected session are the class's, not this view's,
- * so that filtering the roster and opening the plan agree. What stays local is
- * this view's own gesture — who is held in the hand, whether the room is being
- * resized, whose card is open.
+ * the group filter and the selected session are the class's, not this view's.
+ * What stays local is this view's own gesture — who is in the hand, whose card
+ * is open, which salle is being looked at.
  */
 export function PlanPage({
   classId,
@@ -64,16 +54,11 @@ export function PlanPage({
 }) {
   const { t } = useTranslation();
   const db = useDb();
-  // Who is in the teacher's hand: a pupil id from the rail, or a table's id.
-  // Never a list index and never a coordinate — the rail reorders on every
-  // placement, and a table can be moved out from under a coordinate.
-  const [held, setHeld] = useState<Held | null>(null);
-  const [resizing, setResizing] = useState(false);
+  // A pupil id plus where they came from. Never a rail index and never a
+  // coordinate: the rail reorders on every placement, and a desk can move out
+  // from under a coordinate.
+  const [held, setHeld] = useState<HeldPupil | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  // True once the teacher has picked a session themselves (the switcher, or
-  // "Nouvelle séance"). While false, the selection is only ever today's
-  // session, kept in sync with the calendar — see the focus listener below.
-  // Local: it describes this view's gesture, not a selection another tab needs.
   const [manualSelection, setManualSelection] = useState(false);
 
   const selectSession = useCallback(
@@ -108,17 +93,12 @@ export function PlanPage({
     };
   }, []);
 
-  // Resolves the selection to today's session: on first mount
-  // (selectedSessionId is still null), if the selected session vanished —
-  // deleted by this tab's own ConfirmButton, or by another tab — or, for an
-  // automatic (non-manual) selection, whenever the calendar date has moved
-  // on since it was picked. A manual pick of a past session is left alone.
-  // `getOrCreateTodaySession` re-checks inside a transaction, so this is
+  // Resolves the selection to today's session: on first mount, if the selected
+  // session vanished, or — for an automatic selection — once the calendar date
+  // has moved on since it was picked. A manual pick of a past session is left
+  // alone. `getOrCreateTodaySession` re-checks inside a transaction, so this is
   // idempotent under StrictMode's double-invoked effects.
   useEffect(() => {
-    // `refreshTick` carries no value of its own — touching it here is what
-    // makes a focus/visibility event force this staleness check to re-run
-    // even though nothing else changed.
     void refreshTick;
     if (sessions === undefined) return;
     const current = sessions.find((s) => s.id === selectedSessionId);
@@ -136,146 +116,95 @@ export function PlanPage({
 
   const session = sessions?.find((s) => s.id === selectedSessionId) ?? null;
 
-  const layouts = useLiveQuery(() => listLayouts(db, classId), [db, classId]);
-  // The selection is device-local and held as an id, never an index: deleting
-  // a room reorders the list, and an index would retarget onto its neighbour.
-  const [storedLayoutId, setStoredLayoutId] = useState(() => readActiveLayout(classId));
-  const activeLayoutId = resolveActiveLayout(layouts ?? [], storedLayoutId);
-  const layout = layouts?.find((l) => l.id === activeLayoutId) ?? null;
+  const rooms = useLiveQuery(() => listRooms(db), [db]);
+  // Device-local and held as an id, never an index: deleting a salle reorders
+  // the list, and an index would retarget onto its neighbour.
+  const [storedRoomId, setStoredRoomId] = useState(() => readActiveRoom(classId));
+  const activeRoomId = resolveActiveRoom(rooms ?? [], storedRoomId);
+  const room = rooms?.find((r) => r.id === activeRoomId) ?? null;
 
-  const selectLayout = useCallback(
-    (layoutId: string) => {
-      // Switching rooms releases the hand: a table held in one room does not
-      // exist in the next, exactly as leaving layout-edit mode releases it.
+  const selectRoom = useCallback(
+    (roomId: string) => {
+      // Switching salles releases the hand: the place being aimed at does not
+      // exist in the next room.
       setHeld(null);
-      writeActiveLayout(classId, layoutId);
-      setStoredLayoutId(layoutId);
+      writeActiveRoom(classId, roomId);
+      setStoredRoomId(roomId);
     },
     [classId],
   );
-  const seats = useLiveQuery(
-    async () => (layout ? await db.seats.where("layoutId").equals(layout.id).toArray() : []),
-    [db, layout?.id],
+
+  const desks = useLiveQuery(
+    async () => (room ? await desksForRoom(db, room.id) : []),
+    [db, room?.id],
   );
-  // A class gets its room the first time someone looks at it. Creating it in
-  // an effect rather than in the live query keeps the query a pure read;
-  // `getOrCreateLayout` re-checks inside its transaction, so StrictMode's
-  // double-invoked effect cannot produce two rooms for one class.
+  // A class gets its plan in a salle the first time it is looked at there.
+  // Creating it in an effect rather than in the live query keeps the query a
+  // pure read; `getOrCreatePlan` re-checks inside its transaction, so
+  // StrictMode's double-invoked effect cannot produce two plans.
+  const plan = useLiveQuery(
+    async () =>
+      room ? ((await db.seatingPlans.where({ classId, roomId: room.id }).first()) ?? null) : null,
+    [db, classId, room?.id],
+  );
   useEffect(() => {
-    // `undefined` is "still loading" and must not trigger a create; only an
-    // actually-empty list does.
-    if (layouts === undefined || layouts.length > 0) return;
-    void getOrCreateLayout(db, classId);
-  }, [db, classId, layouts]);
+    if (room === null || plan !== null) return;
+    void getOrCreatePlan(db, classId, room.id);
+  }, [db, classId, room, plan]);
 
-  // Half-tile precision by keyboard. Tapping the floor is whole-tile only, so
-  // without this the odd coordinates an arc uses would be unreachable to
-  // anyone not using a pointer — and unreachable to everyone for fine
-  // adjustment. `nudgeTable` reads the seat's position fresh inside its own
-  // transaction rather than trusting a snapshot this closure captured, so a
-  // key held down (several `keydown`s firing before any one write's
-  // live-query tick lands) still walks the table one unit per press instead
-  // of rewriting the same square. `seats` is deliberately NOT a dependency:
-  // the effect no longer reads a position out of it, so there is nothing for
-  // a live-query tick to make stale, and re-subscribing on every tick would
-  // only reopen the door this exists to close. `nudgeTable` refuses a nudge
-  // that would overlap or leave the room, so a key held down against the
-  // wall writes nothing. Enter is deliberately not bound: the move has
-  // already been written by the time the key is released, so committing is
-  // releasing, and `useEscape` already clears the hold.
-  useEffect(() => {
-    if (held?.kind !== "table") return;
-    const heldSeatId = held.seatId;
-    const deltas: Record<string, Position> = {
-      ArrowLeft: { x: -1, y: 0 },
-      ArrowRight: { x: 1, y: 0 },
-      ArrowUp: { x: 0, y: -1 },
-      ArrowDown: { x: 0, y: 1 },
-    };
-    function onKeyDown(event: KeyboardEvent): void {
-      const delta = deltas[event.key];
-      if (!delta) return;
-      // The template form is on screen whenever a table can be held, so its
-      // number spinners are one Tab away from the room. Without this guard the
-      // nudge eats their arrow keys — and the `preventDefault` below cancels
-      // the input's own increment, so "Rangées" would refuse to count up while
-      // the table moved instead.
-      const target = event.target;
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLSelectElement ||
-        target instanceof HTMLTextAreaElement
-      ) {
-        return;
-      }
-      event.preventDefault();
-      void nudgeTable(db, heldSeatId, delta);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [db, held]);
+  const assignments = useLiveQuery(
+    async () => (plan ? await assignmentsForPlan(db, plan.id) : []),
+    [db, plan?.id],
+  );
 
-  // The class, its pupils and its groups are the shell's — only this tab's own
-  // reads can still be loading here.
-  if (layout === undefined || seats === undefined || sessions === undefined) {
+  if (rooms === undefined || sessions === undefined) {
     return <p className="text-text-muted">{t("common.loading")}</p>;
   }
-  if (layout === null) return <p className="text-text-muted">{t("common.loading")}</p>;
 
-  const unseated = unseatedStudentIds(students, seats);
+  // A workspace with no salle at all: there is nowhere to seat anybody, and
+  // saying so beats drawing an empty floor that looks broken.
+  if (room === null) {
+    return (
+      <div className="flex flex-col items-start gap-3">
+        <p className="text-sm text-text-muted">{t("plan.noRoom")}</p>
+        <Link className="btn btn-primary" to={Router.Rooms()}>
+          {t("plan.manageRooms")}
+        </Link>
+      </div>
+    );
+  }
+  if (desks === undefined || assignments === undefined || !plan) {
+    return <p className="text-text-muted">{t("common.loading")}</p>;
+  }
+  const planId = plan.id;
+
+  const byDesk = new Map(assignments.map((a: Assignment) => [a.deskId, a.studentId]));
+  const seatedIds = new Set(assignments.map((a: Assignment) => a.studentId));
   const byId = new Map(students.map((s) => [s.id, s]));
-  const unseatedStudents = unseated.map((id) => byId.get(id)).filter((s) => s !== undefined);
+
+  const unseatedStudents = students.filter((s) => !seatedIds.has(s.id));
   const visibleUnseated = filterByGroup(unseatedStudents, memberships, selectedGroupId);
 
-  const onDropSeat = async (seatId: string): Promise<void> => {
+  const deskOf = (studentId: string): string | null =>
+    assignments.find((a: Assignment) => a.studentId === studentId)?.deskId ?? null;
+
+  const onPlace = async (desk: Desk): Promise<void> => {
     if (held === null) return;
     // One drop per hold. `setHeld(null)` only lands after the await, and a
     // second tap runs a closure that already captured the old `held` — so
-    // holding table A and tapping B then C would write both swaps, moving a
-    // pupil the teacher never touched. Clearing the state earlier cannot fix
-    // that; only a ref read at call time can.
+    // aiming at B then C would write both, moving a pupil nobody touched.
     if (dropping.current) return;
     dropping.current = true;
     try {
-      const action = resolveDrop(
-        held,
-        seats.find((s) => s.id === seatId),
+      await applyPlacement(
+        db,
+        planId,
+        resolvePlacement(held, { ...desk, studentId: byDesk.get(desk.id) ?? null }),
       );
-      if (action.kind === "seat") {
-        await seatStudent(db, action.seatId, action.studentId);
-      } else if (action.kind === "swap") {
-        // No `expectedStudentId` guard: a table has an id now, so the id is
-        // the guard. A table another tab removed simply fails the read.
-        await swapSeats(db, action.fromSeatId, action.toSeatId);
-      }
     } catch (error) {
-      // No blocking dialog here — they are banned. A failed write must still
-      // end the gesture rather than stranding a pupil in the teacher's hand;
-      // the live query re-renders the room as it actually is.
-      console.error(error);
-    } finally {
-      setHeld(null);
-      dropping.current = false;
-    }
-  };
-
-  // Bare floor has two meanings, and `RoomView` reports only "tapped here" —
-  // this is where the gesture grammar decides which one applies, beside
-  // `resolveFloorDrop`. Nothing held: the floor button is a separate control
-  // that adds a table outright. A table held: it is an ordinary drop, and
-  // `resolveFloorDrop` turns it into a move. A refused placement (too close
-  // to a neighbour, or off the edge) is an ordinary outcome, not an error.
-  const onDropFloor = async (at: Position): Promise<void> => {
-    if (dropping.current) return;
-    dropping.current = true;
-    try {
-      if (held === null) {
-        await addTable(db, layout.id, at);
-        return;
-      }
-      const action = resolveFloorDrop(held, at);
-      if (action.kind === "moveTable") await moveTable(db, action.seatId, action.to);
-    } catch (error) {
+      // No blocking dialog — they are banned. A failed write must still end
+      // the gesture rather than stranding a pupil in the hand; the live query
+      // re-renders the room as it actually is.
       console.error(error);
     } finally {
       setHeld(null);
@@ -286,9 +215,25 @@ export function PlanPage({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        {/* No class name here: the hub's header carries it, and repeating it
-            above every tab would push the room further down the screen. */}
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-text-muted">{t("plan.room")}</span>
+          <select
+            className="field"
+            style={{ width: "12rem" }}
+            value={room.id}
+            onChange={(e) => selectRoom(e.target.value)}
+          >
+            {rooms.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+          <Link className="text-accent text-sm" to={Router.Rooms()}>
+            {t("plan.manageRooms")}
+          </Link>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           {selectedSessionId !== null && (
             <SessionBar
               sessions={sessions}
@@ -296,8 +241,6 @@ export function PlanPage({
               onSelect={(id) => selectSession(id, true)}
             />
           )}
-        </div>
-        <div className="flex gap-2">
           <button
             type="button"
             className="btn"
@@ -305,102 +248,99 @@ export function PlanPage({
           >
             {t("plan.newSession")}
           </button>
-          <button
-            type="button"
-            className={resizing ? "btn btn-primary" : "btn"}
-            aria-pressed={resizing}
-            onClick={() => {
-              // Leaving edit mode releases: a held pupil is a live gesture and
-              // must not survive a mode change, exactly as the armed seat did not.
-              setHeld(null);
-              setResizing((v) => !v);
-            }}
-          >
-            {resizing ? t("plan.doneEditing") : t("plan.editLayout")}
-          </button>
         </div>
       </div>
-
-      <LayoutBar
-        layouts={layouts ?? []}
-        activeLayoutId={activeLayoutId}
-        editing={resizing}
-        onSelect={selectLayout}
-        onCreate={(name) => {
-          void createLayout(db, classId, name).then((created) => selectLayout(created.id));
-        }}
-        onRename={(layoutId, name) => void renameLayout(db, layoutId, name)}
-        onDelete={(layoutId) => {
-          setHeld(null);
-          void deleteSeatingLayout(db, layoutId).then(() => {
-            // The stored selection now points at a room that is gone.
-            // `resolveActiveLayout` would fall back on its own, but clearing
-            // keeps localStorage from carrying a dead id indefinitely.
-            clearActiveLayout(classId);
-            setStoredLayoutId(null);
-          });
-        }}
-      />
-
-      {resizing && (
-        <RoomTemplateForm
-          key={layout.id}
-          layout={layout}
-          seats={seats}
-          onDone={() => {
-            // Save, Cancel and the form's own Escape all leave layout-edit
-            // mode through here. Leaving must release the held pupil on EVERY
-            // exit path, not only the toolbar button — and a stamp replaces
-            // every table, so the very one being held ceases to exist.
-            setHeld(null);
-            setResizing(false);
-          }}
-        />
-      )}
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         {/* The rail comes first in the DOM so that on a narrow screen the
             pupil you are about to place is not below the fold while you look
             at where to put them. */}
-        {/* The group filter is the hub's, above the tabs: one filter for the
-            class, so the roster and the room never disagree about who is
-            being looked at. */}
         <div className="flex flex-col gap-2 lg:order-2 lg:w-64 lg:shrink-0">
           <StudentRail
             students={visibleUnseated}
             held={held}
             onHold={(studentId) =>
               setHeld((current) =>
-                current?.kind === "pool" && current.studentId === studentId
+                current?.studentId === studentId && current.fromDeskId === null
                   ? null
-                  : { kind: "pool", studentId },
+                  : { studentId, fromDeskId: null },
               )
             }
           />
         </div>
 
         <div className="lg:order-1 lg:min-w-0 lg:flex-1">
-          <RoomView
-            layout={layout}
-            seats={seats}
-            studentsById={byId}
-            held={held}
-            onHoldSeat={(seatId) =>
-              setHeld(resizing ? { kind: "table", seatId } : { kind: "seat", seatId })
-            }
-            onDropSeat={(seatId) => void onDropSeat(seatId)}
-            onFloor={(at) => void onDropFloor(at)}
-            onSelectStudent={setSelectedStudentId}
-            editing={resizing}
+          <RoomCanvas
+            room={room}
+            desks={desks}
+            emptyHint={t("plan.emptyRoom")}
+            renderPlace={(desk) => {
+              const studentId = byDesk.get(desk.id);
+              const student = studentId ? byId.get(studentId) : undefined;
+              if (!student) {
+                return (
+                  <span className="text-[11px]" style={{ color: "var(--wood-edge)" }}>
+                    {t("plan.emptySeat")}
+                  </span>
+                );
+              }
+              return (
+                <>
+                  <PupilDisc student={student} />
+                  <span
+                    className="w-full truncate px-1 text-center text-[10px]"
+                    style={{ color: "var(--wood-ink)" }}
+                  >
+                    <PupilName student={student} format="surname" />
+                  </span>
+                </>
+              );
+            }}
+            placeProps={(desk) => {
+              const studentId = byDesk.get(desk.id) ?? null;
+              const isHeld = held !== null && held.fromDeskId === desk.id;
+              return {
+                role: "button",
+                tabIndex: 0,
+                title: held ? t("plan.placeHere") : undefined,
+                "aria-pressed": isHeld || undefined,
+                className: isHeld
+                  ? "outline-2 outline-accent outline-offset-2"
+                  : held
+                    ? "outline-2 outline-accent outline-dashed"
+                    : "",
+                onClick: () => {
+                  // Something in hand: this place is a target. Nothing in hand
+                  // and somebody sitting here: open their card, which is the
+                  // gesture of the lesson. Nothing in hand and nobody here:
+                  // nothing to do — a pupil is never picked up off an empty
+                  // place.
+                  if (held) {
+                    void onPlace(desk);
+                    return;
+                  }
+                  if (studentId) setSelectedStudentId(studentId);
+                },
+                onKeyDown: (e) => {
+                  if (e.key !== " " && e.key !== "Enter") return;
+                  e.preventDefault();
+                  if (held) {
+                    void onPlace(desk);
+                    return;
+                  }
+                  if (studentId) setSelectedStudentId(studentId);
+                },
+              };
+            }}
           />
         </div>
       </div>
 
       {selectedStudentId !== null &&
-        session &&
         (() => {
           const student = byId.get(selectedStudentId);
           if (!student) return null;
+          const deskId = deskOf(student.id);
           return (
             <StudentCard
               key={student.id}
@@ -408,11 +348,17 @@ export function PlanPage({
               session={session}
               onClose={() => setSelectedStudentId(null)}
               onMove={() => {
-                const seat = seats.find((s) => s.studentId === student.id);
-                if (!seat) return;
                 setSelectedStudentId(null);
-                setHeld({ kind: "seat", seatId: seat.id });
+                setHeld({ studentId: student.id, fromDeskId: deskId });
               }}
+              onUnseat={
+                deskId === null
+                  ? undefined
+                  : () => {
+                      setSelectedStudentId(null);
+                      void unassign(db, planId, student.id);
+                    }
+              }
             />
           );
         })()}

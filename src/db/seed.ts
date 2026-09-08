@@ -27,8 +27,6 @@ import type {
   RubricScore,
   RubricTemplate,
   ScheduleEntry,
-  Seat,
-  SeatingLayout,
   SeatingPlan,
   Session,
   Student,
@@ -346,8 +344,6 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
   // child. What `@domain/avatar` draws is flat vector shapes with no shading
   // and no likeness, which is what makes seeding it acceptable — it exercises
   // the photo path without depicting anybody.
-  const seatingLayouts: SeatingLayout[] = [];
-  const seats: Seat[] = [];
   const sessions: Session[] = [];
   const attendance: AttendanceRecord[] = [];
   const behaviourEvents: BehaviourEvent[] = [];
@@ -389,24 +385,6 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     // would see.
     classStudents.slice(0, desks.length).forEach((student, i) => {
       assignments.push({ planId, deskId: desks[i].id, studentId: student.id });
-    });
-
-    const layoutId = id();
-    seatingLayouts.push({
-      id: layoutId,
-      classId: schoolClass.id,
-      width: shape.width,
-      height: shape.height,
-      updatedAt: now,
-    });
-    shape.positions.forEach((position, i) => {
-      seats.push({
-        id: id(),
-        layoutId,
-        x: position.x,
-        y: position.y,
-        studentId: classStudents[i]?.id ?? null,
-      });
     });
 
     const classSessions = weekdays.map((date) => ({
@@ -547,8 +525,6 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       db.sessions,
       db.attendance,
       db.behaviourEvents,
-      db.seatingLayouts,
-      db.seats,
       db.rooms,
       db.desks,
       db.seatingPlans,
@@ -572,8 +548,6 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       await db.sessions.bulkAdd(sessions);
       await db.attendance.bulkPut(attendance);
       await db.behaviourEvents.bulkAdd(behaviourEvents);
-      await db.seatingLayouts.bulkAdd(seatingLayouts);
-      await db.seats.bulkPut(seats);
       await db.rooms.bulkAdd(rooms);
       await db.desks.bulkAdd(desks);
       await db.seatingPlans.bulkAdd(seatingPlans);

@@ -1,5 +1,5 @@
 import type { Desk } from "@db";
-import { type Position, TABLE, type TableGroup, tableGroups } from "@domain/room";
+import { freeEdges, type Position, TABLE, type TableGroup, tableGroups } from "@domain/room";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -122,9 +122,13 @@ export function RoomCanvas({
     // to be full width; the wall HUGS the scaled room, so it has to be
     // content-sized. Putting the ref on the wall makes the observed width the
     // room's own, and the scale then never shrinks to fit anything.
-    <div ref={wrapperRef} className="w-full">
+    // The scroll lives HERE, on the full-width measurer, not on the wall.
+    // Below `MIN_SCALE` the room deliberately stops shrinking, so it can be
+    // wider than its column — and a `w-fit` wall then pushes its siblings off
+    // the screen instead of scrolling. That is how the rail disappeared.
+    <div ref={wrapperRef} className="w-full overflow-x-auto">
       <div
-        className="w-fit overflow-auto rounded-lg border-6 p-0"
+        className="w-fit rounded-lg border-6 p-0"
         style={{
           borderColor: "var(--wall)",
           boxShadow: "inset 0 0 0 2px var(--wall-inner)",
@@ -191,6 +195,12 @@ export function RoomCanvas({
                 {group.desks.map((desk) => {
                   const extra = placeProps?.(desk) ?? {};
                   const { className, ...rest } = extra;
+                  // Bordered only where no sibling abuts. That is what draws a
+                  // merged table: the seam down a table de deux disappears, and
+                  // a horseshoe keeps the opening it is built around instead of
+                  // being outlined as the rectangle enclosing it.
+                  const edge = freeEdges(desk, group.desks);
+                  const line = "2px solid var(--wood-edge)";
                   return (
                     <div
                       key={desk.id}
@@ -204,7 +214,20 @@ export function RoomCanvas({
                         height: TABLE * UNIT_PX,
                         background: "var(--wood)",
                         color: "var(--wood-ink)",
-                        boxShadow: "inset 0 3px 0 var(--wood-hi)",
+                        borderTop: edge.top ? line : undefined,
+                        borderRight: edge.right ? line : undefined,
+                        borderBottom: edge.bottom ? line : undefined,
+                        borderLeft: edge.left ? line : undefined,
+                        borderTopLeftRadius: edge.top && edge.left ? 4 : 0,
+                        borderTopRightRadius: edge.top && edge.right ? 4 : 0,
+                        borderBottomLeftRadius: edge.bottom && edge.left ? 4 : 0,
+                        borderBottomRightRadius: edge.bottom && edge.right ? 4 : 0,
+                        // The front edge and the floor shadow belong to the
+                        // OUTSIDE of a table, so only a place with open air
+                        // below it carries them.
+                        boxShadow: edge.bottom
+                          ? "inset 0 3px 0 var(--wood-hi), 0 4px 0 var(--wood-edge), 0 7px 10px var(--room-shadow)"
+                          : "inset 0 3px 0 var(--wood-hi)",
                       }}
                       {...rest}
                     >

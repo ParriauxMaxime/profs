@@ -1,11 +1,10 @@
 import {
-  ARC_SPACING,
   canPlace,
   compareReadingOrder,
   FLOOR_MARGIN,
   fitsRoom,
   frame,
-  type Held,
+  freeEdges,
   type HeldPupil,
   MAX_POSITIONS,
   occupantsInReadingOrder,
@@ -14,25 +13,16 @@ import {
   type Position,
   ROOM_MAX,
   reseat,
-  resolveDrop,
-  resolveFloorDrop,
   resolvePlacement,
   type Seated,
   TABLE,
   tableGroups,
-  unseatedStudentIds,
 } from "./room";
 
 describe("constants", () => {
   it("gives a table one unit of air at pitch", () => {
     expect(TABLE).toBe(2);
     expect(PITCH).toBe(TABLE + 1);
-  });
-
-  it("spaces a curved row wide enough to survive the diagonal and rounding", () => {
-    // max(|dx|,|dy|) must be >= 2 AFTER rounding, so >= 3 before it, so the
-    // centre distance must be >= 3 * sqrt(2), and a chord is ~0.93 of its arc.
-    expect(ARC_SPACING).toBeGreaterThanOrEqual((3 * Math.SQRT2) / 0.93);
   });
 
   it("bounds a room and a roster", () => {
@@ -225,82 +215,6 @@ describe("reseat", () => {
   });
 });
 
-describe("resolveDrop", () => {
-  const held: Record<string, Held> = {
-    pool: { kind: "pool", studentId: "p1" },
-    seat: { kind: "seat", seatId: "s1" },
-    table: { kind: "table", seatId: "s1" },
-  };
-
-  it("does nothing when the target table is gone", () => {
-    expect(resolveDrop(held.pool, undefined)).toEqual({ kind: "none" });
-    expect(resolveDrop(held.seat, undefined)).toEqual({ kind: "none" });
-  });
-
-  it("seats a pupil held from the rail, displacing whoever is there", () => {
-    expect(resolveDrop(held.pool, seat("s2", 4, 1, "p9"))).toEqual({
-      kind: "seat",
-      studentId: "p1",
-      seatId: "s2",
-    });
-  });
-
-  it("swaps a pupil held from a table", () => {
-    expect(resolveDrop(held.seat, seat("s2", 4, 1, "p9"))).toEqual({
-      kind: "swap",
-      fromSeatId: "s1",
-      toSeatId: "s2",
-    });
-  });
-
-  it("degrades a swap onto an empty table to a move", () => {
-    expect(resolveDrop(held.seat, seat("s2", 4, 1, null))).toEqual({
-      kind: "swap",
-      fromSeatId: "s1",
-      toSeatId: "s2",
-    });
-  });
-
-  it("does nothing when a held pupil is dropped back on their own table", () => {
-    expect(resolveDrop(held.seat, seat("s1", 0, 0, "p1"))).toEqual({ kind: "none" });
-  });
-
-  it("does nothing when a held TABLE is dropped on another table", () => {
-    // Furniture is moved onto floor, never onto furniture.
-    expect(resolveDrop(held.table, seat("s2", 4, 1, null))).toEqual({ kind: "none" });
-  });
-});
-
-describe("resolveFloorDrop", () => {
-  it("moves a held table to the floor tapped", () => {
-    expect(resolveFloorDrop({ kind: "table", seatId: "s1" }, { x: 6, y: 6 })).toEqual({
-      kind: "moveTable",
-      seatId: "s1",
-      to: { x: 6, y: 6 },
-    });
-  });
-
-  it("does nothing when a pupil is dropped on bare floor", () => {
-    expect(resolveFloorDrop({ kind: "pool", studentId: "p1" }, { x: 6, y: 6 })).toEqual({
-      kind: "none",
-    });
-    expect(resolveFloorDrop({ kind: "seat", seatId: "s1" }, { x: 6, y: 6 })).toEqual({
-      kind: "none",
-    });
-  });
-});
-
-describe("unseatedStudentIds", () => {
-  it("returns pupils holding no table, in the given order", () => {
-    const students = [{ id: "a" }, { id: "b" }, { id: "c" }];
-    const seats = [
-      { id: "t1", x: 0, y: 0, studentId: "b" },
-      { id: "t2", x: 3, y: 0, studentId: null },
-    ];
-    expect(unseatedStudentIds(students, seats)).toEqual(["a", "c"]);
-  });
-});
-
 describe("tableGroups", () => {
   const at = (id: string, x: number, y: number): Seated => ({ id, x, y, studentId: null });
 
@@ -374,6 +288,61 @@ describe("tableGroups", () => {
       { id: "b", x: TABLE, y: 0, studentId: null },
     ]);
     expect(groups[0].desks.map((d) => d.studentId)).toEqual(["p1", null]);
+  });
+});
+
+describe("freeEdges", () => {
+  const at = (id: string, x: number, y: number): Seated => ({ id, x, y, studentId: null });
+
+  it("gives a lone desk four free sides", () => {
+    const group = [at("a", 0, 0)];
+    expect(freeEdges(group[0], group)).toEqual({
+      top: true,
+      right: true,
+      bottom: true,
+      left: true,
+    });
+  });
+
+  it("suppresses the seam between a table de deux", () => {
+    const group = [at("a", 0, 0), at("b", TABLE, 0)];
+    expect(freeEdges(group[0], group).right).toBe(false);
+    expect(freeEdges(group[1], group).left).toBe(false);
+    // and the outside of the pair is still drawn
+    expect(freeEdges(group[0], group).left).toBe(true);
+    expect(freeEdges(group[1], group).right).toBe(true);
+  });
+
+  it("leaves the inside of a horseshoe outlined", () => {
+    // The bug this exists for: a U's bounding box encloses the aisle, so
+    // outlining the box paints a filled rectangle where the room is empty.
+    const group = [
+      at("l0", 0, 0),
+      at("l1", 0, TABLE),
+      at("b0", 0, TABLE * 2),
+      at("b1", TABLE, TABLE * 2),
+      at("b2", TABLE * 2, TABLE * 2),
+      at("r1", TABLE * 2, TABLE),
+      at("r0", TABLE * 2, 0),
+    ];
+    // The middle of the opening has no desk, and the arms face it.
+    expect(freeEdges(group[0], group).right).toBe(true);
+    expect(freeEdges(group[6], group).left).toBe(true);
+    // The base is continuous.
+    expect(freeEdges(group[3], group).left).toBe(false);
+    expect(freeEdges(group[3], group).right).toBe(false);
+    // And its top faces the opening.
+    expect(freeEdges(group[3], group).top).toBe(true);
+  });
+
+  it("closes every internal edge of a 2×2 island", () => {
+    const group = [at("a", 0, 0), at("b", TABLE, 0), at("c", 0, TABLE), at("d", TABLE, TABLE)];
+    expect(freeEdges(group[0], group)).toEqual({
+      top: true,
+      right: false,
+      bottom: false,
+      left: true,
+    });
   });
 });
 

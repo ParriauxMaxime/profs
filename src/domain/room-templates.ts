@@ -1,8 +1,8 @@
 import {
   AISLE,
-  ARC_SPACING,
   frame,
   MAX_POSITIONS,
+  PITCH,
   type Position,
   ROW_GAP,
   type RoomShape,
@@ -58,6 +58,38 @@ export const TEMPLATE_LIMITS = {
 
 /** The grid phase 5 shipped, kept as the default a new room is stamped from. */
 export const DEFAULT_TEMPLATE: RoomTemplate = { id: "rows", rows: 4, tables: 3, perTable: 2 };
+
+/**
+ * Ready-made salles, offered when a teacher creates one.
+ *
+ * The parametric form exists and is fine, but it asks for numbers before it
+ * shows anything, and a teacher creating their first salle has no idea what
+ * "3 tables par rang, 2 places par table" will look like. These are the five
+ * arrangements a French classroom is actually furnished in, each already a
+ * whole room.
+ *
+ * Deliberately NOT stored anywhere: a preset is a starting shape, and the room
+ * it stamps ceases to remember it — same ruling as the templates themselves,
+ * for the same reason. Nothing records that a salle "is an arc".
+ *
+ * Four of the five come out at 24 places, which is a French classroom; the
+ * horseshoe is smaller because a horseshoe is.
+ */
+export const ROOM_PRESET_IDS = ["pairs", "single", "islands", "arc", "u"] as const;
+export type RoomPresetId = (typeof ROOM_PRESET_IDS)[number];
+
+export const ROOM_PRESETS: Record<RoomPresetId, RoomTemplate> = {
+  /** Tables de deux, the ordinary French classroom. */
+  pairs: { id: "rows", rows: 4, tables: 3, perTable: 2 },
+  /** The same room, un-merged: one desk per pupil. */
+  single: { id: "rows", rows: 4, tables: 6, perTable: 1 },
+  /** Six blocks of four, for group work. */
+  islands: { id: "islands", islands: 6, perIsland: 4 },
+  /** Three bowed rows facing the board. */
+  arc: { id: "arc", perRow: 8, rows: 3, curve: 3 },
+  /** One continuous horseshoe, open toward the board. */
+  u: { id: "u", cols: 10, rows: 4 },
+};
 
 export function defaultTemplate(id: TemplateId): RoomTemplate {
   switch (id) {
@@ -165,44 +197,43 @@ function buildRows(rows: number, tables: number, perTable: number): Position[] {
 }
 
 /**
- * The angular span of the arc, from the curve parameter: 15° at 1, 75° at 5.
+ * How deep the bow is, per unit of `curve`.
  *
- * A shallow arc needs a huge radius to hold the same tables, so it comes out
- * WIDER than a deep one. That is not a bug and it is the reason ROOM_MAX is
- * 120 rather than the 60 a straight row of twenty would need.
+ * `curve` is what a teacher means by it — how far the middle of the row sits
+ * back from its ends — rather than an angle. It was an ANGULAR SPAN, and that
+ * is what made the arc unusable: seats were spaced along the arc, so holding
+ * ten of them inside a small angle demanded an enormous radius, and the room
+ * came out ~1580px wide and barely two units deep at EVERY setting. Width
+ * hardly moved with the curve, which is the tell that the parameter was
+ * controlling the wrong thing.
  */
-function arcSpan(curve: number): number {
-  return (curve * Math.PI) / 12;
-}
+const BOW_PER_CURVE = 2;
 
 /**
- * Rows on concentric circles centred on the board.
+ * A row bowed away from the board, seats spaced along the X axis.
  *
- * The radius comes OUT of the spacing rather than the other way round: fixing
- * the arc step at ARC_SPACING and solving `R = ARC_SPACING * (n - 1) / theta`
- * is what makes non-overlap arithmetic rather than a repair pass. A repair
- * pass that nudges colliding seats apart terminates on most inputs and
- * produces a visibly lumpy arc on the rest — the failure that ships, because
- * it still looks like an arc.
+ * A parabola rather than a circle: at classroom scale the two are
+ * indistinguishable, and this one is bounded in width by construction —
+ * `(perRow - 1) * PITCH + TABLE`, exactly what a straight row of the same
+ * length would need.
  *
- * Rows step by ARC_SPACING too, not by PITCH: at the ends of the arc the
- * radial direction is diagonal, so a radial gap of 3 lands as barely 2.4 on
- * its widest axis and rounding then eats it.
+ * It also needs no arc spacing at all. Neighbours differ by `PITCH` on X, and
+ * `overlaps` is per-axis, so a pair clears on X alone whatever the bow does to
+ * Y. That is what let `ARC_SPACING` and its sqrt(2) derivation go: the
+ * clearance problem only existed because seats were placed along the arc,
+ * where two neighbours can be diagonal to one another.
  */
 function buildArc(perRow: number, rows: number, curve: number): Position[] {
-  const theta = arcSpan(curve);
-  // A single-seat row has no gap to hold open; give it any radius that keeps
-  // the rows apart.
-  const baseRadius = perRow > 1 ? (ARC_SPACING * (perRow - 1)) / theta : ARC_SPACING * rows;
+  const bow = curve * BOW_PER_CURVE;
   const positions: Position[] = [];
   for (let row = 0; row < rows; row += 1) {
-    const radius = baseRadius + row * ARC_SPACING;
     for (let i = 0; i < perRow; i += 1) {
-      // Angles run left to right so a row comes out in reading order.
-      const angle = perRow > 1 ? -theta / 2 + (theta * i) / (perRow - 1) : 0;
+      // -1 at the left end, +1 at the right, 0 in the middle.
+      const t = perRow > 1 ? (2 * i) / (perRow - 1) - 1 : 0;
       positions.push({
-        x: Math.round(radius * Math.sin(angle)),
-        y: Math.round(radius * Math.cos(angle)),
+        x: i * PITCH,
+        // The ENDS come forward toward the board; the middle sits back.
+        y: row * PITCH + Math.round(bow * (1 - t * t)),
       });
     }
   }

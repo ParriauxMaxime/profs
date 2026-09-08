@@ -2,13 +2,20 @@ import { deleteRoom } from "@db/cascade";
 import { plansForRoom } from "@db/plans";
 import { useDb } from "@db/provider";
 import { createRoom, listRooms } from "@db/rooms";
-import { buildRoom, DEFAULT_TEMPLATE, seatCount } from "@domain/room-templates";
+import {
+  buildRoom,
+  ROOM_PRESET_IDS,
+  ROOM_PRESETS,
+  type RoomTemplate,
+  seatCount,
+} from "@domain/room-templates";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { ConfirmButton } from "../design-system/components/confirm-button";
+import { PresetPreview } from "./components/preset-preview";
 
 /**
  * The salles of an établissement.
@@ -48,10 +55,10 @@ export function RoomsPage() {
 
   if (rooms === undefined) return <p className="text-text-muted">{t("common.loading")}</p>;
 
-  const create = async (): Promise<void> => {
+  const create = async (template: RoomTemplate): Promise<void> => {
     const trimmed = name.trim();
     if (trimmed === "") return;
-    const room = await createRoom(db, trimmed, buildRoom(DEFAULT_TEMPLATE));
+    const room = await createRoom(db, trimmed, buildRoom(template));
     setName("");
     Router.push("Room", { roomId: room.id });
   };
@@ -65,28 +72,47 @@ export function RoomsPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="flex flex-col gap-1 text-sm">
-          {t("rooms.name")}
-          <input
-            className="field"
-            style={{ width: "16rem" }}
-            value={name}
-            placeholder={t("rooms.namePlaceholder")}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </label>
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={name.trim() === ""}
-          onClick={() => void create()}
-        >
-          {t("rooms.add")}
-        </button>
-        <p className="pb-3 text-text-faint text-xs">
-          {t("rooms.addHint", { count: seatCount(DEFAULT_TEMPLATE) })}
-        </p>
+      <div className="flex flex-col gap-3 rounded-md border border-border p-3">
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="flex flex-col gap-1 text-sm">
+            {t("rooms.name")}
+            <input
+              className="field"
+              style={{ width: "16rem" }}
+              value={name}
+              placeholder={t("rooms.namePlaceholder")}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </label>
+          <p className="pb-3 text-text-faint text-xs">{t("rooms.pickShape")}</p>
+        </div>
+
+        {/* A shape, not a form. The parametric editor exists inside the salle,
+            but it asks for numbers before it shows anything, and a teacher
+            creating their first salle cannot picture what three tables of two
+            will look like. Each preview is drawn from the SAME generator that
+            will stamp it, so what you pick is what you get. */}
+        <div className="flex flex-wrap gap-2">
+          {ROOM_PRESET_IDS.map((id) => {
+            const template = ROOM_PRESETS[id];
+            return (
+              <button
+                key={id}
+                type="button"
+                disabled={name.trim() === ""}
+                className="btn flex h-auto flex-col items-center gap-1 p-2 disabled:opacity-50"
+                style={{ width: "9.5rem" }}
+                onClick={() => void create(template)}
+              >
+                <PresetPreview template={template} />
+                <span className="font-medium text-sm">{t(`rooms.preset.${id}`)}</span>
+                <span className="text-text-faint text-xs">
+                  {t("rooms.deskCount", { count: seatCount(template) })}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {rooms.length === 0 ? (

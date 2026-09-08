@@ -202,51 +202,6 @@ export interface Assignment {
   studentId: string;
 }
 
-/**
- * The room. One per class, sized in half-tiles.
- *
- * `width`/`height` replace phase 5's `rows`/`cols`: a room is an extent a
- * table may sit anywhere inside, not a count of cells.
- */
-export interface SeatingLayout {
-  id: string;
-  classId: string;
-  /**
-   * What the teacher calls this arrangement — "Contrôle", "Travail de groupe".
-   *
-   * Optional, and it must stay optional: the layout a class gets on its first
-   * visit is created by `getOrCreateLayout` before anybody has named anything,
-   * and a *translated* default written into the row would be a stored label
-   * that stops matching the interface language. The UI renders
-   * `plan.layouts.unnamed` when this is absent.
-   */
-  name?: string;
-  width: number;
-  height: number;
-  updatedAt: number;
-}
-
-/**
- * One table, at a free position in half-tiles.
- *
- * Two states, not phase 5's three: a row with `studentId: null` is an empty
- * table and a row with a `studentId` is an occupied one. There is no third
- * "gap" state any more — an aisle is simply the absence of a table, which is
- * the absence of a row.
- *
- * `id` is what everything addresses a table by. Coordinates identified a cell
- * in phase 5 and that is exactly why `swapSeats` needed a guard against
- * another tab: a coordinate is a position, and this codebase's standing rule
- * is that state bound to a record is anchored to the record's identity.
- */
-export interface Seat {
-  id: string;
-  layoutId: string;
-  x: number;
-  y: number;
-  studentId: string | null;
-}
-
 /** A reusable criteria set, managed in Réglages. */
 export interface RubricTemplate {
   id: string;
