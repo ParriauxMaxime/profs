@@ -178,6 +178,87 @@ export function reseat(
  * survive another tab moving that pupil away; an id needs no such guard.
  */
 /**
+ * A run of desks that share edges, drawn as ONE table.
+ *
+ * The merge is a RENDERING and never a datum. Two adjacent desks are two
+ * places, two assignments and two pupils; they simply draw as one surface,
+ * with a chair on the near edge of each place marking where one ends. Had the
+ * merge changed capacity, "is this one table or two" would become a question
+ * the assignment model has to answer, and it would answer it wrong every time
+ * a desk moved.
+ */
+export interface TableGroup {
+  /** The group's desks, in reading order. */
+  desks: Seated[];
+  /** The group's bounding box, in half-tiles. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Do two desks share a full edge?
+ *
+ * Corners do not count: two desks meeting diagonally are not a table, and
+ * treating them as one would merge an entire staggered arc into a single
+ * surface.
+ */
+function sharesEdge(a: Seated, b: Seated): boolean {
+  const dx = Math.abs(a.x - b.x);
+  const dy = Math.abs(a.y - b.y);
+  return (dx === TABLE && dy === 0) || (dy === TABLE && dx === 0);
+}
+
+/**
+ * Group desks into the tables they visually form.
+ *
+ * Connected components over edge-sharing, walked breadth-first from each
+ * unvisited desk in reading order — so both the groups and the desks inside
+ * them come back front-to-back then left-to-right, and the DOM carries the
+ * order a teacher reads the room in.
+ *
+ * Nothing about adjacency needed adding to the geometry: `overlaps` tests
+ * `|dx| < TABLE`, so two desks exactly `TABLE` apart have always passed
+ * `canPlace`. What kept them apart was the generators planting `PITCH`
+ * between every desk.
+ */
+export function tableGroups(desks: Seated[]): TableGroup[] {
+  const ordered = [...desks].sort(compareReadingOrder);
+  const seen = new Set<string>();
+  const groups: TableGroup[] = [];
+
+  for (const start of ordered) {
+    if (seen.has(start.id)) continue;
+    seen.add(start.id);
+    // `members` doubles as the breadth-first queue. Every desk joins `seen` as
+    // it is enqueued rather than as it is visited, so none is queued twice.
+    const members = [start];
+    for (let i = 0; i < members.length; i += 1) {
+      for (const candidate of ordered) {
+        if (seen.has(candidate.id)) continue;
+        if (!sharesEdge(members[i], candidate)) continue;
+        seen.add(candidate.id);
+        members.push(candidate);
+      }
+    }
+    members.sort(compareReadingOrder);
+    const xs = members.map((d) => d.x);
+    const ys = members.map((d) => d.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    groups.push({
+      desks: members,
+      x: minX,
+      y: minY,
+      width: Math.max(...xs) - minX + TABLE,
+      height: Math.max(...ys) - minY + TABLE,
+    });
+  }
+  return groups;
+}
+
+/**
  * A pupil in the teacher's hand.
  *
  * Anchored to ids in both fields, never to a coordinate or a rail index: the

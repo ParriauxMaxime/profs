@@ -18,6 +18,7 @@ import {
   resolvePlacement,
   type Seated,
   TABLE,
+  tableGroups,
   unseatedStudentIds,
 } from "./room";
 
@@ -277,6 +278,82 @@ describe("unseatedStudentIds", () => {
       { id: "t2", x: 3, y: 0, studentId: null },
     ];
     expect(unseatedStudentIds(students, seats)).toEqual(["a", "c"]);
+  });
+});
+
+describe("tableGroups", () => {
+  const at = (id: string, x: number, y: number): Seated => ({ id, x, y, studentId: null });
+
+  it("returns nothing for an empty room", () => {
+    expect(tableGroups([])).toEqual([]);
+  });
+
+  it("leaves a lone desk as a group of one", () => {
+    const groups = tableGroups([at("a", 0, 0)]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ x: 0, y: 0, width: TABLE, height: TABLE });
+  });
+
+  it("joins two desks that share a vertical edge", () => {
+    const groups = tableGroups([at("a", 0, 0), at("b", TABLE, 0)]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].desks.map((d) => d.id)).toEqual(["a", "b"]);
+    expect(groups[0]).toMatchObject({ width: TABLE * 2, height: TABLE });
+  });
+
+  it("joins two desks that share a horizontal edge", () => {
+    const groups = tableGroups([at("a", 0, 0), at("b", 0, TABLE)]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ width: TABLE, height: TABLE * 2 });
+  });
+
+  it("keeps desks one unit apart separate — an aisle is not a table", () => {
+    expect(tableGroups([at("a", 0, 0), at("b", TABLE + 1, 0)])).toHaveLength(2);
+  });
+
+  it("does not join desks that touch only at a corner", () => {
+    expect(tableGroups([at("a", 0, 0), at("b", TABLE, TABLE)])).toHaveLength(2);
+  });
+
+  it("joins a block of four into one island", () => {
+    const groups = tableGroups([
+      at("a", 0, 0),
+      at("b", TABLE, 0),
+      at("c", 0, TABLE),
+      at("d", TABLE, TABLE),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].desks).toHaveLength(4);
+    expect(groups[0]).toMatchObject({ width: TABLE * 2, height: TABLE * 2 });
+  });
+
+  it("joins an L into one table, and reports its bounding box", () => {
+    const groups = tableGroups([at("a", 0, 0), at("b", 0, TABLE), at("c", TABLE, TABLE)]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ x: 0, y: 0, width: TABLE * 2, height: TABLE * 2 });
+  });
+
+  it("returns groups in reading order", () => {
+    const groups = tableGroups([at("back", 0, TABLE * 3), at("front", 0, 0)]);
+    expect(groups.map((g) => g.desks[0].id)).toEqual(["front", "back"]);
+  });
+
+  it("puts three tables of two in one row into three groups", () => {
+    const desks: Seated[] = [];
+    for (let t = 0; t < 3; t += 1) {
+      for (let p = 0; p < 2; p += 1) {
+        desks.push(at(`t${t}p${p}`, t * (TABLE * 2 + 2) + p * TABLE, 0));
+      }
+    }
+    expect(tableGroups(desks)).toHaveLength(3);
+  });
+
+  it("carries the occupants through untouched", () => {
+    const groups = tableGroups([
+      { id: "a", x: 0, y: 0, studentId: "p1" },
+      { id: "b", x: TABLE, y: 0, studentId: null },
+    ]);
+    expect(groups[0].desks.map((d) => d.studentId)).toEqual(["p1", null]);
   });
 });
 
