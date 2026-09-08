@@ -2,19 +2,21 @@ import type { Student, StudentGroup } from "@db";
 import { deleteGroup, deleteStudent } from "@db/cascade";
 import { useDb } from "@db/provider";
 import { filterByGroup, groupsForStudent } from "@domain/group";
+import { Link } from "@swan-io/chicane";
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ConfirmButton } from "../../design-system/components/confirm-button";
-import { DataTable } from "../../design-system/components/data-table";
-import { Chip } from "../../design-system/components/primitives";
-import { PupilName } from "../../design-system/components/pupil-name";
-import { StudentCard } from "../../plan/components/student-card";
-import { CsvImport } from "../components/csv-import";
-import { GroupForm } from "../components/group-form";
-import { StudentForm } from "../components/student-form";
-import type { ClassTabProps } from "./types";
+import { Router } from "../../router";
+import { ConfirmButton } from "../design-system/components/confirm-button";
+import { DataTable } from "../design-system/components/data-table";
+import { Chip } from "../design-system/components/primitives";
+import { PupilName } from "../design-system/components/pupil-name";
+import { StudentCard } from "../plan/components/student-card";
+import { CsvImport } from "./components/csv-import";
+import { GroupFilter } from "./components/group-filter";
+import { GroupForm } from "./components/group-form";
+import { StudentForm } from "./components/student-form";
 
 const helper = createColumnHelper<Student>();
 
@@ -22,19 +24,18 @@ const helper = createColumnHelper<Student>();
  * The roster: who is in this class, which groups they belong to, and the card
  * that opens on any of them.
  *
- * The card is the same component the seating plan opens, so a pupil looks the
- * same wherever they are tapped. It records attendance only when a session is
- * selected — attendance belongs to a lesson, and the roster is not one.
+ * Moved here from the class hub's tab set: `/eleves` is a detour from the
+ * lesson rather than a panel of it, so it loads exactly what it needs itself
+ * — the class, its pupils, its groups and their memberships — the same
+ * queries the hub used to run once and hand down as props. The group filter
+ * lives here too, for the same reason: this page is the only thing on screen
+ * that reads it now.
+ *
+ * The card opens with no session, unlike on the seating plan: attendance
+ * belongs to a lesson, and this page is not one — a teacher marking today's
+ * register does it from the plan, where a session is selected.
  */
-export function ClassStudentsTab({
-  classId,
-  students,
-  groups,
-  memberships,
-  selectedGroupId,
-  onSelectGroup,
-  selectedSessionId,
-}: ClassTabProps) {
+export function ClassStudentsPage({ classId }: { classId: string }) {
   const { t } = useTranslation();
   const db = useDb();
   const [editing, setEditing] = useState<Student | "new" | null>(null);
@@ -43,11 +44,32 @@ export function ClassStudentsTab({
   // The pupil whose card is open, held as an id: the table sorts and searches
   // underneath the card, and a row index would open a different pupil.
   const [cardStudentId, setCardStudentId] = useState<string | null>(null);
+  // Held as a group id, never an index — see GroupFilter.
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
-  const session = useLiveQuery(
-    async () => (selectedSessionId ? ((await db.sessions.get(selectedSessionId)) ?? null) : null),
-    [db, selectedSessionId],
+  // An explicit null distinguishes "no such class" from "still loading":
+  // useLiveQuery gives undefined for both, and the page would otherwise sit on
+  // "Chargement…" forever for a class that has been deleted.
+  const schoolClass = useLiveQuery(
+    async () => (await db.classes.get(classId)) ?? null,
+    [db, classId],
   );
+  const students = useLiveQuery(
+    () => db.students.where("classId").equals(classId).sortBy("lastName"),
+    [db, classId],
+  );
+  const groups = useLiveQuery(
+    () => db.studentGroups.where("classId").equals(classId).sortBy("name"),
+    [db, classId],
+  );
+  const memberships = useLiveQuery(async () => {
+    if (!groups || groups.length === 0) return [];
+    const groupIds = groups.map((g) => g.id);
+    return await db.groupMembers.where("groupId").anyOf(groupIds).toArray();
+  }, [db, groups]);
+
+  const groupsList = groups ?? [];
+  const membershipsList = memberships ?? [];
 
   const columns = useMemo(
     () => [
@@ -73,7 +95,7 @@ export function ClassStudentsTab({
         id: "groups",
         header: () => t("group.title"),
         cell: (info) => {
-          const mine = groupsForStudent(groups, memberships, info.row.original.id);
+          const mine = groupsForStudent(groupsList, membershipsList, info.row.original.id);
           if (mine.length === 0) return null;
           return (
             <div className="flex flex-wrap gap-1">
@@ -108,15 +130,35 @@ export function ClassStudentsTab({
         },
       }),
     ],
-    [t, db, groups, memberships],
+    [t, db, groupsList, membershipsList],
   );
 
-  const visibleStudents = filterByGroup(students, memberships, selectedGroupId);
+  if (schoolClass === undefined || students === undefined || groups === undefined) {
+    return <p className="text-text-muted">{t("common.loading")}</p>;
+  }
+  if (schoolClass === null) return <p className="text-text-muted">{t("class.notFound")}</p>;
+
+  const visibleStudents = filterByGroup(students, membershipsList, selectedGroupId);
   const cardStudent =
     cardStudentId === null ? null : (students.find((s) => s.id === cardStudentId) ?? null);
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <Link to={Router.Class({ classId })} className="text-accent text-sm">
+          ← {schoolClass.name}
+        </Link>
+        <h2 className="font-semibold text-lg">{t("class.tab.students")}</h2>
+      </div>
+
+      {groups.length > 0 && (
+        <GroupFilter
+          groups={groups}
+          selectedGroupId={selectedGroupId}
+          onSelect={setSelectedGroupId}
+        />
+      )}
+
       <div className="flex flex-wrap justify-end gap-2">
         <button type="button" className="btn" onClick={() => setImporting(true)}>
           {t("class.importCsv")}
@@ -169,7 +211,7 @@ export function ClassStudentsTab({
         {groups.length > 0 && (
           <ul className="flex flex-col gap-1">
             {groups.map((group) => {
-              const count = memberships.filter((m) => m.groupId === group.id).length;
+              const count = membershipsList.filter((m) => m.groupId === group.id).length;
               return (
                 <li
                   key={group.id}
@@ -192,7 +234,7 @@ export function ClassStudentsTab({
                       body={t("group.confirmDeleteBody", { count })}
                       onConfirm={async () => {
                         await deleteGroup(db, group.id);
-                        if (selectedGroupId === group.id) onSelectGroup(null);
+                        if (selectedGroupId === group.id) setSelectedGroupId(null);
                       }}
                     />
                   </div>
@@ -218,7 +260,7 @@ export function ClassStudentsTab({
             classId={classId}
             students={students}
             group={editingGroup}
-            memberIds={memberships
+            memberIds={membershipsList
               .filter((m) => m.groupId === editingGroup.id)
               .map((m) => m.studentId)}
             onDone={() => setEditingGroup(null)}
@@ -241,7 +283,7 @@ export function ClassStudentsTab({
         <StudentCard
           key={cardStudent.id}
           student={cardStudent}
-          session={session ?? null}
+          session={null}
           onClose={() => setCardStudentId(null)}
         />
       )}

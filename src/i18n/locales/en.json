@@ -88,14 +88,12 @@
     "confirmDeleteClass": "Delete this class?",
     "confirmDeleteClassBody": "Its pupils and all their marks go with it.",
     "rosterFull": "This class has reached {{max}} pupils: no more can be added.",
-    "tabs": "Class sections",
     "tab": {
-      "plan": "Seating plan",
       "students": "Pupils",
-      "books": "Gradebooks",
       "diary": "Journal"
     },
-    "openCard": "Open the pupil card"
+    "openCard": "Open the pupil card",
+    "books": "Gradebooks"
   },
   "group": {
     "title": "Groups",
@@ -170,7 +168,9 @@
     "noPeriods": "This gradebook has no period left. Add one before you can create columns in it.",
     "note": "Note",
     "notePlaceholder": "Add a note…",
-    "hasNote": "Note: {{note}}"
+    "hasNote": "Note: {{note}}",
+    "none": "No gradebook for this class yet.",
+    "open": "Open"
   },
   "entry": {
     "next": "Next",
@@ -250,14 +250,9 @@
     "late": "Late",
     "excused": "Excused",
     "title": "Attendance",
-    "needsSession": "Select a lesson in the seating plan to record attendance and behaviour."
+    "needsSession": "Attendance and behaviour are recorded on the class's lesson."
   },
   "plan": {
-    "newSession": "New session",
-    "session": "Session",
-    "deleteSession": "Delete session",
-    "confirmDeleteSession": "Delete the session of {{date}}?",
-    "confirmDeleteSessionBody": "Its attendance and behaviour go with it.",
     "unseated": "Students without a seat",
     "allSeated": "All students are seated",
     "hintPick": "Tap a pupil, then a seat.",
@@ -409,14 +404,14 @@
     "today": "Today",
     "previous": "Previous",
     "next": "Next",
-    "placeholder": "What we did, what to change next time…",
-    "entryLabel": "Note for the day",
-    "noLesson": "No lesson scheduled",
+    "entryLabel": "Lesson note",
+    "seanceAt": "{{time}}",
+    "unscheduled": "Unscheduled lesson",
+    "noNote": "No note",
     "hasEntry": "Has a note",
     "empty": "Nothing written for this period. Pick a day and note what you did.",
     "noMatch": "No note matches.",
     "needsClass": "Create a class first:",
-    "needsTermStart": "Lessons in week A or B need a start-of-year date:",
     "viewLabel": {
       "agenda": "Agenda",
       "week": "Week",
@@ -481,5 +476,14 @@
     "cols": "Columns",
     "rows": "Rows",
     "addTable": "Add a table"
+  },
+  "seance": {
+    "at": "{{hoursPadded}}:{{minutes}}",
+    "unscheduled": "Off the timetable",
+    "none": "No lesson",
+    "start": "Start a lesson",
+    "delete": "Delete the lesson",
+    "confirmDelete": "Delete the lesson of {{day}}?",
+    "confirmDeleteBody": "Its attendance and behaviour go with it."
   }
 }

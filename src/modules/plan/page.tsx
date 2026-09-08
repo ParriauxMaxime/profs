@@ -1,8 +1,7 @@
-import type { Assignment, Desk, GroupMember, Student } from "@db";
+import type { Assignment, Desk, GroupMember, Session, Student } from "@db";
 import { applyPlacement, assignmentsForPlan, getOrCreatePlan, unassign } from "@db/plans";
 import { useDb } from "@db/provider";
 import { desksForRoom, listRooms } from "@db/rooms";
-import { createSession, getOrCreateTodaySession, sessionsForClass, startOfDay } from "@db/sessions";
 import { readActiveRoom, resolveActiveRoom, writeActiveRoom } from "@domain/active-room";
 import { filterByGroup } from "@domain/group";
 import { type HeldPupil, resolvePlacement } from "@domain/room";
@@ -15,7 +14,6 @@ import { PupilName } from "../design-system/components/pupil-name";
 import { RoomCanvas } from "../rooms/components/room-canvas";
 import { useEscape } from "../shared/use-escape";
 import { PupilDisc } from "./components/pupil-disc";
-import { SessionBar } from "./components/session-bar";
 import { StudentCard } from "./components/student-card";
 import { StudentRail } from "./components/student-rail";
 
@@ -32,25 +30,34 @@ import { StudentRail } from "./components/student-rail";
  * card's `Déplacer`, which is frequent enough to be its primary action and has
  * no other path.
  *
- * The pupils, the groups and the two shared selections come from the shell:
- * the group filter and the selected session are the class's, not this view's.
- * What stays local is this view's own gesture — who is in the hand, whose card
- * is open, which salle is being looked at.
+ * The pupils, the group filter and the séance come from the class page: which
+ * lesson is being recorded is the class's business, not this view's. What
+ * stays local is this view's own gesture — who is in the hand, whose card is
+ * open, which salle is being looked at.
+ *
+ * It NO LONGER picks a séance, and no longer creates one. `session` may be
+ * null — a lesson nobody has recorded anything for yet — and `onRecord`
+ * brings the row into being at the moment of the first mark. Choosing the
+ * lesson in an effect here is what made merely opening a seating plan write a
+ * séance row.
  */
 export function PlanPage({
   classId,
   students,
   memberships,
   selectedGroupId,
-  selectedSessionId,
-  onSelectSession,
+  session,
+  onRecord,
 }: {
   classId: string;
   students: Student[];
   memberships: GroupMember[];
+  /** Already through `resolveGroupSelection`: a deleted group reads as "Tous". */
   selectedGroupId: string | null;
-  selectedSessionId: string | null;
-  onSelectSession: (sessionId: string | null) => void;
+  /** The séance being recorded against, or null while none exists yet. */
+  session: Session | null;
+  /** Creates that séance on demand. Awaited before any register write. */
+  onRecord: () => Promise<string>;
 }) {
   const { t } = useTranslation();
   const db = useDb();
@@ -59,62 +66,12 @@ export function PlanPage({
   // from under a coordinate.
   const [held, setHeld] = useState<HeldPupil | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  const [manualSelection, setManualSelection] = useState(false);
-
-  const selectSession = useCallback(
-    (sessionId: string, manual: boolean): void => {
-      onSelectSession(sessionId);
-      setManualSelection(manual);
-    },
-    [onSelectSession],
-  );
 
   const releaseHeld = useCallback(() => setHeld(null), []);
   useEscape(releaseHeld);
   // True while a drop is being written. A ref, not state: it must be readable
   // by the very next click handler, before any re-render.
   const dropping = useRef(false);
-
-  const sessions = useLiveQuery(() => sessionsForClass(db, classId), [db, classId]);
-
-  // A tablet that sleeps on this page overnight must not go on recording
-  // attendance against yesterday's session once it wakes: re-check on focus,
-  // not just at mount.
-  const [refreshTick, setRefreshTick] = useState(0);
-  useEffect(() => {
-    function onFocus(): void {
-      setRefreshTick((n) => n + 1);
-    }
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onFocus);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onFocus);
-    };
-  }, []);
-
-  // Resolves the selection to today's session: on first mount, if the selected
-  // session vanished, or — for an automatic selection — once the calendar date
-  // has moved on since it was picked. A manual pick of a past session is left
-  // alone. `getOrCreateTodaySession` re-checks inside a transaction, so this is
-  // idempotent under StrictMode's double-invoked effects.
-  useEffect(() => {
-    void refreshTick;
-    if (sessions === undefined) return;
-    const current = sessions.find((s) => s.id === selectedSessionId);
-    const stale =
-      current !== undefined && !manualSelection && current.date !== startOfDay(Date.now());
-    if (selectedSessionId !== null && current !== undefined && !stale) return;
-    let cancelled = false;
-    void getOrCreateTodaySession(db, classId).then((s) => {
-      if (!cancelled) selectSession(s.id, false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [db, classId, sessions, selectedSessionId, manualSelection, refreshTick, selectSession]);
-
-  const session = sessions?.find((s) => s.id === selectedSessionId) ?? null;
 
   const rooms = useLiveQuery(() => listRooms(db), [db]);
   // Device-local and held as an id, never an index: deleting a salle reorders
@@ -157,7 +114,7 @@ export function PlanPage({
     [db, plan?.id],
   );
 
-  if (rooms === undefined || sessions === undefined) {
+  if (rooms === undefined) {
     return <p className="text-text-muted">{t("common.loading")}</p>;
   }
 
@@ -232,22 +189,6 @@ export function PlanPage({
           <Link className="text-accent text-sm" to={Router.Rooms()}>
             {t("plan.manageRooms")}
           </Link>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {selectedSessionId !== null && (
-            <SessionBar
-              sessions={sessions}
-              selectedSessionId={selectedSessionId}
-              onSelect={(id) => selectSession(id, true)}
-            />
-          )}
-          <button
-            type="button"
-            className="btn"
-            onClick={() => void createSession(db, classId).then((s) => selectSession(s.id, true))}
-          >
-            {t("plan.newSession")}
-          </button>
         </div>
       </div>
 
@@ -346,6 +287,7 @@ export function PlanPage({
               key={student.id}
               student={student}
               session={session}
+              onRecord={onRecord}
               onClose={() => setSelectedStudentId(null)}
               onMove={() => {
                 setSelectedStudentId(null);

@@ -91,7 +91,7 @@ describe("workspace backup", () => {
     // asserting nothing about the version at all.
     await expect(
       importWorkspace(db, {
-        version: 11,
+        version: 12,
         exportedAt: 0,
         classes: [],
         students: [],
@@ -109,7 +109,6 @@ describe("workspace backup", () => {
         studentGroups: [],
         groupMembers: [],
         scheduleEntries: [],
-        diaryEntries: [],
         rooms: [],
         desks: [],
         seatingPlans: [],
@@ -120,6 +119,44 @@ describe("workspace backup", () => {
     expect(await db.classes.count()).toBe(classCountBefore);
     expect(await db.students.count()).toBe(studentCountBefore);
     expect(await db.classes.get(sampleBefore.id)).toEqual(sampleBefore);
+    db.close();
+  });
+
+  it("rejects a version 10 backup rather than silently dropping its journal", async () => {
+    // A v10 file predates the séance-owned note: its journal lived in
+    // `diaryEntries`, a day-keyed store that no longer exists. Before the
+    // schema literal was bumped to 11, this exact payload PARSED — zod strips
+    // an object's unrecognised top-level key rather than failing on it — so
+    // importing an old backup silently threw away every journal entry with no
+    // error at all. `diaryEntries` is included here to pin that regression.
+    const db = openWorkspaceDb("backup-import-v10");
+    expect(() =>
+      parseBackup({
+        version: 10,
+        exportedAt: 1,
+        classes: [],
+        students: [],
+        subjects: [],
+        gradebooks: [],
+        periods: [],
+        columns: [],
+        grades: [],
+        sessions: [],
+        attendance: [],
+        behaviourEvents: [],
+        rooms: [],
+        desks: [],
+        seatingPlans: [],
+        assignments: [],
+        rubricTemplates: [],
+        rubricAssessments: [],
+        rubricScores: [],
+        studentGroups: [],
+        groupMembers: [],
+        scheduleEntries: [],
+        diaryEntries: [],
+      }),
+    ).toThrow();
     db.close();
   });
 
@@ -148,7 +185,6 @@ describe("workspace backup", () => {
         studentGroups: [],
         groupMembers: [],
         scheduleEntries: [],
-        diaryEntries: [],
         rooms: [],
       }),
     ).toThrow();
@@ -180,7 +216,6 @@ describe("workspace backup", () => {
         studentGroups: [],
         groupMembers: [],
         scheduleEntries: [],
-        diaryEntries: [],
         rooms: [],
       }),
     ).toThrow();
@@ -232,7 +267,7 @@ describe("workspace backup", () => {
     });
     await db.groupMembers.put({ groupId: "g1", studentId: "p1" });
     const backup = await exportWorkspace(db);
-    expect(backup.version).toBe(10);
+    expect(backup.version).toBe(11);
     expect(backup.sessions).toHaveLength(1);
     expect(backup.attendance).toHaveLength(1);
     expect(backup.rubricTemplates).toHaveLength(1);
@@ -492,8 +527,8 @@ describe("export completeness", () => {
     // The hole the double-import guard does NOT cover, found the hard way:
     // that test compares counts before and after a second import, so a table
     // missing from the backup ENTIRELY keeps its count on both passes and
-    // looks perfectly healthy. `diaryEntries` was absent from export and
-    // import for a whole commit while every backup test passed.
+    // looks perfectly healthy. The journal's day-keyed table was absent from
+    // export and import for a whole commit while every backup test passed.
     //
     // Asserted over db.tables so the next schema version is covered the day
     // it is declared.
@@ -509,13 +544,6 @@ describe("export completeness", () => {
   it("restores every table, so nothing is exported and then dropped on the way back", async () => {
     const db = openWorkspaceDb(`backup-restore-${crypto.randomUUID()}`);
     await seedIfEmpty(db, `backup-restore-${crypto.randomUUID()}`);
-    await db.diaryEntries.put({
-      classId: (await db.classes.toArray())[0].id,
-      date: new Date(2030, 0, 15).getTime(),
-      text: "on a fait les fractions",
-      createdAt: 1,
-      updatedAt: 1,
-    });
 
     const before: Record<string, number> = {};
     for (const table of db.tables) before[table.name] = await table.count();
@@ -546,15 +574,6 @@ describe("importing twice", () => {
     // schema version is covered the day it is declared.
     const db = openWorkspaceDb(`backup-double-${crypto.randomUUID()}`);
     await seedIfEmpty(db, `backup-double-${crypto.randomUUID()}`);
-    await db.diaryEntries.put({
-      classId: (await db.classes.toArray())[0].id,
-      // A date far from anything the demo seed places, so this setup can
-      // never collide with seeded content on the compound key.
-      date: new Date(2030, 0, 15).getTime(),
-      text: "on a fait les fractions",
-      createdAt: 1,
-      updatedAt: 1,
-    });
     await db.scheduleEntries.add({
       id: "sch1",
       classId: (await db.classes.toArray())[0].id,
@@ -590,7 +609,7 @@ describe("class-size ceiling on import", () => {
   /** A minimal, schema-valid backup carrying `count` pupils in one class. */
   function backupWithRoster(count: number) {
     return {
-      version: 10,
+      version: 11,
       exportedAt: Date.now(),
       classes: [{ id: "c1", name: "3°B", createdAt: 1, updatedAt: 1 }],
       students: Array.from({ length: count }, (_, i) => ({
@@ -615,7 +634,6 @@ describe("class-size ceiling on import", () => {
       studentGroups: [],
       groupMembers: [],
       scheduleEntries: [],
-      diaryEntries: [],
       rooms: [],
       desks: [],
       seatingPlans: [],

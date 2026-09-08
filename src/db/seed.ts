@@ -16,7 +16,6 @@ import type {
   AttendanceRecord,
   BehaviourEvent,
   Desk,
-  DiaryEntry,
   Grade,
   Gradebook,
   GradeColumn,
@@ -104,24 +103,6 @@ function startOfSeptember(ms: number): number {
   const d = new Date(ms);
   const year = d.getMonth() >= 8 ? d.getFullYear() : d.getFullYear() - 1;
   return startOfDay(new Date(year, 8, 1).getTime());
-}
-
-/**
- * The first day of `ms`'s month falling on `weekday` (ISO, 1 = Monday).
- *
- * Walks a day at a time rather than computing an offset: the arithmetic is
- * trivial to get wrong at a month boundary, and the demo is the first thing
- * anyone sees.
- */
-function firstWeekdayOfMonth(ms: number, weekday: number): number {
-  const d = new Date(ms);
-  const cursor = new Date(d.getFullYear(), d.getMonth(), 1);
-  for (let i = 0; i < 7; i += 1) {
-    const iso = cursor.getDay() === 0 ? 7 : cursor.getDay();
-    if (iso === weekday) break;
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return startOfDay(cursor.getTime());
 }
 
 /** Plausible journal text. Deliberately mundane — a log, not a lesson plan. */
@@ -498,20 +479,14 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     writeTermStart(startOfSeptember(now));
   }
 
-  // A handful of journal entries on lessons already in the past, so the
-  // feature is visible in the demo rather than being an empty calendar.
-  // Placed on real lesson days inside the CURRENT month, which is the window
-  // the agenda opens on. Counting backwards from today put them in August —
-  // before the term start and outside the default view, so the demo showed an
-  // empty journal while three entries sat in the database.
-  const demoLessons = scheduleEntries.filter((entry) => entry.weekCycle === "all").slice(0, 3);
-  const diaryEntries: DiaryEntry[] = demoLessons.map((entry, index) => ({
-    classId: entry.classId,
-    date: firstWeekdayOfMonth(now, entry.weekday),
-    text: DEMO_DIARY[index % DEMO_DIARY.length],
-    createdAt: now,
-    updatedAt: now,
-  }));
+  // A few journal notes on lessons already in the past, so the feature is
+  // visible in the demo rather than being an empty calendar. Written straight
+  // onto real `Session.note` fields — the séances already built above — since
+  // a note now lives on the lesson it was written about rather than on a
+  // day-keyed row of its own.
+  sessions.slice(0, DEMO_DIARY.length).forEach((session, index) => {
+    session.note = DEMO_DIARY[index];
+  });
 
   await db.transaction(
     "rw",
@@ -536,7 +511,6 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       db.studentGroups,
       db.groupMembers,
       db.scheduleEntries,
-      db.diaryEntries,
     ],
     async () => {
       await db.classes.bulkAdd(classes);
@@ -559,7 +533,6 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       await db.studentGroups.bulkAdd(studentGroups);
       await db.groupMembers.bulkPut(groupMembers);
       await db.scheduleEntries.bulkAdd(scheduleEntries);
-      await db.diaryEntries.bulkPut(diaryEntries);
     },
   );
 

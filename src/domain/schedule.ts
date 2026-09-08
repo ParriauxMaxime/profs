@@ -83,6 +83,34 @@ export function entriesForDate<T extends ScheduleEntryLike>(
     .sort((a, b) => a.startMinute - b.startMinute);
 }
 
+/**
+ * The entries running on a day, earliest first, with or without a term anchor.
+ *
+ * This is the form every SCREEN needs, because the anchor is optional: it
+ * lives in `localStorage` and a teacher may never have set one.
+ *
+ * Without it nothing on an alternating cycle has a meaningful parity, so only
+ * the `all` lessons are selected rather than a week being guessed — a teacher
+ * with no term start still sees what happens every week, and never sees week
+ * A's lessons on a day the app cannot name. `entriesForDate` is the anchored
+ * case and stays the sharper tool; this wraps it.
+ *
+ * It exists as one function because it was two: Today and the class page each
+ * held a copy of the null branch, and a parity rule kept in two places is a
+ * parity rule that eventually disagrees with itself.
+ */
+export function entriesForDay<T extends ScheduleEntryLike>(
+  entries: T[],
+  termStart: number | null,
+  day: number,
+): T[] {
+  if (termStart !== null) return entriesForDate(entries, termStart, day);
+  const weekday = isoWeekday(day);
+  return entries
+    .filter((e) => e.weekCycle === "all" && e.weekday === weekday)
+    .sort((a, b) => a.startMinute - b.startMinute);
+}
+
 export function minutesToHm(minutes: number): { hours: number; minutes: number } {
   return { hours: Math.floor(minutes / 60), minutes: minutes % 60 };
 }

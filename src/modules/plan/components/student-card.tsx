@@ -27,20 +27,30 @@ import { PupilName } from "../../design-system/components/pupil-name";
  * switching pupils resets every piece of local draft state (the notes textarea
  * and the behaviour comment input) rather than carrying it onto the next child.
  *
- * Attendance and behaviour belong to a **session** — a lesson that happened on
- * a date — so without one the card shows the pupil's notes and a link to their
- * page and nothing else. Recording an absence against no lesson is exactly the
- * second attendance path phase 2A refused to create.
+ * Attendance and behaviour belong to a **séance** — a lesson on a date — so
+ * without one the card shows the pupil's notes and a link to their page and
+ * nothing else. Recording an absence against no lesson is exactly the second
+ * attendance path phase 2A refused to create.
+ *
+ * `onRecord` is what lets the register appear before the séance row exists.
+ * The class page knows which lesson is on screen; the row is written by the
+ * FIRST mark, not by opening the page, so every write here awaits `onRecord`
+ * and uses the id it returns rather than trusting `session` from this render.
+ * `session` still supplies the reads: with no row there is nothing recorded
+ * yet, which is exactly what the empty state shows.
  */
 export function StudentCard({
   student,
   session,
+  onRecord,
   onClose,
   onMove,
   onUnseat,
 }: {
   student: Student;
   session?: Session | null;
+  /** Creates the séance on demand. Its presence is what offers the register. */
+  onRecord?: () => Promise<string>;
   onClose: () => void;
   /** Only the seating plan can pick a pupil back up. */
   onMove?: () => void;
@@ -77,14 +87,23 @@ export function StudentCard({
     [db, session?.id, student.id],
   );
 
+  // The séance this card records against, created if the teacher is the first
+  // to touch this lesson. Null when there is no lesson at all — the roster,
+  // where attendance has deliberately no path.
+  const record: (() => Promise<string>) | null =
+    onRecord ?? (session ? () => Promise.resolve(session.id) : null);
+
   // Tapping the value already recorded clears it. `toggleAttendance` re-reads
   // inside its transaction rather than trusting `attendance` from this render.
-  const setAttendance = (sessionId: string, value: AttendanceValue): Promise<void> =>
-    toggleAttendance(db, sessionId, student.id, value);
+  const setAttendance = async (value: AttendanceValue): Promise<void> => {
+    if (record === null) return;
+    await toggleAttendance(db, await record(), student.id, value);
+  };
 
-  const addBehaviour = async (sessionId: string, type: BehaviourType): Promise<void> => {
+  const addBehaviour = async (type: BehaviourType): Promise<void> => {
+    if (record === null) return;
     await logBehaviour(db, {
-      sessionId,
+      sessionId: await record(),
       studentId: student.id,
       classId: student.classId,
       type,
@@ -136,7 +155,7 @@ export function StudentCard({
         </div>
       )}
 
-      {session ? (
+      {record !== null ? (
         <>
           <div className="flex flex-col gap-2">
             <span className="font-medium text-sm text-text-muted">{t("attendance.title")}</span>
@@ -153,7 +172,7 @@ export function StudentCard({
                         ? "border-accent bg-accent text-white"
                         : "border-border bg-bg text-text"
                     }`}
-                    onClick={() => void setAttendance(session.id, value)}
+                    onClick={() => void setAttendance(value)}
                   >
                     {t(`attendance.${value}`)}
                   </button>
@@ -171,7 +190,7 @@ export function StudentCard({
                   type="button"
                   className="min-h-11 min-w-11 flex-1 rounded-md border border-border px-3 py-2 font-medium text-sm text-white"
                   style={{ background: BEHAVIOUR_COLORS[type], color: BEHAVIOUR_TEXT_COLORS[type] }}
-                  onClick={() => void addBehaviour(session.id, type)}
+                  onClick={() => void addBehaviour(type)}
                 >
                   {t(`behaviour.${type}`)}
                 </button>
@@ -216,7 +235,7 @@ export function StudentCard({
           </div>
         </>
       ) : (
-        // No lesson selected — say why the register is not here, rather than
+        // No lesson at all — say why the register is not here, rather than
         // leaving a gap the teacher reads as a missing feature.
         <p className="text-sm text-text-faint">{t("attendance.needsSession")}</p>
       )}

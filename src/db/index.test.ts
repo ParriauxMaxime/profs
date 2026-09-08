@@ -19,7 +19,6 @@ describe("schema v2", () => {
         "classes",
         "columns",
         "desks",
-        "diaryEntries",
         "gradebooks",
         "grades",
         "groupMembers",
@@ -206,6 +205,36 @@ describe("schema v11 — the saved room's name is reused for the salle", () => {
     await expect(
       fresh.assignments.put({ planId: "p1", deskId: "d9", studentId: "s1" }),
     ).rejects.toThrow();
+    fresh.close();
+  });
+});
+
+describe("schema v14 — the day-keyed journal entry is dropped", () => {
+  /** The schema as it stood at v13, with `diaryEntries` still declared. */
+  function openV13(name: string) {
+    const db = new Dexie(`profs-${name}`);
+    db.version(13).stores({
+      classes: "id, name",
+      sessions: "id, classId, date, [classId+date], subjectId",
+      diaryEntries: "[classId+date], classId, date",
+    });
+    return db;
+  }
+
+  it("opens a v13 database with current code", async () => {
+    const name = `repro-diary-${crypto.randomUUID()}`;
+    const old = openV13(name);
+    await old.open();
+    await old.table("sessions").add({ id: "s1", classId: "c1", date: 0, createdAt: 0 });
+    await old.table("diaryEntries").add({ classId: "c1", date: 0, text: "vieux" });
+    old.close();
+
+    const fresh = openWorkspaceDb(name);
+    await fresh.open();
+    // The lesson survives; the day-keyed entry does not, since its text now
+    // lives on `Session.note` — which needed no version of its own.
+    expect(await fresh.sessions.get("s1")).toMatchObject({ classId: "c1" });
+    expect(fresh.tables.map((t) => t.name)).not.toContain("diaryEntries");
     fresh.close();
   });
 });
