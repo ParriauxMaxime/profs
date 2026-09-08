@@ -1,8 +1,10 @@
 import type { ScheduleEntry, Session } from "@db";
 import { deleteClass } from "@db/cascade";
 import { useDb } from "@db/provider";
+import { listRooms } from "@db/rooms";
 import { getOrCreateSessionAt, sessionsForClass, sessionsForDay, startOfDay } from "@db/sessions";
 import { nextDay, previousDay } from "@domain/calendar";
+import { filterByGroup, resolveGroupSelection } from "@domain/group";
 import { entriesForDay } from "@domain/schedule";
 import { resolveSlot, type Slot, slotsForDay } from "@domain/seance";
 import { readTermStart } from "@domain/term";
@@ -13,10 +15,12 @@ import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { ConfirmButton } from "../design-system/components/confirm-button";
 import { SeanceNote } from "../diary/components/seance-note";
+import { StudentCard } from "../plan/components/student-card";
 import { PlanPage } from "../plan/page";
 import { CarnetsPanel } from "./components/carnets-panel";
 import { ClassForm } from "./components/class-form";
 import { GroupFilter } from "./components/group-filter";
+import { RosterRegister } from "./components/roster-register";
 import { SeanceStrip } from "./components/seance-strip";
 
 /**
@@ -57,6 +61,10 @@ export function ClassPage({
   // Held as a group id, never an index: a deleted group falls back to "Tous",
   // not to whatever now sits at that position.
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  // Held as a pupil id, never an index: the roster register's rows re-sort as
+  // pupils are added. Only used without a salle — with one, the plan owns its
+  // own card locally.
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
   // A tablet left on this page overnight must not go on recording attendance
   // against yesterday: the day is resolved from the clock, so re-resolve it
@@ -120,6 +128,11 @@ export function ClassPage({
     ]);
     return { gradebooks, subjects };
   }, [db, classId]);
+
+  // Whether the workspace has any salle at all. A salle is an upgrade to the
+  // register, never a prerequisite for it, so this decides between the plan
+  // and the roster register — not whether attendance can be taken.
+  const rooms = useLiveQuery(() => listRooms(db), [db]);
 
   const dayEntries =
     lesson === undefined ? [] : entriesForDay(lesson.entries, termStart, lesson.day);
@@ -199,11 +212,24 @@ export function ClassPage({
     selectSlot({ date: session.date, startsAt: null, sessionId: session.id, entryId: null });
   }, [db, classId, ensureSeance, slotSessionId, seanceDay, selectSlot]);
 
+  // The roster register's marks for the slot on screen. Read directly rather
+  // than through the pupil card, which only ever reads for the one pupil it
+  // has open. Empty while no séance exists yet — nothing has been recorded,
+  // not "everyone present".
+  const attendanceRecords = useLiveQuery(
+    async () =>
+      slotSessionId === null
+        ? []
+        : await db.attendance.where("sessionId").equals(slotSessionId).toArray(),
+    [db, slotSessionId],
+  );
+
   if (
     schoolClass === undefined ||
     students === undefined ||
     groups === undefined ||
-    lesson === undefined
+    lesson === undefined ||
+    rooms === undefined
   ) {
     return <p className="text-text-muted">{t("common.loading")}</p>;
   }
@@ -214,6 +240,7 @@ export function ClassPage({
   // With no séance yet the draft belongs to the SLOT, so switching lesson
   // resets it rather than carrying one hour's text onto the next.
   const noteKey = slotSessionId ?? `${seanceDay}-${slotStartsAt}`;
+  const hasRoom = rooms.length > 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -284,14 +311,45 @@ export function ClassPage({
             selectedGroupId={selectedGroupId}
             onSelect={setSelectedGroupId}
           />
-          <PlanPage
-            classId={classId}
-            students={students}
-            memberships={memberships ?? []}
-            selectedGroupId={selectedGroupId}
-            session={session}
-            onRecord={ensureSeance}
-          />
+          {hasRoom ? (
+            <PlanPage
+              classId={classId}
+              students={students}
+              memberships={memberships ?? []}
+              selectedGroupId={selectedGroupId}
+              session={session}
+              onRecord={ensureSeance}
+            />
+          ) : (
+            // No salle in the workspace: a plan has nowhere to draw, but the
+            // register does not depend on one. Same gesture as a seat — tap a
+            // row to open the pupil card, the only place a mark is set.
+            <>
+              <RosterRegister
+                students={filterByGroup(
+                  students,
+                  memberships ?? [],
+                  resolveGroupSelection(groups, selectedGroupId),
+                )}
+                attendance={attendanceRecords ?? []}
+                onOpen={setSelectedStudentId}
+              />
+              {selectedStudentId !== null &&
+                (() => {
+                  const student = students.find((s) => s.id === selectedStudentId);
+                  if (!student) return null;
+                  return (
+                    <StudentCard
+                      key={student.id}
+                      student={student}
+                      session={session}
+                      onRecord={ensureSeance}
+                      onClose={() => setSelectedStudentId(null)}
+                    />
+                  );
+                })()}
+            </>
+          )}
         </div>
 
         <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">
