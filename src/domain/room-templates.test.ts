@@ -1,12 +1,4 @@
-import {
-  MAX_POSITIONS,
-  overlaps,
-  PITCH,
-  type Position,
-  ROOM_MAX,
-  TABLE,
-  tableGroups,
-} from "./room";
+import { MAX_POSITIONS, overlaps, type Position, ROOM_MAX, TABLE, tableGroups } from "./room";
 import {
   buildRoom,
   clampTemplate,

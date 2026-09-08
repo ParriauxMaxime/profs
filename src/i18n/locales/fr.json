@@ -25,7 +25,8 @@
     "menu": "Menu",
     "openMenu": "Ouvrir le menu",
     "closeMenu": "Fermer",
-    "diary": "Journal"
+    "diary": "Journal",
+    "rooms": "Salles"
   },
   "common": {
     "save": "Enregistrer",
@@ -445,5 +446,34 @@
     "othersSafe_one": "Votre autre établissement n'est pas touché.",
     "othersSafe_other": "Vos {{count}} autres établissements ne sont pas touchés.",
     "details": "Détail technique"
+  },
+  "rooms": {
+    "title": "Salles",
+    "help": "Une salle appartient à l'établissement. Les classes qui y passent gardent chacune leur plan de table.",
+    "name": "Nom de la salle",
+    "namePlaceholder": "204",
+    "add": "Créer la salle",
+    "addHint": "Créée avec {{count}} places, à réarranger ensuite.",
+    "empty": "Aucune salle pour l'instant. Créez-en une : c'est là que vivent les tables, et vos classes viendront s'y asseoir.",
+    "open": "Ouvrir",
+    "delete": "Supprimer la salle",
+    "notFound": "Salle introuvable",
+    "deskCount_one": "{{count}} place",
+    "deskCount_other": "{{count}} places",
+    "usedBy": "Utilisée par {{classes}}",
+    "usedByNobody": "Utilisée par aucune classe",
+    "confirmDelete": "Supprimer « {{name}} » et ses tables ?",
+    "confirmDeleteUsed": "Supprimer « {{name}} » — {{classes}} y perdront leur plan de table",
+    "addFurniture": "Ajouter",
+    "table": "TABLE",
+    "dragHint": "Glissez-la sur le plan. Posée contre une table voisine, les deux n'en font plus qu'une.",
+    "keyboardHint": "Appuyez sur une table pour la prendre, puis sur le sol pour la poser. Au clavier : Tab pour l'atteindre, Espace pour la prendre, les flèches pour l'ajuster, Échap pour reposer.",
+    "holdTable": "Prendre la table",
+    "removeTable": "Retirer la table",
+    "inHand": "En main",
+    "emptyRoom": "Cette salle n'a aucune table. Glissez-en une depuis « Ajouter », ou choisissez une disposition.",
+    "model": "Modèle",
+    "stampWarning_one": "{{count}} élève perdra sa place, toutes classes confondues.",
+    "stampWarning_other": "{{count}} élèves perdront leur place, toutes classes confondues."
   }
 }

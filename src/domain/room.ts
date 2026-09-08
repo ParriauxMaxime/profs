@@ -213,9 +213,22 @@ export function reseat(
  * the assignment model has to answer, and it would answer it wrong every time
  * a desk moved.
  */
-export interface TableGroup {
+/**
+ * The least a desk has to be for grouping to work: an identity and a place.
+ *
+ * Generic over that rather than taking `Seated`, because grouping is geometry
+ * and has no opinion about who is sitting down. A `Desk` — furniture, which
+ * carries no occupant at all — groups exactly as well as a seated one.
+ */
+export interface Placed {
+  id: string;
+  x: number;
+  y: number;
+}
+
+export interface TableGroup<T extends Placed = Seated> {
   /** The group's desks, in reading order. */
-  desks: Seated[];
+  desks: T[];
   /** The group's bounding box, in half-tiles. */
   x: number;
   y: number;
@@ -230,7 +243,7 @@ export interface TableGroup {
  * treating them as one would merge an entire staggered arc into a single
  * surface.
  */
-function sharesEdge(a: Seated, b: Seated): boolean {
+function sharesEdge(a: Placed, b: Placed): boolean {
   const dx = Math.abs(a.x - b.x);
   const dy = Math.abs(a.y - b.y);
   return (dx === TABLE && dy === 0) || (dy === TABLE && dx === 0);
@@ -249,10 +262,10 @@ function sharesEdge(a: Seated, b: Seated): boolean {
  * `canPlace`. What kept them apart was the generators planting `PITCH`
  * between every desk.
  */
-export function tableGroups(desks: Seated[]): TableGroup[] {
+export function tableGroups<T extends Placed>(desks: T[]): TableGroup<T>[] {
   const ordered = [...desks].sort(compareReadingOrder);
   const seen = new Set<string>();
-  const groups: TableGroup[] = [];
+  const groups: TableGroup<T>[] = [];
 
   for (const start of ordered) {
     if (seen.has(start.id)) continue;

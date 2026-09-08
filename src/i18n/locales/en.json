@@ -25,7 +25,8 @@
     "menu": "Menu",
     "openMenu": "Open menu",
     "closeMenu": "Close",
-    "diary": "Journal"
+    "diary": "Journal",
+    "rooms": "Rooms"
   },
   "common": {
     "save": "Save",
@@ -445,5 +446,34 @@
     "othersSafe_one": "Your other school is untouched.",
     "othersSafe_other": "Your {{count}} other schools are untouched.",
     "details": "Technical detail"
+  },
+  "rooms": {
+    "title": "Rooms",
+    "help": "A room belongs to the school. Each class taught in it keeps its own seating plan.",
+    "name": "Room name",
+    "namePlaceholder": "204",
+    "add": "Create room",
+    "addHint": "Created with {{count}} seats, to rearrange afterwards.",
+    "empty": "No rooms yet. Create one — this is where the tables live, and your classes come to sit at them.",
+    "open": "Open",
+    "delete": "Delete room",
+    "notFound": "Room not found",
+    "deskCount_one": "{{count}} seat",
+    "deskCount_other": "{{count}} seats",
+    "usedBy": "Used by {{classes}}",
+    "usedByNobody": "Used by no class",
+    "confirmDelete": "Delete “{{name}}” and its tables?",
+    "confirmDeleteUsed": "Delete “{{name}}” — {{classes}} will lose their seating plan",
+    "addFurniture": "Add",
+    "table": "TABLE",
+    "dragHint": "Drag it onto the plan. Dropped against a neighbouring table, the two become one.",
+    "keyboardHint": "Tap a table to pick it up, then tap the floor to put it down. By keyboard: Tab to reach it, Space to pick it up, arrows to adjust, Escape to drop.",
+    "holdTable": "Pick up table",
+    "removeTable": "Remove table",
+    "inHand": "In hand",
+    "emptyRoom": "This room has no tables. Drag one from “Add”, or choose a layout.",
+    "model": "Layout",
+    "stampWarning_one": "{{count}} pupil will lose their seat, across all classes.",
+    "stampWarning_other": "{{count}} pupils will lose their seats, across all classes."
   }
 }

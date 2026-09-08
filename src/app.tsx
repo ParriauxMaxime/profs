@@ -4,6 +4,8 @@ import { DesignPage } from "./modules/design-system/page";
 import { DiaryPage } from "./modules/diary/page";
 import { EntryPage } from "./modules/entry/page";
 import { GradebookPage } from "./modules/gradebook/page";
+import { RoomEditorPage } from "./modules/rooms/editor";
+import { RoomsPage } from "./modules/rooms/page";
 import { RubricAssessmentPage, RubricsPage } from "./modules/rubric/page";
 import { SchedulePage } from "./modules/schedule/page";
 import { SettingsPage } from "./modules/settings/page";
@@ -25,6 +27,8 @@ export function App() {
     "Students",
     "Schedule",
     "Diary",
+    "Rooms",
+    "Room",
     "Class",
     "ClassPlan",
     "ClassStudents",
@@ -59,6 +63,8 @@ type AppRoute = NonNullable<
       | "Students"
       | "Schedule"
       | "Diary"
+      | "Rooms"
+      | "Room"
       | "Class"
       | "ClassPlan"
       | "ClassStudents"
@@ -87,6 +93,10 @@ function Routes({ route }: { route: AppRoute }) {
       return <SchedulePage />;
     case "Diary":
       return <DiaryPage />;
+    case "Rooms":
+      return <RoomsPage />;
+    case "Room":
+      return <RoomEditorPage roomId={route.params.roomId} />;
     case "Class":
       // A class opens on its seating plan: that is the view a teacher reaches
       // for mid-lesson, and the tabs are routes, so the bare class URL has to
