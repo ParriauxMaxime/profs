@@ -85,9 +85,13 @@ describe("workspace backup", () => {
     const studentCountBefore = await db.students.count();
     const sampleBefore = (await db.classes.toArray())[0];
 
+    // Every key the CURRENT schema wants is present, so the only thing wrong
+    // with this file is that it comes from the future. Leaving a key out would
+    // make it fail the shape check instead, and the test would pass while
+    // asserting nothing about the version at all.
     await expect(
       importWorkspace(db, {
-        version: 9,
+        version: 10,
         exportedAt: 0,
         classes: [],
         students: [],
@@ -109,6 +113,9 @@ describe("workspace backup", () => {
         scheduleEntries: [],
         diaryEntries: [],
         rooms: [],
+        desks: [],
+        seatingPlans: [],
+        assignments: [],
       }),
     ).rejects.toThrow();
 
@@ -233,7 +240,7 @@ describe("workspace backup", () => {
     });
     await db.groupMembers.put({ groupId: "g1", studentId: "p1" });
     const backup = await exportWorkspace(db);
-    expect(backup.version).toBe(8);
+    expect(backup.version).toBe(9);
     expect(backup.sessions).toHaveLength(1);
     expect(backup.attendance).toHaveLength(1);
     expect(backup.rubricTemplates).toHaveLength(1);
@@ -617,7 +624,7 @@ describe("class-size ceiling on import", () => {
   /** A minimal, schema-valid backup carrying `count` pupils in one class. */
   function backupWithRoster(count: number) {
     return {
-      version: 8,
+      version: 9,
       exportedAt: Date.now(),
       classes: [{ id: "c1", name: "3°B", createdAt: 1, updatedAt: 1 }],
       students: Array.from({ length: count }, (_, i) => ({
@@ -646,6 +653,9 @@ describe("class-size ceiling on import", () => {
       scheduleEntries: [],
       diaryEntries: [],
       rooms: [],
+      desks: [],
+      seatingPlans: [],
+      assignments: [],
     };
   }
 

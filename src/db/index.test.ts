@@ -13,20 +13,24 @@ describe("schema v2", () => {
     const names = db.tables.map((t) => t.name).sort();
     expect(names).toEqual(
       [
+        "assignments",
         "attendance",
         "behaviourEvents",
         "classes",
         "columns",
+        "desks",
         "diaryEntries",
         "gradebooks",
         "grades",
         "groupMembers",
         "periods",
+        "rooms",
         "rubricAssessments",
         "rubricScores",
         "rubricTemplates",
         "scheduleEntries",
         "seatingLayouts",
+        "seatingPlans",
         "seats",
         "sessions",
         "students",
@@ -170,6 +174,94 @@ describe("schema v7 — the grid store is dropped, not re-keyed", () => {
       width: 30,
       height: 20,
     });
+    fresh.close();
+  });
+});
+
+describe("schema v11 — the saved room's name is reused for the salle", () => {
+  /**
+   * v9 as it shipped, far enough back to carry a real saved room.
+   *
+   * Only the stores this test touches are declared: Dexie carries the rest
+   * forward untouched, and the point here is the one store whose MEANING
+   * changed under an unchanged name.
+   */
+  function openV9(name: string) {
+    const db = new Dexie(`profs-${name}`);
+    db.version(8).stores({
+      classes: "id, name",
+      seatingLayouts: "id, classId",
+      seats: "id, layoutId, studentId, &[layoutId+x+y]",
+    });
+    db.version(9).stores({ rooms: "id, name" });
+    return db;
+  }
+
+  it("carries no v9 saved room forward into the salle store", async () => {
+    const name = `repro-room-${crypto.randomUUID()}`;
+    const old = openV9(name);
+    await old.open();
+    await old.table("classes").add({ id: "c1", name: "3°B", createdAt: 1, updatedAt: 1 });
+    // The v9 shape: `positions` embedded, and no desks table anywhere. Carried
+    // forward, this row would feed `positions` into code reading `desks` — a
+    // salle that renders no furniture and cannot be told from an empty one.
+    await old.table("rooms").add({
+      id: "r1",
+      name: "Salle 204",
+      width: 10,
+      height: 8,
+      positions: [
+        { x: 0, y: 0 },
+        { x: 3, y: 0 },
+      ],
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    old.close();
+
+    const fresh = openWorkspaceDb(name);
+    await fresh.open();
+    expect(await fresh.classes.count()).toBe(1);
+    expect(await fresh.rooms.count()).toBe(0);
+    fresh.close();
+  });
+
+  it("gives the new code four empty stores it can actually fill", async () => {
+    const name = `repro-salle-${crypto.randomUUID()}`;
+    const old = openV9(name);
+    await old.open();
+    await old.table("rooms").add({
+      id: "r1",
+      name: "Salle 204",
+      width: 10,
+      height: 8,
+      positions: [{ x: 0, y: 0 }],
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    old.close();
+
+    const fresh = openWorkspaceDb(name);
+    await fresh.open();
+    await fresh.rooms.add({
+      id: "r2",
+      name: "204",
+      width: 20,
+      height: 16,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await fresh.desks.add({ id: "d1", roomId: "r2", x: 2, y: 2 });
+    await fresh.seatingPlans.add({ id: "p1", classId: "c1", roomId: "r2", updatedAt: 1 });
+    await fresh.assignments.put({ planId: "p1", deskId: "d1", studentId: "s1" });
+
+    expect(await fresh.rooms.get("r2")).toMatchObject({ width: 20, height: 16 });
+    expect(await fresh.assignments.get(["p1", "d1"])).toMatchObject({ studentId: "s1" });
+    // And the indexes the new stores were declared for are live.
+    await expect(fresh.desks.add({ id: "d2", roomId: "r2", x: 2, y: 2 })).rejects.toThrow();
+    await expect(
+      fresh.assignments.put({ planId: "p1", deskId: "d9", studentId: "s1" }),
+    ).rejects.toThrow();
     fresh.close();
   });
 });

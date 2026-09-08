@@ -125,6 +125,84 @@ export interface BehaviourEvent {
 }
 
 /**
+ * A salle: a physical room, sized in half-tiles.
+ *
+ * It belongs to the ÉTABLISSEMENT and to no class. 204 holds its tables
+ * whether or not 3°B is in it, and both 3°B and 5°A sit at the same furniture.
+ * That is the whole of why this is not a `SeatingLayout` with a nicer name:
+ * a layout was owned by one class, so two classes in one physical room kept
+ * two copies of it and editing one reached neither the other.
+ *
+ * It carries no `positions`. Furniture lives in `desks`, because a desk needs
+ * an id for an assignment to name.
+ */
+export interface Room {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * One place at one table, in one salle.
+ *
+ * `Desk` rather than `Table`: a Dexie store named `tables` would shadow
+ * `db.tables`, which `wipeWorkspace` and the backup's clear list both read —
+ * a silent, total break. Same reason `SchoolClass` is not `class` and
+ * `GradeColumn` is not `Column`. The French interface still says *table*.
+ *
+ * Carries no `studentId`. Who sits here is a property of a CLASS in this
+ * salle, not of the furniture, and storing it on the desk is what made a room
+ * unshareable.
+ *
+ * Two desks exactly `TABLE` apart share an edge and DRAW as one table. That
+ * merge is a rendering and never a datum — see `tableGroups`.
+ */
+export interface Desk {
+  id: string;
+  roomId: string;
+  x: number;
+  y: number;
+}
+
+/**
+ * One class's arrangement in one salle.
+ *
+ * Exactly one per (class, salle), which the `&[classId+roomId]` index
+ * enforces. A class taught in two salles has two plans and picks between them
+ * by picking the salle; several named arrangements of the SAME salle were
+ * considered and cut, since rearranging and rearranging back is cheaper than
+ * a feature.
+ */
+export interface SeatingPlan {
+  id: string;
+  classId: string;
+  roomId: string;
+  updatedAt: number;
+}
+
+/**
+ * One pupil at one desk, within one plan.
+ *
+ * Keyed `[planId+deskId]`, which copies `Grade` exactly: seating is a one-row
+ * `put`, unseating a one-row `delete`, and nothing ever read-modify-writes a
+ * collection of them.
+ *
+ * `&[planId+studentId]` is the database refusing to seat one pupil in two
+ * chairs — an invariant that used to live only in careful code. Its
+ * consequence is load-bearing: seating an already-seated pupil THROWS unless
+ * the write clears their old row first, so every seat and swap is one
+ * transaction that deletes before it puts.
+ */
+export interface Assignment {
+  planId: string;
+  deskId: string;
+  studentId: string;
+}
+
+/**
  * The room. One per class, sized in half-tiles.
  *
  * `width`/`height` replace phase 5's `rows`/`cols`: a room is an extent a

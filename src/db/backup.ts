@@ -3,14 +3,17 @@ import { gradeValueSchema } from "@domain/gradebook/grade";
 import { z } from "zod";
 import type { AppDatabase } from ".";
 import type {
+  Assignment,
   AttendanceRecord,
   BehaviourEvent,
+  Desk,
   DiaryEntry,
   Grade,
   Gradebook,
   GradeColumn,
   GroupMember,
   Period,
+  Room,
   RubricAssessment,
   RubricScore,
   RubricTemplate,
@@ -18,6 +21,7 @@ import type {
   SchoolClass,
   Seat,
   SeatingLayout,
+  SeatingPlan,
   Session,
   Student,
   StudentGroup,
@@ -25,7 +29,7 @@ import type {
 } from "./types";
 
 export interface WorkspaceBackup {
-  version: 8;
+  version: 9;
   exportedAt: number;
   classes: SchoolClass[];
   students: Student[];
@@ -39,6 +43,10 @@ export interface WorkspaceBackup {
   behaviourEvents: BehaviourEvent[];
   seatingLayouts: SeatingLayout[];
   seats: Seat[];
+  rooms: Room[];
+  desks: Desk[];
+  seatingPlans: SeatingPlan[];
+  assignments: Assignment[];
   rubricTemplates: RubricTemplate[];
   rubricAssessments: RubricAssessment[];
   rubricScores: RubricScore[];
@@ -66,7 +74,7 @@ export interface WorkspaceBackup {
  * it, because half a workspace looks like a whole one.
  */
 const backupSchema = z.object({
-  version: z.literal(8),
+  version: z.literal(9),
   exportedAt: z.number(),
   classes: z.array(z.object({ id: z.string() }).loose()),
   students: z.array(z.object({ id: z.string() }).loose()),
@@ -107,6 +115,16 @@ const backupSchema = z.object({
         studentId: z.string().nullable(),
       })
       .loose(),
+  ),
+  rooms: z.array(z.object({ id: z.string() }).loose()),
+  desks: z.array(
+    z.object({ id: z.string(), roomId: z.string(), x: z.number(), y: z.number() }).loose(),
+  ),
+  seatingPlans: z.array(
+    z.object({ id: z.string(), classId: z.string(), roomId: z.string() }).loose(),
+  ),
+  assignments: z.array(
+    z.object({ planId: z.string(), deskId: z.string(), studentId: z.string() }).loose(),
   ),
   rubricTemplates: z.array(z.object({ id: z.string() }).loose()),
   rubricAssessments: z.array(z.object({ id: z.string() }).loose()),
@@ -153,6 +171,10 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     behaviourEvents,
     seatingLayouts,
     seats,
+    rooms,
+    desks,
+    seatingPlans,
+    assignments,
     rubricTemplates,
     rubricAssessments,
     rubricScores,
@@ -173,6 +195,10 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     db.behaviourEvents.toArray(),
     db.seatingLayouts.toArray(),
     db.seats.toArray(),
+    db.rooms.toArray(),
+    db.desks.toArray(),
+    db.seatingPlans.toArray(),
+    db.assignments.toArray(),
     db.rubricTemplates.toArray(),
     db.rubricAssessments.toArray(),
     db.rubricScores.toArray(),
@@ -183,7 +209,7 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
   ]);
 
   return {
-    version: 8,
+    version: 9,
     exportedAt: Date.now(),
     classes,
     students: students.map(({ photo: _photo, ...rest }) => rest),
@@ -210,6 +236,10 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     behaviourEvents,
     seatingLayouts,
     seats,
+    rooms,
+    desks,
+    seatingPlans,
+    assignments,
     rubricTemplates,
     rubricAssessments,
     rubricScores,
@@ -280,6 +310,10 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     db.behaviourEvents,
     db.seatingLayouts,
     db.seats,
+    db.rooms,
+    db.desks,
+    db.seatingPlans,
+    db.assignments,
     db.rubricTemplates,
     db.rubricAssessments,
     db.rubricScores,
@@ -303,6 +337,10 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     await db.behaviourEvents.bulkAdd(data.behaviourEvents);
     await db.seatingLayouts.bulkAdd(data.seatingLayouts);
     await db.seats.bulkPut(data.seats);
+    await db.rooms.bulkAdd(data.rooms);
+    await db.desks.bulkAdd(data.desks);
+    await db.seatingPlans.bulkAdd(data.seatingPlans);
+    await db.assignments.bulkPut(data.assignments);
     await db.rubricTemplates.bulkAdd(data.rubricTemplates);
     await db.rubricAssessments.bulkAdd(data.rubricAssessments);
     await db.rubricScores.bulkPut(data.rubricScores);

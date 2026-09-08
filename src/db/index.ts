@@ -1,13 +1,16 @@
 import Dexie, { type EntityTable, type Table } from "dexie";
 import type {
+  Assignment,
   AttendanceRecord,
   BehaviourEvent,
+  Desk,
   DiaryEntry,
   Grade,
   Gradebook,
   GradeColumn,
   GroupMember,
   Period,
+  Room,
   RubricAssessment,
   RubricScore,
   RubricTemplate,
@@ -15,6 +18,7 @@ import type {
   SchoolClass,
   Seat,
   SeatingLayout,
+  SeatingPlan,
   Session,
   Student,
   StudentGroup,
@@ -22,14 +26,17 @@ import type {
 } from "./types";
 
 export type {
+  Assignment,
   AttendanceRecord,
   BehaviourEvent,
+  Desk,
   DiaryEntry,
   Grade,
   Gradebook,
   GradeColumn,
   GroupMember,
   Period,
+  Room,
   RubricAssessment,
   RubricScore,
   RubricTemplate,
@@ -37,6 +44,7 @@ export type {
   SchoolClass,
   Seat,
   SeatingLayout,
+  SeatingPlan,
   Session,
   Student,
   StudentGroup,
@@ -56,6 +64,10 @@ export type AppDatabase = Dexie & {
   behaviourEvents: EntityTable<BehaviourEvent, "id">;
   seatingLayouts: EntityTable<SeatingLayout, "id">;
   seats: EntityTable<Seat, "id">;
+  rooms: EntityTable<Room, "id">;
+  desks: EntityTable<Desk, "id">;
+  seatingPlans: EntityTable<SeatingPlan, "id">;
+  assignments: Table<Assignment, [string, string]>;
   rubricTemplates: EntityTable<RubricTemplate, "id">;
   rubricAssessments: EntityTable<RubricAssessment, "id">;
   rubricScores: Table<RubricScore, [string, string, string]>;
@@ -193,6 +205,31 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
   // for.
   db.version(10).stores({
     rooms: null,
+  });
+  // v11 lays down the salle: furniture that belongs to no class, and the
+  // assignation as its own row.
+  //
+  // `&[roomId+x+y]` keeps v8's guarantee that no two desks share a point, so a
+  // bug in `canPlace` surfaces as a rejected write rather than as a pupil
+  // nobody can tap.
+  //
+  // `&[planId+studentId]` is new, and it is the database refusing to seat one
+  // pupil in two chairs — an invariant that used to live only in careful code.
+  // Its consequence is load-bearing rather than incidental: seating an
+  // already-seated pupil THROWS unless the write clears their old row first,
+  // so every seat and swap is one transaction that deletes before it puts.
+  //
+  // `&[classId+roomId]` is what makes "one plan per class per salle" a fact
+  // rather than a convention `getOrCreatePlan` has to be trusted to keep.
+  //
+  // `[planId+deskId]` as the primary key copies `grades`: seating is a one-row
+  // put, unseating a one-row delete, and nothing read-modify-writes a
+  // collection.
+  db.version(11).stores({
+    rooms: "id, name",
+    desks: "id, roomId, &[roomId+x+y]",
+    seatingPlans: "id, classId, roomId, &[classId+roomId]",
+    assignments: "[planId+deskId], planId, deskId, studentId, &[planId+studentId]",
   });
   return db;
 }

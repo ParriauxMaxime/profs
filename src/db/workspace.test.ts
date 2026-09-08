@@ -103,6 +103,20 @@ describe("wipeWorkspace", () => {
       updatedAt: 1,
     });
     await db.groupMembers.add({ groupId: "grp1", studentId: "s1" });
+    // The seed makes no salle, so one is put here for the same reason the
+    // diary entry below is: this test asserts every table is emptied, and a
+    // table that is empty on both sides proves nothing.
+    await db.rooms.add({
+      id: "r1",
+      name: "204",
+      width: 20,
+      height: 16,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await db.desks.add({ id: "d1", roomId: "r1", x: 2, y: 2 });
+    await db.seatingPlans.add({ id: "pl1", classId: "c1", roomId: "r1", updatedAt: 1 });
+    await db.assignments.put({ planId: "pl1", deskId: "d1", studentId: "s1" });
     await db.diaryEntries.add({
       classId: "c1",
       date: 1,
