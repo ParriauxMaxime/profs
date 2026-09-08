@@ -219,7 +219,7 @@ export function RoomEditorPage({ roomId }: { roomId: string }) {
     [current],
   );
 
-  const { begin, dragging } = usePointerDrag<Held>({
+  const { begin } = usePointerDrag<Held>({
     onStart: (payload, at) => {
       dropped.current = false;
       setHeld(payload);
