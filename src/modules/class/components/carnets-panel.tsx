@@ -43,17 +43,33 @@ export function CarnetsPanel({
   // to create. Réglages is where subjects are added.
   const canCreate = subjects.length > 0;
 
-  // `studentAverage` takes the FULL column list plus a periodId and filters
-  // internally — passing an already-filtered list changes results silently.
-  // No periodId here on purpose: the panel summarises the whole carnet, not
-  // one trimestre, and choosing a period is what the grid is for.
-  // `classStats` then takes the pupils' averages as plain numbers.
-  const averages = useLiveQuery(async () => {
+  /**
+   * Per carnet: the period being summarised, and the class average IN IT.
+   *
+   * The period is the FIRST by `order`, because that is the one the grid falls
+   * back to when nothing is selected. The two figures have to agree: a mean
+   * over the whole carnet here and a mean over one trimestre there would be
+   * two different numbers for one gradebook, on two screens a teacher reaches
+   * one from the other — the silently-wrong-number failure this codebase
+   * refuses everywhere else.
+   *
+   * `studentAverage` takes the FULL column list plus a periodId and filters
+   * internally: pre-filtering the columns changes results silently, because
+   * the weights it normalises against would come from a smaller set.
+   * `classStats` then takes the pupils' averages as plain numbers.
+   */
+  const summaries = useLiveQuery(async () => {
     const students = await db.students.where("classId").equals(classId).toArray();
     const entries = await Promise.all(
       gradebooks.map(async (book) => {
-        const columns = await db.columns.where("gradebookId").equals(book.id).toArray();
-        const grades = await db.grades.where("gradebookId").equals(book.id).toArray();
+        const [periods, columns, grades] = await Promise.all([
+          db.periods.where("gradebookId").equals(book.id).sortBy("order"),
+          db.columns.where("gradebookId").equals(book.id).toArray(),
+          db.grades.where("gradebookId").equals(book.id).toArray(),
+        ]);
+        const period = periods[0];
+        if (period === undefined) return [book.id, { periodName: null, mean: null }] as const;
+
         const averageColumns: AverageColumn[] = columns.map((c) => ({
           id: c.id,
           type: c.type,
@@ -71,9 +87,14 @@ export function CarnetsPanel({
           byStudent.set(grade.studentId, list);
         }
         const values = students
-          .map((student) => studentAverage(byStudent.get(student.id) ?? [], averageColumns))
+          .map((student) =>
+            studentAverage(byStudent.get(student.id) ?? [], averageColumns, period.id),
+          )
           .filter((value): value is number => value !== null);
-        return [book.id, classStats(values)?.mean ?? null] as const;
+        return [
+          book.id,
+          { periodName: period.name, mean: classStats(values)?.mean ?? null },
+        ] as const;
       }),
     );
     return Object.fromEntries(entries);
@@ -110,7 +131,8 @@ export function CarnetsPanel({
         <p className="text-sm text-text-muted">{t("gradebook.none")}</p>
       ) : (
         gradebooks.map((book) => {
-          const mean = averages?.[book.id] ?? null;
+          const summary = summaries?.[book.id];
+          const mean = summary?.mean ?? null;
           return (
             <div
               key={book.id}
@@ -127,7 +149,14 @@ export function CarnetsPanel({
                 </span>
               </div>
               <div className="flex flex-wrap items-baseline justify-between gap-2 pl-2">
-                <span className="text-sm text-text-muted">{subjectName(book.subjectId)}</span>
+                <span className="text-sm text-text-muted">
+                  {/* The period the average is FOR. Without it the number is
+                      unattributable, and a teacher comparing it to the grid
+                      has no way to see they are reading one trimestre. */}
+                  {summary?.periodName
+                    ? `${subjectName(book.subjectId)} · ${summary.periodName}`
+                    : subjectName(book.subjectId)}
+                </span>
                 <Link className="btn self-start" to={Router.Gradebook({ gradebookId: book.id })}>
                   {t("gradebook.open")}
                 </Link>

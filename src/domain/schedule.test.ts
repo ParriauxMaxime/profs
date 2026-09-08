@@ -1,5 +1,6 @@
 import {
   entriesForDate,
+  entriesForDay,
   formatTimeRange,
   hmToMinutes,
   minutesToHm,
@@ -136,5 +137,62 @@ describe("overlaps", () => {
 
   it("clashes when one side runs every week", () => {
     expect(overlaps(base, { ...base, weekCycle: "A" })).toBe(true);
+  });
+});
+
+describe("entriesForDay", () => {
+  // Tuesday 8 September 2026 — week two of the term above, so parity B.
+  const tuesday = new Date(2026, 8, 8).getTime();
+  const every = { weekday: 2, startMinute: 600, endMinute: 660, weekCycle: "all" as const };
+  const onlyA = { weekday: 2, startMinute: 480, endMinute: 540, weekCycle: "A" as const };
+  const onlyB = { weekday: 2, startMinute: 540, endMinute: 600, weekCycle: "B" as const };
+  const wednesday = { weekday: 3, startMinute: 600, endMinute: 660, weekCycle: "all" as const };
+
+  it("defers to entriesForDate when there is an anchor", () => {
+    expect(entriesForDay([every, onlyA, onlyB], TERM_START, tuesday)).toEqual(
+      entriesForDate([every, onlyA, onlyB], TERM_START, tuesday),
+    );
+  });
+
+  it("keeps the parity the anchor implies", () => {
+    // Week two is B, so the A-only lesson must not appear.
+    expect(entriesForDay([every, onlyA, onlyB], TERM_START, tuesday)).toEqual([onlyB, every]);
+  });
+
+  /**
+   * The null-anchor case is the whole reason this function exists. Guessing a
+   * parity would show week A's lessons on a day nothing can name, which is
+   * worse than showing none: an empty day is obviously empty, a wrong one is
+   * not.
+   */
+  it("keeps only the every-week lessons without an anchor", () => {
+    expect(entriesForDay([every, onlyA, onlyB], null, tuesday)).toEqual([every]);
+  });
+
+  it("still filters by weekday without an anchor", () => {
+    expect(entriesForDay([every, wednesday], null, tuesday)).toEqual([every]);
+  });
+
+  it("sorts by start time without an anchor", () => {
+    const late = { ...every, startMinute: 900, endMinute: 960 };
+    const early = { ...every, startMinute: 480, endMinute: 540 };
+    expect(entriesForDay([late, every, early], null, tuesday)).toEqual([early, every, late]);
+  });
+
+  it("returns nothing for a day with no lesson, anchored or not", () => {
+    const sunday = new Date(2026, 8, 13).getTime();
+    expect(entriesForDay([every], null, sunday)).toEqual([]);
+    expect(entriesForDay([every], TERM_START, sunday)).toEqual([]);
+  });
+
+  /**
+   * A day before the term start has no parity at all, so the anchored path
+   * refuses it — but without an anchor there is no term to be before, and the
+   * every-week lessons are still real.
+   */
+  it("does not blank a day before the term start when unanchored", () => {
+    const august = new Date(2026, 7, 25).getTime(); // Tuesday 25 August 2026
+    expect(entriesForDay([every], TERM_START, august)).toEqual([]);
+    expect(entriesForDay([every], null, august)).toEqual([every]);
   });
 });

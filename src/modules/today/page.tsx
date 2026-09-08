@@ -1,7 +1,7 @@
 import type { ScheduleEntry, Session } from "@db";
 import { useDb } from "@db/provider";
 import { startOfDay } from "@db/sessions";
-import { entriesForDate, formatTimeRange } from "@domain/schedule";
+import { entriesForDay, formatTimeRange } from "@domain/schedule";
 import { readTermStart } from "@domain/term";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -52,16 +52,11 @@ export function TodayPage() {
   const subjectColor = (id: string | undefined) =>
     id === undefined ? undefined : data.subjects.find((s) => s.id === id)?.color;
 
-  // Without an anchor, nothing on an alternating cycle has a meaningful
-  // parity. `entriesForDate` needs one, so the `all` lessons are selected
-  // directly rather than guessing a week — a teacher who has not set a term
-  // start still sees the lessons that happen every week.
-  const scheduled: ScheduleEntry[] =
-    termStart === null
-      ? data.entries
-          .filter((e) => e.weekCycle === "all" && e.weekday === isoWeekdayOf(now))
-          .sort((a, b) => a.startMinute - b.startMinute)
-      : entriesForDate(data.entries, termStart, now);
+  // `entriesForDay` carries the missing-anchor rule: without a term start,
+  // nothing on an alternating cycle has a meaningful parity, so only the
+  // every-week lessons are shown rather than a week being guessed. The class
+  // page reads the same function — this used to be a copy in each.
+  const scheduled: ScheduleEntry[] = entriesForDay(data.entries, termStart, now);
 
   // The merge. A session is matched to a scheduled entry by class: a teacher
   // taking the same class twice in one day is rare enough that pairing the
@@ -170,12 +165,6 @@ export function TodayPage() {
       )}
     </div>
   );
-}
-
-/** ISO weekday, 1 = Monday. Duplicated from the domain only to avoid an export. */
-function isoWeekdayOf(ms: number): number {
-  const day = new Date(ms).getDay();
-  return day === 0 ? 7 : day;
 }
 
 /**

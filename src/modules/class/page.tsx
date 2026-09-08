@@ -1,14 +1,9 @@
 import type { ScheduleEntry, Session } from "@db";
 import { deleteClass } from "@db/cascade";
 import { useDb } from "@db/provider";
-import {
-  createSession,
-  getOrCreateSessionAt,
-  sessionsForClass,
-  sessionsForDay,
-  startOfDay,
-} from "@db/sessions";
-import { entriesForDate, isoWeekday } from "@domain/schedule";
+import { getOrCreateSessionAt, sessionsForClass, sessionsForDay, startOfDay } from "@db/sessions";
+import { nextDay, previousDay } from "@domain/calendar";
+import { entriesForDay } from "@domain/schedule";
 import { resolveSlot, type Slot, slotsForDay } from "@domain/seance";
 import { readTermStart } from "@domain/term";
 import { Link } from "@swan-io/chicane";
@@ -126,16 +121,35 @@ export function ClassPage({
     return { gradebooks, subjects };
   }, [db, classId]);
 
-  const dayEntries = lesson === undefined ? [] : scheduledOn(lesson.entries, termStart, lesson.day);
+  const dayEntries =
+    lesson === undefined ? [] : entriesForDay(lesson.entries, termStart, lesson.day);
   const slots = lesson === undefined ? [] : slotsForDay(lesson.daySessions, dayEntries, lesson.day);
   const slot = lesson === undefined ? null : resolveSlot(slots, wanted);
 
+  /**
+   * The day anything recorded here belongs to.
+   *
+   * `lesson.day` is the day the STRIP IS SHOWING — the one the URL asked for
+   * when it named one, and the resolved default otherwise. It is not
+   * `slot?.date`: a day carrying neither a séance nor a scheduled lesson has
+   * no slot at all, and falling back to today from there would file a mark
+   * under today while the screen said 3 September. Attendance on the wrong
+   * date is the one failure this app cannot afford, so the fallback chain
+   * ends at the URL's own day before it ever reaches the clock.
+   *
+   * (`slotsForDay` stamps every slot it builds with the day it was given, so
+   * where a slot exists `slot.date` and `lesson.day` are the same value.)
+   */
+  const seanceDay = lesson?.day ?? wantedDay ?? startOfDay(Date.now());
+
   // Broken out of `slot` so the callbacks below depend on values rather than
   // on an object rebuilt every render.
-  const slotDate = slot?.date ?? null;
   const slotStartsAt = slot?.startsAt ?? null;
   const slotSessionId = slot?.sessionId ?? null;
   const slotSubjectId = dayEntries.find((e) => e.id === slot?.entryId)?.subjectId;
+  // Whether the day already holds a séance nobody scheduled. One is the most
+  // a day can have — see `startSeance`.
+  const hasUntimedSeance = slots.some((s) => s.startsAt === null && s.sessionId !== null);
 
   /**
    * The séance to write against, brought into being if it does not exist yet.
@@ -147,12 +161,12 @@ export function ClassPage({
   const ensureSeance = useCallback(async (): Promise<string> => {
     if (slotSessionId !== null) return slotSessionId;
     const session = await getOrCreateSessionAt(db, classId, {
-      date: slotDate ?? startOfDay(Date.now()),
+      date: seanceDay,
       ...(slotStartsAt === null ? {} : { startsAt: slotStartsAt }),
       ...(slotSubjectId === undefined ? {} : { subjectId: slotSubjectId }),
     });
     return session.id;
-  }, [db, classId, slotSessionId, slotDate, slotStartsAt, slotSubjectId]);
+  }, [db, classId, slotSessionId, seanceDay, slotStartsAt, slotSubjectId]);
 
   const selectSlot = useCallback(
     (target: Slot): void => {
@@ -167,17 +181,23 @@ export function ClassPage({
 
   /**
    * "Commencer une séance": make this slot real, or — when it already is —
-   * record a second, untimed lesson on the same day. That is the case
-   * `createSession` exists for, and the one a lazy fetch cannot express.
+   * open the day's UNSCHEDULED séance, creating it only if the day has none.
+   *
+   * Reuse rather than a second row, because `resolveSlot` matches a slot by
+   * its time: two untimed séances on one day both answer to "no time", the
+   * first wins every lookup, and the second would be written unreachable —
+   * invisible in the strip, invisible in the register, present in the export.
+   * A day therefore holds at most one unscheduled séance, and the button
+   * hides once it exists rather than pretending to make another.
    */
   const startSeance = useCallback(async (): Promise<void> => {
     if (slotSessionId === null) {
       await ensureSeance();
       return;
     }
-    const created = await createSession(db, classId, slotDate ?? startOfDay(Date.now()));
-    selectSlot({ date: created.date, startsAt: null, sessionId: created.id, entryId: null });
-  }, [db, classId, ensureSeance, slotSessionId, slotDate, selectSlot]);
+    const session = await getOrCreateSessionAt(db, classId, { date: seanceDay });
+    selectSlot({ date: session.date, startsAt: null, sessionId: session.id, entryId: null });
+  }, [db, classId, ensureSeance, slotSessionId, seanceDay, selectSlot]);
 
   if (
     schoolClass === undefined ||
@@ -190,10 +210,10 @@ export function ClassPage({
   if (schoolClass === null) return <p className="text-text-muted">{t("class.notFound")}</p>;
 
   const session = lesson.daySessions.find((s) => s.id === slotSessionId) ?? null;
-  const stripSlots = withNeighbours(slots, lesson.history, lesson.day);
+  const stripSlots = withNeighbours(slots, lesson.entries, lesson.history, termStart, lesson.day);
   // With no séance yet the draft belongs to the SLOT, so switching lesson
   // resets it rather than carrying one hour's text onto the next.
-  const noteKey = slotSessionId ?? `${slotDate}-${slotStartsAt}`;
+  const noteKey = slotSessionId ?? `${seanceDay}-${slotStartsAt}`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -247,6 +267,7 @@ export function ClassPage({
       <SeanceStrip
         slots={stripSlots}
         current={slot}
+        canStart={slotSessionId === null || !hasUntimedSeance}
         className="border-border border-b pb-3"
         onSelect={selectSlot}
         onStart={() => void startSeance()}
@@ -300,34 +321,22 @@ export function ClassPage({
 }
 
 /**
- * The lessons the timetable predicts on a day.
- *
- * Without a term anchor nothing on an alternating cycle has a meaningful
- * parity, so the `all` lessons are selected directly rather than guessing a
- * week — the same choice Today makes, for the same reason.
- */
-function scheduledOn(
-  entries: ScheduleEntry[],
-  termStart: number | null,
-  day: number,
-): ScheduleEntry[] {
-  if (termStart === null) {
-    return entries
-      .filter((e) => e.weekCycle === "all" && e.weekday === isoWeekday(day))
-      .sort((a, b) => a.startMinute - b.startMinute);
-  }
-  return entriesForDate(entries, termStart, day);
-}
-
-/**
  * Which day the page opens on when the URL does not say.
  *
  * Today when today holds anything at all — a scheduled lesson or a séance
- * already recorded — and otherwise the most recent day that carries one.
- * **Never an empty today**: a teacher opening 3°B on a Sunday wants the last
- * lesson they taught, not a blank screen implying nothing ever happened.
+ * already recorded — and otherwise **the last day taught**. Never an empty
+ * today: a teacher opening 3°B on a Sunday wants the lesson they last gave,
+ * not a blank screen implying nothing ever happened.
  *
- * `history` is newest first, so its head is the latest day with a séance.
+ * `<= today` is what makes "last taught" mean that. A séance can now be
+ * prepared ahead — the strip predicts upcoming lessons from the timetable, and
+ * writing next Thursday's note creates its row — so the newest séance overall
+ * may be one that has not happened. Landing on it would open the page on a
+ * lesson nobody has given.
+ *
+ * `history` is newest first, so the first entry at or before today is the
+ * latest one; the head is kept as a fallback for a workspace whose every
+ * séance is somehow in the future.
  */
 function defaultDay(
   entries: ScheduleEntry[],
@@ -335,25 +344,91 @@ function defaultDay(
   termStart: number | null,
 ): number {
   const today = startOfDay(Date.now());
-  if (scheduledOn(entries, termStart, today).length > 0) return today;
+  if (entriesForDay(entries, termStart, today).length > 0) return today;
   if (history.some((s) => s.date === today)) return today;
-  return history[0]?.date ?? today;
+  return history.find((s) => s.date <= today)?.date ?? history[0]?.date ?? today;
 }
 
 /**
- * The day's slots, with the nearest séance either side of it.
+ * How far either side the strip looks for a neighbouring day.
  *
- * Reaching last Thursday should not need a date picker on a screen used with a
- * class in front of you, and the neighbours are already in hand.
+ * Two school weeks: enough to cross a holiday and to reach a fortnightly
+ * lesson on the other side of an A/B alternation, and short enough that the
+ * walk stays trivial. Beyond it only a real séance is offered, since a
+ * timetable that predicts nothing for a fortnight is predicting a break.
  */
-function withNeighbours(slots: Slot[], history: Session[], day: number): Slot[] {
-  const asSlot = (s: Session): Slot => ({
-    date: s.date,
-    startsAt: s.startsAt ?? null,
-    sessionId: s.id,
-    entryId: null,
-  });
-  const before = history.find((s) => s.date < day);
-  const after = [...history].reverse().find((s) => s.date > day);
-  return [...(before ? [asSlot(before)] : []), ...slots, ...(after ? [asSlot(after)] : [])];
+const NEIGHBOUR_SEARCH_DAYS = 14;
+
+/**
+ * The nearest day either side that holds a lesson — taught OR merely
+ * scheduled.
+ *
+ * The séances answer the past and the timetable answers the future, which is
+ * the asymmetry the design asks for: a lesson that happened left a row, and a
+ * lesson still to come exists only as a prediction. Offering only séances made
+ * next Thursday reachable solely by typing a URL, on the one screen built so a
+ * teacher never has to choose.
+ *
+ * The walk steps through the CALENDAR (`nextDay`/`previousDay`) rather than
+ * adding milliseconds, so a DST change cannot slide it a day.
+ */
+function neighbourDay(
+  direction: "before" | "after",
+  day: number,
+  entries: ScheduleEntry[],
+  termStart: number | null,
+  history: Session[],
+): number | null {
+  const step = direction === "before" ? previousDay : nextDay;
+  // `history` is newest first, so the past side reads it forwards and the
+  // future side backwards; either way this is the CLOSEST séance on that side.
+  const seanceDay =
+    direction === "before"
+      ? (history.find((s) => s.date < day)?.date ?? null)
+      : ([...history].reverse().find((s) => s.date > day)?.date ?? null);
+
+  let cursor = day;
+  for (let i = 0; i < NEIGHBOUR_SEARCH_DAYS; i += 1) {
+    cursor = step(cursor);
+    // The séance is nearer than any scheduled day found so far, so it wins.
+    if (cursor === seanceDay) return seanceDay;
+    if (entriesForDay(entries, termStart, cursor).length > 0) return cursor;
+  }
+  return seanceDay;
+}
+
+/**
+ * The day's slots, with one lesson either side of it.
+ *
+ * Reaching last Thursday — or next Tuesday — should not need a date picker on
+ * a screen used with a class in front of you.
+ *
+ * The neighbouring day is merged by `slotsForDay`, the same function that
+ * builds the current day, so a scheduled-but-unrecorded lesson and a recorded
+ * one are indistinguishable here as they are there. Only one slot per side is
+ * kept — the last lesson of the day before, the first of the day after — so
+ * the strip stays a strip rather than becoming a timetable.
+ */
+function withNeighbours(
+  slots: Slot[],
+  entries: ScheduleEntry[],
+  history: Session[],
+  termStart: number | null,
+  day: number,
+): Slot[] {
+  const slotsOn = (other: number): Slot[] =>
+    slotsForDay(
+      // Oldest first within the day, mirroring `sessionsForDay`: `history`
+      // arrives newest-created first.
+      history.filter((s) => s.date === other).reverse(),
+      entriesForDay(entries, termStart, other),
+      other,
+    );
+
+  const beforeDay = neighbourDay("before", day, entries, termStart, history);
+  const afterDay = neighbourDay("after", day, entries, termStart, history);
+  const before = beforeDay === null ? undefined : slotsOn(beforeDay).at(-1);
+  const after = afterDay === null ? undefined : slotsOn(afterDay).at(0);
+
+  return [...(before ? [before] : []), ...slots, ...(after ? [after] : [])];
 }

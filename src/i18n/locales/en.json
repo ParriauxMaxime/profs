@@ -478,7 +478,7 @@
     "addTable": "Add a table"
   },
   "seance": {
-    "at": "{{hours}}:{{minutes}}",
+    "at": "{{hoursPadded}}:{{minutes}}",
     "unscheduled": "Off the timetable",
     "none": "No lesson",
     "start": "Start a lesson",

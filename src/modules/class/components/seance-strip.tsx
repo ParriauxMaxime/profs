@@ -22,6 +22,7 @@ import { ConfirmButton } from "../../design-system/components/confirm-button";
 export function SeanceStrip({
   slots,
   current,
+  canStart,
   className,
   onSelect,
   onStart,
@@ -29,6 +30,12 @@ export function SeanceStrip({
   /** The neighbouring slots, earliest first, current one included. */
   slots: Slot[];
   current: Slot | null;
+  /**
+   * False when the day already holds both this séance and an unscheduled one,
+   * so starting could only produce a row nothing can reach. A button that
+   * cannot do anything is worse than no button.
+   */
+  canStart: boolean;
   className?: string;
   onSelect: (slot: Slot) => void;
   onStart: () => void;
@@ -41,7 +48,14 @@ export function SeanceStrip({
   const label = (slot: Slot): string => {
     if (slot.startsAt === null) return t("seance.unscheduled");
     const { hours, minutes } = minutesToHm(slot.startsAt);
-    return t("seance.at", { hours, minutes: String(minutes).padStart(2, "0") });
+    // Both forms of the hour, because padding it is a LANGUAGE decision and
+    // belongs in the locale file: French writes 8h00 and English 08:00. The
+    // minutes are padded in both, so they need only one form.
+    return t("seance.at", {
+      hours,
+      hoursPadded: String(hours).padStart(2, "0"),
+      minutes: String(minutes).padStart(2, "0"),
+    });
   };
 
   const currentSessionId = current?.sessionId ?? null;
@@ -74,9 +88,11 @@ export function SeanceStrip({
         })}
       </div>
 
-      <button type="button" className="btn" onClick={onStart}>
-        {t("seance.start")}
-      </button>
+      {canStart && (
+        <button type="button" className="btn" onClick={onStart}>
+          {t("seance.start")}
+        </button>
+      )}
 
       {/* Deleting cascades the register and the behaviour with it, so it sits
           behind a confirm rather than under a thumb operating this page
