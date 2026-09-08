@@ -327,7 +327,15 @@ export function RoomCanvas({
                   // merged table: the seam down a table de deux disappears, and
                   // a horseshoe keeps the opening it is built around instead of
                   // being outlined as the rectangle enclosing it.
-                  const edge = freeEdges(desk, group.desks);
+                  // The place in hand is not part of the surface any more, so
+                  // its neighbours close up behind it: a pair whose right half
+                  // was lifted draws as a single table with a finished edge,
+                  // not as one whose side is missing.
+                  const surface =
+                    liftedDeskId == null
+                      ? group.desks
+                      : group.desks.filter((sibling) => sibling.id !== liftedDeskId);
+                  const edge = freeEdges(desk, surface);
                   const line = "2px solid var(--wood-edge)";
                   // A table in hand is LIFTED rather than outlined: it rises,
                   // grows a little and throws a longer shadow, which is what
@@ -348,14 +356,23 @@ export function RoomCanvas({
                         height: TABLE * UNIT_PX,
                         background: "var(--wood)",
                         color: "var(--wood-ink)",
-                        borderTop: edge.top ? line : undefined,
-                        borderRight: edge.right ? line : undefined,
-                        borderBottom: edge.bottom ? line : undefined,
-                        borderLeft: edge.left ? line : undefined,
-                        borderTopLeftRadius: edge.top && edge.left ? 4 : 0,
-                        borderTopRightRadius: edge.top && edge.right ? 4 : 0,
-                        borderBottomLeftRadius: edge.bottom && edge.left ? 4 : 0,
-                        borderBottomRightRadius: edge.bottom && edge.right ? 4 : 0,
+                        // A place in hand is drawn WHOLE. Borders are normally
+                        // painted only where no sibling abuts, which is what
+                        // makes a table de deux one continuous surface — so
+                        // lifting the right half of a pair exposed its missing
+                        // left edge and the tile read as a torn fragment. Off
+                        // the floor it is a table on its own, so it is drawn as
+                        // one, and it rises above its former neighbour rather
+                        // than leaving DOM order to decide who covers whom.
+                        borderTop: lifted || edge.top ? line : undefined,
+                        borderRight: lifted || edge.right ? line : undefined,
+                        borderBottom: lifted || edge.bottom ? line : undefined,
+                        borderLeft: lifted || edge.left ? line : undefined,
+                        borderTopLeftRadius: lifted || (edge.top && edge.left) ? 4 : 0,
+                        borderTopRightRadius: lifted || (edge.top && edge.right) ? 4 : 0,
+                        borderBottomLeftRadius: lifted || (edge.bottom && edge.left) ? 4 : 0,
+                        borderBottomRightRadius: lifted || (edge.bottom && edge.right) ? 4 : 0,
+                        zIndex: lifted ? 2 : undefined,
                         // The front edge and the floor shadow belong to the
                         // OUTSIDE of a table, so only a place with open air
                         // below it carries them.
