@@ -177,6 +177,52 @@ export function reseat(
  * coordinates, which is why `swapSeats` needed an `expectedStudentId` to
  * survive another tab moving that pupil away; an id needs no such guard.
  */
+/**
+ * A pupil in the teacher's hand.
+ *
+ * Anchored to ids in both fields, never to a coordinate or a rail index: the
+ * rail reorders on every placement, and a desk can be moved out from under a
+ * coordinate by another tab.
+ */
+export interface HeldPupil {
+  studentId: string;
+  /** The desk they were lifted from, or null when lifted from the rail. */
+  fromDeskId: string | null;
+}
+
+/** What a drop resolves to. The caller turns it into exactly one transaction. */
+export type Placement =
+  | { kind: "none" }
+  | {
+      kind: "place";
+      studentId: string;
+      deskId: string;
+      /** Whoever was sitting there, and where they go. `deskId: null` is the rail. */
+      displaced: { studentId: string; deskId: string | null } | null;
+    };
+
+/**
+ * The whole placement grammar, in one rule.
+ *
+ * Phase 5 had three: seating from the rail DISPLACED, seating from a desk
+ * SWAPPED, and furniture moved. They were never three rules. Whoever occupies
+ * the target goes where the held pupil came from — which is the rail when the
+ * held pupil came from the rail, so `null` is not a special case but the
+ * general one with an empty origin. The rail needed three hint sentences to
+ * describe what this sentence describes once.
+ */
+export function resolvePlacement(held: HeldPupil, target: Seated | undefined): Placement {
+  if (target === undefined) return { kind: "none" };
+  if (target.id === held.fromDeskId) return { kind: "none" };
+  const occupant = target.studentId;
+  return {
+    kind: "place",
+    studentId: held.studentId,
+    deskId: target.id,
+    displaced: occupant === null ? null : { studentId: occupant, deskId: held.fromDeskId },
+  };
+}
+
 export type Held =
   | { kind: "pool"; studentId: string }
   | { kind: "seat"; seatId: string }

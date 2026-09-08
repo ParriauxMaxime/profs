@@ -5,6 +5,7 @@ import {
   fitsRoom,
   frame,
   type Held,
+  type HeldPupil,
   MAX_POSITIONS,
   occupantsInReadingOrder,
   overlaps,
@@ -14,6 +15,7 @@ import {
   reseat,
   resolveDrop,
   resolveFloorDrop,
+  resolvePlacement,
   type Seated,
   TABLE,
   unseatedStudentIds,
@@ -275,5 +277,57 @@ describe("unseatedStudentIds", () => {
       { id: "t2", x: 3, y: 0, studentId: null },
     ];
     expect(unseatedStudentIds(students, seats)).toEqual(["a", "c"]);
+  });
+});
+
+describe("resolvePlacement", () => {
+  const held = (studentId: string, fromDeskId: string | null): HeldPupil => ({
+    studentId,
+    fromDeskId,
+  });
+  const desk = (id: string, studentId: string | null): Seated => ({ id, x: 0, y: 0, studentId });
+
+  it("refuses a drop on nothing", () => {
+    expect(resolvePlacement(held("s1", null), undefined)).toEqual({ kind: "none" });
+  });
+
+  it("refuses a drop on the desk the pupil was lifted from", () => {
+    expect(resolvePlacement(held("s1", "d1"), desk("d1", "s1"))).toEqual({ kind: "none" });
+  });
+
+  it("seats a pupil from the rail on an empty desk", () => {
+    expect(resolvePlacement(held("s1", null), desk("d1", null))).toEqual({
+      kind: "place",
+      studentId: "s1",
+      deskId: "d1",
+      displaced: null,
+    });
+  });
+
+  it("displaces an occupant to the rail when the pupil came from the rail", () => {
+    expect(resolvePlacement(held("s1", null), desk("d1", "s2"))).toEqual({
+      kind: "place",
+      studentId: "s1",
+      deskId: "d1",
+      displaced: { studentId: "s2", deskId: null },
+    });
+  });
+
+  it("swaps when the pupil came from a desk", () => {
+    expect(resolvePlacement(held("s1", "d0"), desk("d1", "s2"))).toEqual({
+      kind: "place",
+      studentId: "s1",
+      deskId: "d1",
+      displaced: { studentId: "s2", deskId: "d0" },
+    });
+  });
+
+  it("degrades a swap to a move when the target is empty", () => {
+    expect(resolvePlacement(held("s1", "d0"), desk("d1", null))).toEqual({
+      kind: "place",
+      studentId: "s1",
+      deskId: "d1",
+      displaced: null,
+    });
   });
 });
