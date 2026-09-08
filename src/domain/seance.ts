@@ -1,3 +1,6 @@
+import { nextDay, previousDay } from "./calendar";
+import { entriesForDay, type ScheduleEntryLike } from "./schedule";
+
 /**
  * A slot: a lesson that is scheduled, taught, or merely prepared.
  *
@@ -115,4 +118,57 @@ export function resolveSlot(
   if (slots.length === 0) return null;
   if (wanted === null) return slots[0];
   return slots.find((slot) => slot.startsAt === wanted.startsAt) ?? slots[0];
+}
+
+/**
+ * The days the day menu offers: those holding a lesson, taught or predicted.
+ *
+ * The window is asymmetric on purpose — further back than forward — because
+ * the past is where marking happens, while ahead only needs to reach the other
+ * side of an A/B alternation to prepare next week.
+ *
+ * The walk steps the CALENDAR with `nextDay` / `previousDay` rather than adding
+ * `86_400_000`, for the reason `weekParity` and `monthGrid` do: millisecond
+ * arithmetic slides an hour at each DST change and eventually a whole day, and
+ * a day menu wrong by one is indistinguishable from a correct one.
+ *
+ * It does NOT guarantee the day currently on screen is in the list — a day may
+ * carry neither a séance nor a lesson and still be the one the URL names. The
+ * caller unions it in, so the `<select>` never shows a value absent from its
+ * own options.
+ */
+export function teachingDays(
+  entries: ScheduleEntryLike[],
+  history: readonly { date: number }[],
+  termStart: number | null,
+  today: number,
+  window: { backDays: number; aheadDays: number },
+): number[] {
+  const days = new Set<number>();
+
+  let cursor = today;
+  for (let i = 0; i <= window.aheadDays; i += 1) {
+    if (entriesForDay(entries, termStart, cursor).length > 0) {
+      days.add(cursor);
+    }
+    cursor = nextDay(cursor);
+  }
+  const last = previousDay(cursor);
+
+  cursor = today;
+  for (let i = 0; i < window.backDays; i += 1) {
+    cursor = previousDay(cursor);
+    if (entriesForDay(entries, termStart, cursor).length > 0) {
+      days.add(cursor);
+    }
+  }
+  const first = cursor;
+
+  // Séances are bounded by the same window, so a term of history does not
+  // become a menu nobody can scan.
+  for (const session of history) {
+    if (session.date >= first && session.date <= last) days.add(session.date);
+  }
+
+  return [...days].sort((a, b) => a - b);
 }

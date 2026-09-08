@@ -93,7 +93,9 @@
       "diary": "Journal"
     },
     "openCard": "Ouvrir la fiche de l'élève",
-    "books": "Carnets"
+    "books": "Carnets",
+    "actions": "Actions de la classe",
+    "openActions": "Autres actions"
   },
   "group": {
     "title": "Groupes",
@@ -484,6 +486,8 @@
     "start": "Commencer une séance",
     "delete": "Supprimer la séance",
     "confirmDelete": "Supprimer la séance du {{day}} ?",
-    "confirmDeleteBody": "Sa présence et son comportement partent avec elle."
+    "confirmDeleteBody": "Sa présence et son comportement partent avec elle.",
+    "day": "Jour",
+    "today": "aujourd'hui"
   }
 }

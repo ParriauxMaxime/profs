@@ -93,7 +93,9 @@
       "diary": "Journal"
     },
     "openCard": "Open the pupil card",
-    "books": "Gradebooks"
+    "books": "Gradebooks",
+    "actions": "Class actions",
+    "openActions": "More actions"
   },
   "group": {
     "title": "Groups",
@@ -484,6 +486,8 @@
     "start": "Start a lesson",
     "delete": "Delete the lesson",
     "confirmDelete": "Delete the lesson of {{day}}?",
-    "confirmDeleteBody": "Its attendance and behaviour go with it."
+    "confirmDeleteBody": "Its attendance and behaviour go with it.",
+    "day": "Day",
+    "today": "today"
   }
 }

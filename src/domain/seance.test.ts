@@ -1,4 +1,6 @@
-import { resolveSlot, type Slot, slotsForDay } from "./seance";
+import { nextDay, previousDay } from "./calendar";
+import { entriesForDay } from "./schedule";
+import { resolveSlot, type Slot, slotsForDay, teachingDays } from "./seance";
 
 const DAY = 1_757_289_600_000; // an arbitrary startOfDay
 
@@ -136,5 +138,79 @@ describe("resolveSlot", () => {
 
   it("gives nothing for a day with nothing on it", () => {
     expect(resolveSlot([], { startsAt: 600 })).toBeNull();
+  });
+});
+
+describe("teachingDays", () => {
+  const WINDOW = { backDays: 28, aheadDays: 14 };
+  // A Monday, so an entry on weekday 1 lands on it.
+  const MONDAY = 1_757_289_600_000;
+  const dayEntry = (weekday: number) => ({
+    weekday,
+    startMinute: 600,
+    endMinute: 655,
+    weekCycle: "all" as const,
+  });
+
+  it("lists a day that holds only a séance", () => {
+    const past = previousDay(MONDAY);
+    expect(teachingDays([], [{ date: past }], null, MONDAY, WINDOW)).toEqual([past]);
+  });
+
+  it("lists a day that holds only a scheduled lesson", () => {
+    const days = teachingDays([dayEntry(1)], [], null, MONDAY, WINDOW);
+    expect(days).toContain(MONDAY);
+    expect(days.length).toBeGreaterThan(1);
+  });
+
+  it("lists a day holding both a séance and a lesson exactly once", () => {
+    const days = teachingDays([dayEntry(1)], [{ date: MONDAY }], null, MONDAY, WINDOW);
+    expect(days.filter((d) => d === MONDAY)).toHaveLength(1);
+  });
+
+  it("returns days oldest first", () => {
+    const days = teachingDays([dayEntry(1)], [{ date: previousDay(MONDAY) }], null, MONDAY, WINDOW);
+    expect([...days].sort((a, b) => a - b)).toEqual(days);
+  });
+
+  it("excludes a séance older than the window", () => {
+    let old = MONDAY;
+    for (let i = 0; i < 40; i += 1) old = previousDay(old);
+    expect(teachingDays([], [{ date: old }], null, MONDAY, WINDOW)).toEqual([]);
+  });
+
+  it("excludes a séance beyond the window ahead", () => {
+    let far = MONDAY;
+    for (let i = 0; i < 20; i += 1) far = nextDay(far);
+    expect(teachingDays([], [{ date: far }], null, MONDAY, WINDOW)).toEqual([]);
+  });
+
+  /**
+   * A/B parity is `entriesForDay`'s business, and this must not second-guess
+   * it: a fortnightly lesson appears on its own weeks and no others.
+   */
+  it("respects A/B parity through entriesForDay", () => {
+    const fortnightly = [{ weekday: 1, startMinute: 600, endMinute: 655, weekCycle: "A" as const }];
+    const days = teachingDays(fortnightly, [], MONDAY, MONDAY, WINDOW);
+    expect(days.length).toBeGreaterThan(0);
+    for (const day of days) {
+      expect(entriesForDay(fortnightly, MONDAY, day).length).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * The walk steps the CALENDAR. Adding 86_400_000 slides an hour at each DST
+   * change and eventually repeats or skips a whole day — and a day menu wrong
+   * by one looks exactly like a day menu that is right.
+   */
+  it("skips no day and repeats none across a DST change", () => {
+    // Late March, so the window spans the spring-forward Sunday.
+    const march = new Date(2026, 2, 20).setHours(0, 0, 0, 0);
+    const week = [dayEntry(1), dayEntry(2), dayEntry(3), dayEntry(4), dayEntry(5)];
+    const days = teachingDays(week, [], null, march, { backDays: 14, aheadDays: 14 });
+    expect(new Set(days).size).toBe(days.length);
+    for (const day of days) {
+      expect(new Date(day).getHours()).toBe(0);
+    }
   });
 });

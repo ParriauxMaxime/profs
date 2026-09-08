@@ -1,25 +1,21 @@
 import type { ScheduleEntry, Session } from "@db";
-import { deleteClass } from "@db/cascade";
 import { useDb } from "@db/provider";
 import { listRooms } from "@db/rooms";
 import { getOrCreateSessionAt, sessionsForClass, sessionsForDay, startOfDay } from "@db/sessions";
-import { nextDay, previousDay } from "@domain/calendar";
-import { filterByGroup, resolveGroupSelection } from "@domain/group";
 import { entriesForDay } from "@domain/schedule";
-import { resolveSlot, type Slot, slotsForDay } from "@domain/seance";
+import { resolveSlot, type Slot, slotsForDay, teachingDays } from "@domain/seance";
 import { readTermStart } from "@domain/term";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
-import { ConfirmButton } from "../design-system/components/confirm-button";
 import { SeanceNote } from "../diary/components/seance-note";
 import { StudentCard } from "../plan/components/student-card";
 import { PlanPage } from "../plan/page";
 import { CarnetsPanel } from "./components/carnets-panel";
 import { ClassForm } from "./components/class-form";
-import { GroupFilter } from "./components/group-filter";
+import { ClassMenu } from "./components/class-menu";
 import { RosterRegister } from "./components/roster-register";
 import { SeanceStrip } from "./components/seance-strip";
 
@@ -40,9 +36,8 @@ import { SeanceStrip } from "./components/seance-strip";
  * of those paths goes through `ensureSeance` and awaits it before writing;
  * none of them is an effect.
  *
- * The class, its pupils, its groups and their memberships are loaded here once
- * and passed down, so nothing below flashes "Chargement…" over a class already
- * on screen.
+ * The class and its pupils are loaded here once and passed down, so nothing
+ * below flashes "Chargement…" over a class already on screen.
  */
 export function ClassPage({
   classId,
@@ -58,9 +53,6 @@ export function ClassPage({
   const { t } = useTranslation();
   const db = useDb();
   const [renaming, setRenaming] = useState(false);
-  // Held as a group id, never an index: a deleted group falls back to "Tous",
-  // not to whatever now sits at that position.
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   // Held as a pupil id, never an index: the roster register's rows re-sort as
   // pupils are added. Only used without a salle — with one, the plan owns its
   // own card locally.
@@ -101,15 +93,6 @@ export function ClassPage({
     () => db.students.where("classId").equals(classId).sortBy("lastName"),
     [db, classId],
   );
-  const groups = useLiveQuery(
-    () => db.studentGroups.where("classId").equals(classId).sortBy("name"),
-    [db, classId],
-  );
-  const memberships = useLiveQuery(async () => {
-    if (!groups || groups.length === 0) return [];
-    const groupIds = groups.map((g) => g.id);
-    return await db.groupMembers.where("groupId").anyOf(groupIds).toArray();
-  }, [db, groups]);
 
   // A pure read: it resolves which day is on screen and fetches that day's
   // séances. It creates nothing, which is the whole point of this page.
@@ -181,6 +164,17 @@ export function ClassPage({
     return session.id;
   }, [db, classId, slotSessionId, seanceDay, slotStartsAt, slotSubjectId]);
 
+  /**
+   * Choosing a day, not a lesson: no `at`, so `resolveSlot` falls back to that
+   * day's first — which is what picking a day means.
+   */
+  const selectDay = useCallback(
+    (day: number): void => {
+      Router.push("Class", { classId, date: String(day) });
+    },
+    [classId],
+  );
+
   const selectSlot = useCallback(
     (target: Slot): void => {
       Router.push("Class", {
@@ -227,7 +221,6 @@ export function ClassPage({
   if (
     schoolClass === undefined ||
     students === undefined ||
-    groups === undefined ||
     lesson === undefined ||
     rooms === undefined
   ) {
@@ -236,25 +229,63 @@ export function ClassPage({
   if (schoolClass === null) return <p className="text-text-muted">{t("class.notFound")}</p>;
 
   const session = lesson.daySessions.find((s) => s.id === slotSessionId) ?? null;
-  const stripSlots = withNeighbours(slots, lesson.entries, lesson.history, termStart, lesson.day);
+  // Was `withNeighbours`, which smuggled a slot from the nearest day either
+  // side into this day's row. The day menu names those days instead.
+  const dayOptions = (() => {
+    const days = teachingDays(lesson.entries, lesson.history, termStart, startOfDay(Date.now()), {
+      backDays: 28,
+      aheadDays: 14,
+    });
+    // The day on screen must be an option, or the select shows a value it does
+    // not offer: a day carrying no lesson at all is still reachable by URL.
+    return days.includes(lesson.day) ? days : [...days, lesson.day].sort((a, b) => a - b);
+  })();
   // With no séance yet the draft belongs to the SLOT, so switching lesson
   // resets it rather than carrying one hour's text onto the next.
   const noteKey = slotSessionId ?? `${seanceDay}-${slotStartsAt}`;
   const hasRoom = rooms.length > 0;
-  // Resolved ONCE, and every filter on this screen reads it. Resolving for the
-  // register but not for the rail would leave a deleted group showing "Tous"
-  // selected above a full register and an empty rail.
-  const groupId = resolveGroupSelection(groups, selectedGroupId);
+
+  /**
+   * The right panel's steady contents. Built here because the note and the
+   * carnets are the class's business, and handed to whichever branch renders —
+   * the plan takes it over with the pupil card, so the plan owns the column.
+   */
+  const panel = (
+    <>
+      <div className="flex flex-col gap-1">
+        <h3 className="font-medium text-text-muted text-xs uppercase tracking-wider">
+          {t("diary.entryLabel")}
+        </h3>
+        <SeanceNote
+          key={noteKey}
+          sessionId={slotSessionId}
+          text={session?.note ?? ""}
+          onEnsureSession={ensureSeance}
+        />
+      </div>
+
+      {books !== undefined && (
+        <CarnetsPanel
+          schoolClass={schoolClass}
+          gradebooks={books.gradebooks}
+          subjects={books.subjects}
+        />
+      )}
+    </>
+  );
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-baseline gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="flex flex-wrap items-baseline gap-2">
+          {/* The page had no way back to the list except the drawer. */}
+          <Link to={Router.Classes()} className="text-accent text-sm">
+            {t("nav.classes")}
+          </Link>
+          <span className="text-sm text-text-faint">/</span>
           <h2 className="font-semibold text-lg">{schoolClass.name}</h2>
-          {schoolClass.level && (
-            <span className="text-sm text-text-muted">{schoolClass.level}</span>
-          )}
-          <span className="text-sm text-text-faint">
+          <span className="text-sm text-text-muted">
+            {schoolClass.level ? `${schoolClass.level} \u00b7 ` : ""}
             {t("dashboard.studentCount", { count: students.length })}
           </span>
         </div>
@@ -267,22 +298,7 @@ export function ClassPage({
           <Link to={Router.ClassDiary({ classId })} className="text-accent text-sm">
             {t("class.tab.diary")}
           </Link>
-          <button type="button" className="btn" onClick={() => setRenaming(true)}>
-            {t("class.rename")}
-          </button>
-          <ConfirmButton
-            danger
-            label={t("class.deleteClass")}
-            confirmLabel={t("class.confirmDeleteClass")}
-            body={t("class.confirmDeleteClassBody")}
-            onConfirm={async () => {
-              await deleteClass(db, classId);
-              // The class page cannot survive its own class: without this the
-              // route would render "Classe introuvable" instead of going back
-              // to a list the teacher can act on.
-              Router.push("Home");
-            }}
-          />
+          <ClassMenu schoolClass={schoolClass} onRename={() => setRenaming(true)} />
         </div>
       </div>
 
@@ -296,84 +312,54 @@ export function ClassPage({
       )}
 
       <SeanceStrip
-        slots={stripSlots}
+        days={dayOptions}
+        slots={slots}
         current={slot}
         canStart={slotSessionId === null || !hasUntimedSeance}
         className="border-border border-b pb-3"
+        onSelectDay={selectDay}
         onSelect={selectSlot}
         onStart={() => void startSeance()}
       />
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        {/* The plan comes first in the DOM: it is what a hand reaches for
-            mid-lesson, and the marks are what is read afterwards. */}
-        <div className="flex min-w-0 flex-col gap-3 lg:flex-1">
-          {/* The chips filter the roster and the unseated rail, never the
-              seats: filtering seats would leave holes in a room. */}
-          <GroupFilter
-            groups={groups}
-            selectedGroupId={selectedGroupId}
-            onSelect={setSelectedGroupId}
-          />
-          {hasRoom ? (
-            <PlanPage
-              classId={classId}
+      {hasRoom ? (
+        <PlanPage
+          classId={classId}
+          students={students}
+          session={session}
+          onRecord={ensureSeance}
+          panel={panel}
+        />
+      ) : (
+        // No salle in the workspace: a plan has nowhere to draw, but the
+        // register does not depend on one. Same gesture as a seat — tap a row
+        // to open the pupil card, the only place a mark is set. This branch
+        // keeps its own column split: there is no room to sit beside.
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+          <div className="flex min-w-0 flex-col gap-3 lg:flex-1">
+            <RosterRegister
               students={students}
-              memberships={memberships ?? []}
-              selectedGroupId={groupId}
-              session={session}
-              onRecord={ensureSeance}
+              attendance={attendanceRecords ?? []}
+              onOpen={setSelectedStudentId}
             />
-          ) : (
-            // No salle in the workspace: a plan has nowhere to draw, but the
-            // register does not depend on one. Same gesture as a seat — tap a
-            // row to open the pupil card, the only place a mark is set.
-            <>
-              <RosterRegister
-                students={filterByGroup(students, memberships ?? [], groupId)}
-                attendance={attendanceRecords ?? []}
-                onOpen={setSelectedStudentId}
-              />
-              {selectedStudentId !== null &&
-                (() => {
-                  const student = students.find((s) => s.id === selectedStudentId);
-                  if (!student) return null;
-                  return (
-                    <StudentCard
-                      key={student.id}
-                      student={student}
-                      session={session}
-                      onRecord={ensureSeance}
-                      onClose={() => setSelectedStudentId(null)}
-                    />
-                  );
-                })()}
-            </>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">
-          <div className="flex flex-col gap-1">
-            <h3 className="font-medium text-text-muted text-xs uppercase tracking-wider">
-              {t("diary.entryLabel")}
-            </h3>
-            <SeanceNote
-              key={noteKey}
-              sessionId={slotSessionId}
-              text={session?.note ?? ""}
-              onEnsureSession={ensureSeance}
-            />
+            {selectedStudentId !== null &&
+              (() => {
+                const student = students.find((s) => s.id === selectedStudentId);
+                if (!student) return null;
+                return (
+                  <StudentCard
+                    key={student.id}
+                    student={student}
+                    session={session}
+                    onRecord={ensureSeance}
+                    onClose={() => setSelectedStudentId(null)}
+                  />
+                );
+              })()}
           </div>
-
-          {books !== undefined && (
-            <CarnetsPanel
-              schoolClass={schoolClass}
-              gradebooks={books.gradebooks}
-              subjects={books.subjects}
-            />
-          )}
+          <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">{panel}</div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -405,88 +391,4 @@ function defaultDay(
   if (entriesForDay(entries, termStart, today).length > 0) return today;
   if (history.some((s) => s.date === today)) return today;
   return history.find((s) => s.date <= today)?.date ?? history[0]?.date ?? today;
-}
-
-/**
- * How far either side the strip looks for a neighbouring day.
- *
- * Two school weeks: enough to cross a holiday and to reach a fortnightly
- * lesson on the other side of an A/B alternation, and short enough that the
- * walk stays trivial. Beyond it only a real séance is offered, since a
- * timetable that predicts nothing for a fortnight is predicting a break.
- */
-const NEIGHBOUR_SEARCH_DAYS = 14;
-
-/**
- * The nearest day either side that holds a lesson — taught OR merely
- * scheduled.
- *
- * The séances answer the past and the timetable answers the future, which is
- * the asymmetry the design asks for: a lesson that happened left a row, and a
- * lesson still to come exists only as a prediction. Offering only séances made
- * next Thursday reachable solely by typing a URL, on the one screen built so a
- * teacher never has to choose.
- *
- * The walk steps through the CALENDAR (`nextDay`/`previousDay`) rather than
- * adding milliseconds, so a DST change cannot slide it a day.
- */
-function neighbourDay(
-  direction: "before" | "after",
-  day: number,
-  entries: ScheduleEntry[],
-  termStart: number | null,
-  history: Session[],
-): number | null {
-  const step = direction === "before" ? previousDay : nextDay;
-  // `history` is newest first, so the past side reads it forwards and the
-  // future side backwards; either way this is the CLOSEST séance on that side.
-  const seanceDay =
-    direction === "before"
-      ? (history.find((s) => s.date < day)?.date ?? null)
-      : ([...history].reverse().find((s) => s.date > day)?.date ?? null);
-
-  let cursor = day;
-  for (let i = 0; i < NEIGHBOUR_SEARCH_DAYS; i += 1) {
-    cursor = step(cursor);
-    // The séance is nearer than any scheduled day found so far, so it wins.
-    if (cursor === seanceDay) return seanceDay;
-    if (entriesForDay(entries, termStart, cursor).length > 0) return cursor;
-  }
-  return seanceDay;
-}
-
-/**
- * The day's slots, with one lesson either side of it.
- *
- * Reaching last Thursday — or next Tuesday — should not need a date picker on
- * a screen used with a class in front of you.
- *
- * The neighbouring day is merged by `slotsForDay`, the same function that
- * builds the current day, so a scheduled-but-unrecorded lesson and a recorded
- * one are indistinguishable here as they are there. Only one slot per side is
- * kept — the last lesson of the day before, the first of the day after — so
- * the strip stays a strip rather than becoming a timetable.
- */
-function withNeighbours(
-  slots: Slot[],
-  entries: ScheduleEntry[],
-  history: Session[],
-  termStart: number | null,
-  day: number,
-): Slot[] {
-  const slotsOn = (other: number): Slot[] =>
-    slotsForDay(
-      // Oldest first within the day, mirroring `sessionsForDay`: `history`
-      // arrives newest-created first.
-      history.filter((s) => s.date === other).reverse(),
-      entriesForDay(entries, termStart, other),
-      other,
-    );
-
-  const beforeDay = neighbourDay("before", day, entries, termStart, history);
-  const afterDay = neighbourDay("after", day, entries, termStart, history);
-  const before = beforeDay === null ? undefined : slotsOn(beforeDay).at(-1);
-  const after = afterDay === null ? undefined : slotsOn(afterDay).at(0);
-
-  return [...(before ? [before] : []), ...slots, ...(after ? [after] : [])];
 }

@@ -1,18 +1,19 @@
-import type { Assignment, Desk, GroupMember, Session, Student } from "@db";
+import type { Assignment, Desk, Session, Student } from "@db";
 import { applyPlacement, assignmentsForPlan, getOrCreatePlan, unassign } from "@db/plans";
 import { useDb } from "@db/provider";
 import { desksForRoom, listRooms } from "@db/rooms";
 import { readActiveRoom, resolveActiveRoom, writeActiveRoom } from "@domain/active-room";
-import { filterByGroup } from "@domain/group";
 import { type HeldPupil, resolvePlacement } from "@domain/room";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
+import { Modal } from "../design-system/components/modal";
 import { PupilName } from "../design-system/components/pupil-name";
 import { RoomCanvas } from "../rooms/components/room-canvas";
 import { useEscape } from "../shared/use-escape";
+import { useMediaQuery } from "../shared/use-media-query";
 import { PupilDisc } from "./components/pupil-disc";
 import { StudentCard } from "./components/student-card";
 import { StudentRail } from "./components/student-rail";
@@ -30,10 +31,10 @@ import { StudentRail } from "./components/student-rail";
  * card's `Déplacer`, which is frequent enough to be its primary action and has
  * no other path.
  *
- * The pupils, the group filter and the séance come from the class page: which
- * lesson is being recorded is the class's business, not this view's. What
- * stays local is this view's own gesture — who is in the hand, whose card is
- * open, which salle is being looked at.
+ * The pupils and the séance come from the class page: which lesson is being
+ * recorded is the class's business, not this view's. What stays local is this
+ * view's own gesture — who is in the hand, whose card is open, which salle is
+ * being looked at.
  *
  * It NO LONGER picks a séance, and no longer creates one. `session` may be
  * null — a lesson nobody has recorded anything for yet — and `onRecord`
@@ -44,20 +45,26 @@ import { StudentRail } from "./components/student-rail";
 export function PlanPage({
   classId,
   students,
-  memberships,
-  selectedGroupId,
   session,
   onRecord,
+  panel,
 }: {
   classId: string;
   students: Student[];
-  memberships: GroupMember[];
-  /** Already through `resolveGroupSelection`: a deleted group reads as "Tous". */
-  selectedGroupId: string | null;
   /** The séance being recorded against, or null while none exists yet. */
   session: Session | null;
   /** Creates that séance on demand. Awaited before any register write. */
   onRecord: () => Promise<string>;
+  /**
+   * What the right panel holds when no pupil card is open — the séance note
+   * and the carnets, built by the class page.
+   *
+   * The two-column layout lives HERE rather than in the class page because the
+   * card that takes this column over needs `held`, `planId` and `unassign`,
+   * all local to this view. Lifting those up would drag the whole placement
+   * gesture with them.
+   */
+  panel: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const db = useDb();
@@ -66,6 +73,14 @@ export function PlanPage({
   // from under a coordinate.
   const [held, setHeld] = useState<HeldPupil | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  // `lg`, the breakpoint the layout below branches on. One card is mounted at
+  // a time: rendering both and hiding one with CSS would mean two sets of live
+  // queries, two notes drafts racing each other's blur write, and a hidden
+  // Modal running its focus-trap effects.
+  const isWide = useMediaQuery("(min-width: 1024px)");
+  // The desk that opened the card, so closing the sheet returns focus there
+  // rather than dropping a keyboard user at the top of the document.
+  const openerRef = useRef<HTMLElement | null>(null);
 
   const releaseHeld = useCallback(() => setHeld(null), []);
   useEscape(releaseHeld);
@@ -140,7 +155,6 @@ export function PlanPage({
   const byId = new Map(students.map((s) => [s.id, s]));
 
   const unseatedStudents = students.filter((s) => !seatedIds.has(s.id));
-  const visibleUnseated = filterByGroup(unseatedStudents, memberships, selectedGroupId);
 
   const deskOf = (studentId: string): string | null =>
     assignments.find((a: Assignment) => a.studentId === studentId)?.deskId ?? null;
@@ -169,141 +183,176 @@ export function PlanPage({
     }
   };
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-text-muted">{t("plan.room")}</span>
-          <select
-            className="field"
-            style={{ width: "12rem" }}
-            value={room.id}
-            onChange={(e) => selectRoom(e.target.value)}
-          >
-            {rooms.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-          <Link className="text-accent text-sm" to={Router.Rooms()}>
-            {t("plan.manageRooms")}
-          </Link>
-        </div>
-      </div>
+  const selectedStudent = selectedStudentId === null ? null : (byId.get(selectedStudentId) ?? null);
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        {/* The rail comes first in the DOM so that on a narrow screen the
-            pupil you are about to place is not below the fold while you look
-            at where to put them. */}
-        <div className="flex flex-col gap-2 lg:order-2 lg:w-64 lg:shrink-0">
-          <StudentRail
-            students={visibleUnseated}
-            held={held}
-            onHold={(studentId) =>
-              setHeld((current) =>
-                current?.studentId === studentId && current.fromDeskId === null
-                  ? null
-                  : { studentId, fromDeskId: null },
-              )
-            }
-          />
-        </div>
-
-        <div className="lg:order-1 lg:min-w-0 lg:flex-1">
-          <RoomCanvas
-            room={room}
-            desks={desks}
-            emptyHint={t("plan.emptyRoom")}
-            renderPlace={(desk) => {
-              const studentId = byDesk.get(desk.id);
-              const student = studentId ? byId.get(studentId) : undefined;
-              if (!student) {
-                return (
-                  <span className="text-[11px]" style={{ color: "var(--wood-edge)" }}>
-                    {t("plan.emptySeat")}
-                  </span>
-                );
-              }
-              return (
-                <>
-                  <PupilDisc student={student} />
-                  <span
-                    className="w-full truncate px-1 text-center text-[10px]"
-                    style={{ color: "var(--wood-ink)" }}
-                  >
-                    <PupilName student={student} format="surname" />
-                  </span>
-                </>
-              );
-            }}
-            placeProps={(desk) => {
-              const studentId = byDesk.get(desk.id) ?? null;
-              const isHeld = held !== null && held.fromDeskId === desk.id;
-              return {
-                role: "button",
-                tabIndex: 0,
-                title: held ? t("plan.placeHere") : undefined,
-                "aria-pressed": isHeld || undefined,
-                className: isHeld
-                  ? "outline-2 outline-accent outline-offset-2"
-                  : held
-                    ? "outline-2 outline-accent outline-dashed"
-                    : "",
-                onClick: () => {
-                  // Something in hand: this place is a target. Nothing in hand
-                  // and somebody sitting here: open their card, which is the
-                  // gesture of the lesson. Nothing in hand and nobody here:
-                  // nothing to do — a pupil is never picked up off an empty
-                  // place.
-                  if (held) {
-                    void onPlace(desk);
-                    return;
-                  }
-                  if (studentId) setSelectedStudentId(studentId);
-                },
-                onKeyDown: (e) => {
-                  if (e.key !== " " && e.key !== "Enter") return;
-                  e.preventDefault();
-                  if (held) {
-                    void onPlace(desk);
-                    return;
-                  }
-                  if (studentId) setSelectedStudentId(studentId);
-                },
-              };
-            }}
-          />
-        </div>
-      </div>
-
-      {selectedStudentId !== null &&
-        (() => {
-          const student = byId.get(selectedStudentId);
-          if (!student) return null;
-          const deskId = deskOf(student.id);
-          return (
-            <StudentCard
-              key={student.id}
-              student={student}
-              session={session}
-              onRecord={onRecord}
-              onClose={() => setSelectedStudentId(null)}
-              onMove={() => {
+  const card =
+    selectedStudent === null ? null : (
+      <StudentCard
+        key={selectedStudent.id}
+        student={selectedStudent}
+        session={session}
+        onRecord={onRecord}
+        onClose={() => setSelectedStudentId(null)}
+        onMove={() => {
+          const deskId = deskOf(selectedStudent.id);
+          setSelectedStudentId(null);
+          setHeld({ studentId: selectedStudent.id, fromDeskId: deskId });
+        }}
+        onUnseat={
+          deskOf(selectedStudent.id) === null
+            ? undefined
+            : () => {
                 setSelectedStudentId(null);
-                setHeld({ studentId: student.id, fromDeskId: deskId });
+                void unassign(db, planId, selectedStudent.id);
+              }
+        }
+      />
+    );
+
+  return (
+    <>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        <div className="flex min-w-0 flex-col gap-3 lg:flex-1">
+          <div>
+            <RoomCanvas
+              room={room}
+              desks={desks}
+              emptyHint={t("plan.emptyRoom")}
+              renderPlace={(desk) => {
+                const studentId = byDesk.get(desk.id);
+                const student = studentId ? byId.get(studentId) : undefined;
+                if (!student) {
+                  return (
+                    <span className="text-[11px]" style={{ color: "var(--wood-edge)" }}>
+                      {t("plan.emptySeat")}
+                    </span>
+                  );
+                }
+                return (
+                  <>
+                    <PupilDisc student={student} />
+                    <span
+                      className="w-full truncate px-1 text-center text-[10px]"
+                      style={{ color: "var(--wood-ink)" }}
+                    >
+                      <PupilName student={student} format="surname" />
+                    </span>
+                  </>
+                );
               }}
-              onUnseat={
-                deskId === null
-                  ? undefined
-                  : () => {
-                      setSelectedStudentId(null);
-                      void unassign(db, planId, student.id);
+              placeProps={(desk) => {
+                const studentId = byDesk.get(desk.id) ?? null;
+                const isHeld = held !== null && held.fromDeskId === desk.id;
+                return {
+                  role: "button",
+                  tabIndex: 0,
+                  title: held ? t("plan.placeHere") : undefined,
+                  "aria-pressed": isHeld || undefined,
+                  className: isHeld
+                    ? "outline-2 outline-accent outline-offset-2"
+                    : held
+                      ? "outline-2 outline-accent outline-dashed"
+                      : "",
+                  onClick: (e) => {
+                    // Something in hand: this place is a target. Nothing in hand
+                    // and somebody sitting here: open their card, which is the
+                    // gesture of the lesson. Nothing in hand and nobody here:
+                    // nothing to do — a pupil is never picked up off an empty
+                    // place.
+                    if (held) {
+                      void onPlace(desk);
+                      return;
                     }
+                    if (studentId) {
+                      openerRef.current = e.currentTarget as HTMLElement;
+                      setSelectedStudentId(studentId);
+                    }
+                  },
+                  onKeyDown: (e) => {
+                    if (e.key !== " " && e.key !== "Enter") return;
+                    e.preventDefault();
+                    if (held) {
+                      void onPlace(desk);
+                      return;
+                    }
+                    if (studentId) {
+                      openerRef.current = e.currentTarget as HTMLElement;
+                      setSelectedStudentId(studentId);
+                    }
+                  },
+                };
+              }}
+            />
+          </div>
+
+          {/* Below the room, and only when it has something to say. It used to
+            sit above at all times, reporting "Tous les élèves sont placés" —
+            a permanent band for the normal state. Below rather than above
+            because it is conditional now: appearing above would push the
+            desks down the moment a pupil is unseated, moving them under a
+            hand that is mid-gesture. */}
+          {unseatedStudents.length > 0 && (
+            <StudentRail
+              students={unseatedStudents}
+              held={held}
+              onHold={(studentId) =>
+                setHeld((current) =>
+                  current?.studentId === studentId && current.fromDeskId === null
+                    ? null
+                    : { studentId, fromDeskId: null },
+                )
               }
             />
-          );
-        })()}
-    </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:w-80 lg:shrink-0 lg:overflow-y-auto">
+          {isWide && card !== null ? (
+            // The card REPLACES the panel rather than pushing it down. A panel
+            // that grows by 600px moves the note being written off screen, which
+            // is the failure this whole change is about.
+            card
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-text-muted">{t("plan.room")}</span>
+                <select
+                  className="field"
+                  style={{ width: "auto" }}
+                  value={room.id}
+                  onChange={(e) => selectRoom(e.target.value)}
+                >
+                  {rooms.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+                <Link className="text-accent text-sm" to={Router.Rooms()}>
+                  {t("plan.manageRooms")}
+                </Link>
+              </div>
+              {panel}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Below `lg` there is no column to take over, and a card appended under
+          the room is the bug being fixed. `Modal` already caps at 88vh, scrolls
+          inside itself, locks body scroll, traps Tab and closes on Escape or
+          backdrop. Not `Sheet`: it draws its own title-and-close header, and
+          the card already has one. */}
+      {!isWide && (
+        <Modal
+          open={card !== null}
+          onClose={() => setSelectedStudentId(null)}
+          placement="bottom"
+          returnFocusTo={openerRef}
+        >
+          {card}
+        </Modal>
+      )}
+    </>
   );
 }
