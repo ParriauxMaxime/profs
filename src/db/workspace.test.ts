@@ -103,15 +103,6 @@ describe("wipeWorkspace", () => {
       updatedAt: 1,
     });
     await db.groupMembers.add({ groupId: "grp1", studentId: "s1" });
-    await db.rooms.add({
-      id: "room1",
-      name: "Salle 204",
-      width: 10,
-      height: 8,
-      positions: [{ x: 0, y: 0 }],
-      createdAt: 1,
-      updatedAt: 1,
-    });
     await db.diaryEntries.add({
       classId: "c1",
       date: 1,

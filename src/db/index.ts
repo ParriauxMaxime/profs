@@ -8,7 +8,6 @@ import type {
   GradeColumn,
   GroupMember,
   Period,
-  Room,
   RubricAssessment,
   RubricScore,
   RubricTemplate,
@@ -31,7 +30,6 @@ export type {
   GradeColumn,
   GroupMember,
   Period,
-  Room,
   RubricAssessment,
   RubricScore,
   RubricTemplate,
@@ -65,7 +63,6 @@ export type AppDatabase = Dexie & {
   groupMembers: Table<GroupMember, [string, string]>;
   scheduleEntries: EntityTable<ScheduleEntry, "id">;
   diaryEntries: Table<DiaryEntry, [string, number]>;
-  rooms: EntityTable<Room, "id">;
 };
 
 /** The compound primary key of a cell. */
@@ -184,6 +181,18 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
   // always read whole, and nothing ever queries one position.
   db.version(9).stores({
     rooms: "id, name",
+  });
+  // v10 drops the saved room. It was a user-defined TEMPLATE — positions
+  // embedded in the row, stamped through `applyTemplate`, no back-reference,
+  // "stamps and ceases to exist". A shared salle is the opposite: editing 204
+  // must change what 3°B and 5°A both see, which a stamp cannot do.
+  //
+  // The name is reused at v11 for that new meaning, so the old shape has to go
+  // rather than be carried forward — a v9 row would feed `positions` into code
+  // reading a `desks` table, which is the silent-zombie failure v7 was written
+  // for.
+  db.version(10).stores({
+    rooms: null,
   });
   return db;
 }

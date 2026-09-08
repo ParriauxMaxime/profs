@@ -34,7 +34,6 @@ import { useEscape } from "../shared/use-escape";
 import { LayoutBar } from "./components/layout-bar";
 import { RoomTemplateForm } from "./components/room-template-form";
 import { RoomView } from "./components/room-view";
-import { SavedRoomsBar } from "./components/saved-rooms-bar";
 import { SessionBar } from "./components/session-bar";
 import { StudentCard } from "./components/student-card";
 import { StudentRail } from "./components/student-rail";
@@ -342,18 +341,6 @@ export function PlanPage({
           });
         }}
       />
-
-      {resizing && layout !== null && (
-        <SavedRoomsBar
-          key={`rooms-${layout.id}`}
-          layout={layout}
-          seats={seats ?? []}
-          onDone={() => {
-            setHeld(null);
-            setResizing(false);
-          }}
-        />
-      )}
 
       {resizing && (
         <RoomTemplateForm

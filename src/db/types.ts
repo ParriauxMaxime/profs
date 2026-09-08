@@ -130,39 +130,6 @@ export interface BehaviourEvent {
  * `width`/`height` replace phase 5's `rows`/`cols`: a room is an extent a
  * table may sit anywhere inside, not a count of cells.
  */
-/**
- * A saved room shape — "Ma salle 204" — reusable across classes.
- *
- * A `Room` holds tables and no pupils, and applying one is a stamp: it goes
- * through the same `applyTemplate` the four built-in templates do, so `reseat`
- * pours the currently seated pupils into the new positions in reading order
- * and reports whoever no longer fits as overflow before the write. That is why
- * the "what happens to the occupants when a room moves between classes"
- * question the backlog raised needed no new answer — a saved room is a
- * user-defined template, and templates already had one.
- *
- * `positions` is embedded rather than given its own table, for the same reason
- * `RubricAssessment.criteria` is: a position has no independent existence
- * outside the room it belongs to, is never queried or deleted on its own, and
- * is always read as a whole. A seat, which is written one cell at a time, is
- * the case that earns a table.
- *
- * Like a template stamp, a saved room CEASES TO EXIST once applied: nothing on
- * a `SeatingLayout` records that it came from "Ma salle 204", so editing the
- * saved room later does not reach a class already stamped from it. Same ruling
- * as the built-in templates, and for the same reason — a live link cannot say
- * whether a table dragged out of the arrangement should follow a later edit.
- */
-export interface Room {
-  id: string;
-  name: string;
-  width: number;
-  height: number;
-  positions: { x: number; y: number }[];
-  createdAt: number;
-  updatedAt: number;
-}
-
 export interface SeatingLayout {
   id: string;
   classId: string;

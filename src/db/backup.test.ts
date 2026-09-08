@@ -543,21 +543,6 @@ describe("export completeness", () => {
       createdAt: 1,
       updatedAt: 1,
     });
-    // The seed makes no saved room, so one is put here for the same reason the
-    // diary entry above is: these two tests assert every table survives the
-    // round trip, and a table that is empty on both sides proves nothing.
-    await db.rooms.put({
-      id: crypto.randomUUID(),
-      name: "Salle 204",
-      width: 10,
-      height: 8,
-      positions: [
-        { x: 0, y: 0 },
-        { x: 3, y: 0 },
-      ],
-      createdAt: 1,
-      updatedAt: 1,
-    });
 
     const before: Record<string, number> = {};
     for (const table of db.tables) before[table.name] = await table.count();
@@ -604,17 +589,6 @@ describe("importing twice", () => {
       startMinute: 600,
       endMinute: 660,
       weekCycle: "all",
-      createdAt: 1,
-      updatedAt: 1,
-    });
-    // The seed makes no saved room; equal counts across two empty passes would
-    // prove nothing about `rooms`.
-    await db.rooms.add({
-      id: "room1",
-      name: "Salle 204",
-      width: 10,
-      height: 8,
-      positions: [{ x: 0, y: 0 }],
       createdAt: 1,
       updatedAt: 1,
     });
