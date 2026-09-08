@@ -2,6 +2,11 @@
 
 Design, 2026-09-08. Supersedes the room half of phase 8.
 
+Mockups: <https://claude.ai/code/artifact/ae8456fe-3f01-419a-9d73-6f2e0c18d922> — five
+artboards in the app's own tokens and its real Luciole faces. The salle editor's
+free floor is computed there by the actual `canPlace`, so the drawing cannot
+show a placement the app would refuse.
+
 ## The problem
 
 The seating plan serves three activities and offers two modes.
