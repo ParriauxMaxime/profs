@@ -1,7 +1,7 @@
 import type { Session } from "@db";
 import { useDb } from "@db/provider";
 import { sessionsInRange, startOfDay } from "@db/sessions";
-import { monthGrid, nextDay, previousDay, startOfIsoWeek, weekDays } from "@domain/calendar";
+import { addDays, monthGrid, startOfIsoWeek, weekDays } from "@domain/calendar";
 import { minutesToHm } from "@domain/schedule";
 import { fuzzyMatchAny } from "@domain/search";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -179,7 +179,7 @@ function windowFor(view: View, anchor: number): { from: number; to: number } {
 /**
  * Move the window one week or one month.
  *
- * A week is walked a day at a time rather than by adding seven times
+ * A week is walked with `addDays` rather than by adding seven times
  * 86_400_000: across a daylight-saving change that offset lands an hour early
  * and eventually a whole day out.
  */
@@ -188,11 +188,7 @@ function shift(view: View, anchor: number, by: number): number {
     const d = new Date(anchor);
     return startOfDay(new Date(d.getFullYear(), d.getMonth() + by, 1).getTime());
   }
-  let day = startOfIsoWeek(anchor);
-  for (let i = 0; i < 7; i += 1) {
-    day = by > 0 ? nextDay(day) : previousDay(day);
-  }
-  return day;
+  return addDays(startOfIsoWeek(anchor), by > 0 ? 7 : -7);
 }
 
 function windowLabel(view: View, anchor: number, locale: string): string {

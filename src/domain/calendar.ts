@@ -32,6 +32,22 @@ export function previousDay(ms: number): number {
   return d.getTime();
 }
 
+/**
+ * `n` days from `ms`, at local midnight. `n` may be negative.
+ *
+ * Walks the calendar with `nextDay` / `previousDay` rather than adding
+ * `n × 86_400_000`, for the reason `weekParity` and `monthGrid` do: that
+ * offset slides an hour at each DST change and eventually a whole day, and a
+ * week wrong by one is indistinguishable from a correct one.
+ */
+export function addDays(ms: number, n: number): number {
+  let day = startOfDay(ms);
+  for (let i = 0; i < Math.abs(n); i += 1) {
+    day = n > 0 ? nextDay(day) : previousDay(day);
+  }
+  return day;
+}
+
 /** The seven local midnights of the ISO week containing `ms`, Monday first. */
 export function weekDays(ms: number): number[] {
   const days: number[] = [];

@@ -1,4 +1,5 @@
 import {
+  addDays,
   agendaDays,
   daysInRange,
   monthGrid,
@@ -196,6 +197,53 @@ describe("agendaDays", () => {
       (e) => e.on,
     );
     expect(shuffled.map((d) => label(d.date))).toEqual(["2026-09-01", "2026-09-02", "2026-09-04"]);
+  });
+});
+
+describe("addDays", () => {
+  it("walks forward and back to the right calendar day", () => {
+    const start = day(2026, 8, 9);
+    expect(new Date(addDays(start, 7)).getDate()).toBe(16);
+    expect(new Date(addDays(start, -7)).getDate()).toBe(2);
+  });
+
+  it("is identity for zero", () => {
+    const start = day(2026, 8, 9);
+    expect(addDays(start, 0)).toBe(start);
+  });
+
+  // jest.config.js / jest.setup.js pin no TZ, so these two DST tests run in
+  // whatever zone the machine (or CI) is set to. Rather than assert the exact
+  // Europe/Paris transition dates the brief's narrative uses — which would
+  // pass only on a machine set to Europe/Paris — they assert what holds in
+  // ANY zone that shifts on the corresponding date: the calendar date lands
+  // where a plain 7-day walk expects, and the result is local midnight, never
+  // an hour early or late.
+  it("crosses a spring DST boundary without losing a day", () => {
+    const before = day(2026, 2, 26);
+    const after = addDays(before, 7);
+    expect(new Date(after).getDate()).toBe(2);
+    expect(new Date(after).getMonth()).toBe(3);
+    expect(new Date(after).getHours()).toBe(0);
+  });
+
+  it("crosses an autumn DST boundary without gaining one", () => {
+    const before = day(2026, 9, 22);
+    const after = addDays(before, 7);
+    expect(new Date(after).getDate()).toBe(29);
+    expect(new Date(after).getHours()).toBe(0);
+  });
+
+  it("crosses a year end", () => {
+    const after = addDays(day(2026, 11, 29), 5);
+    expect(new Date(after).getFullYear()).toBe(2027);
+    expect(new Date(after).getMonth()).toBe(0);
+    expect(new Date(after).getDate()).toBe(3);
+  });
+
+  it("mirrors: forward then back returns to the start", () => {
+    const start = day(2026, 2, 26);
+    expect(addDays(addDays(start, 7), -7)).toBe(start);
   });
 });
 
