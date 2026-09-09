@@ -398,7 +398,24 @@ export interface GradeColumn {
 }
 ```
 
-- [ ] **Step 7: Run the tests and watch them pass**
+- [ ] **Step 7: Keep the exhaustive places exhaustive**
+
+`ColumnTypeIcon`'s `GLYPHS` is a `Record<ColumnType, string>`, so adding a type to
+`COLUMN_TYPES` breaks `yarn typecheck` here and nowhere else. In
+`src/modules/design-system/components/column-type-icon.tsx`:
+
+```ts
+  calculation: "Σ",
+  rubric: "◧",
+```
+
+The type `<select>` in `ColumnForm` renders ``t(`gradebook.type.${type}`)`` over
+`COLUMN_TYPES`, so the label lands in the same task rather than five tasks later.
+In `src/i18n/locales/fr.json`, under `gradebook.type`: `"rubric": "Grille d'évaluation"`.
+In `en.json`, under the same key: `"rubric": "Rubric"`. Both files, or the parity
+test fails.
+
+- [ ] **Step 8: Run the tests and watch them pass**
 
 ```bash
 yarn test src/domain/rubric.test.ts src/domain/gradebook/column.test.ts src/domain/gradebook/grade.test.ts
@@ -406,11 +423,11 @@ yarn test src/domain/rubric.test.ts src/domain/gradebook/column.test.ts src/doma
 
 Expected: PASS. `yarn typecheck` will still fail — `src/modules/rubric/grid.tsx` and `src/db/rubrics.ts` name `RubricScoreLike`. Fix those two imports to `CriterionLevelLike` now; no other change.
 
-- [ ] **Step 8: Run the gate and commit**
+- [ ] **Step 9: Run the gate and commit**
 
 ```bash
 yarn format && yarn lint && yarn typecheck && yarn test
-git add src/domain src/db/types.ts src/modules/rubric/grid.tsx src/db/rubrics.ts
+git add src/domain src/db/types.ts src/modules/rubric/grid.tsx src/db/rubrics.ts src/modules/design-system/components/column-type-icon.tsx src/i18n
 git commit -m "feat(gradebook): a column may hold critères, and a cell knows when it is done
 
 ColumnType gains \"rubric\", carrying its critères embedded beside the
@@ -431,9 +448,9 @@ Deleting the UI and the writes first is what lets Task 4 drop the store without 
 
 **Files:**
 - Delete: `src/modules/rubric/components/assessment-form.tsx`
-- Modify: `src/modules/rubric/page.tsx` (delete `RubricsPage`; keep `RubricAssessmentPage` for now, untouched)
-- Modify: `src/router.ts` (delete the `Rubrics` route)
-- Modify: `src/app.tsx` (delete the `Rubrics` case, the name from both route unions, and the `RubricsPage` import)
+- Delete: `src/modules/rubric/page.tsx` (BOTH components — `RubricsPage` and `RubricAssessmentPage`; Task 6 writes the file fresh)
+- Modify: `src/router.ts` (delete BOTH the `Rubrics` and `Rubric` routes)
+- Modify: `src/app.tsx` (delete both cases, both names from both route unions, and the whole rubric page import)
 - Modify: `src/modules/gradebook/page.tsx` (delete the `Router.Rubrics` link and its `Link` usage)
 - Modify: `src/db/rubrics.ts` (delete `NewAssessment`, `createAssessment`, `createAssessmentFromTemplate`; keep `newCriterion`, `setCriteria`, `setScore`, `clearScore`, `saveTemplate`)
 - Modify: `src/db/rubrics.test.ts` (delete the tests for the three removed functions)
@@ -479,13 +496,24 @@ Expected: FAIL — `src/modules/rubric/components/assessment-form.tsx` imports b
 git rm src/modules/rubric/components/assessment-form.tsx
 ```
 
-In `src/modules/rubric/page.tsx`, delete the whole `RubricsPage` component and every import only it used (`AssessmentForm`, `deleteRubricAssessment`, `ConfirmButton`, `Link`, `Router`, `scoredCount`, `levelCount`, `RubricAssessment`). Leave `RubricAssessmentPage` exactly as it is.
+Remove `src/modules/rubric/page.tsx` from the repository and from disk — the whole
+file, both components. `RubricAssessmentPage` reads `db.rubricAssessments`, a store
+Task 4 drops; keeping it alive through Task 4 would mean a compile-fix nobody wants
+and two commits where a live route renders a page reading a store that no longer
+exists. Task 6 writes this file fresh against a column.
+
+`grid.tsx`, `components/criteria-editor.tsx` and `components/level-buttons.tsx` STAY —
+Tasks 5 and 6 use all three. Nothing renders `RubricGrid` until Task 6, which is fine.
 
 - [ ] **Step 4: Unwire the route**
 
-In `src/router.ts`, delete the `Rubrics: "/gradebooks/:gradebookId/rubrics",` line. Leave `Rubric` alone — Task 6 replaces it.
+In `src/router.ts`, delete BOTH rubric lines — `Rubrics: "/gradebooks/:gradebookId/rubrics",`
+and `Rubric: "/gradebooks/:gradebookId/rubrics/:assessmentId",`. Task 6 adds one route
+back, at a new path.
 
-In `src/app.tsx`: delete `"Rubrics"` from the route-name array around line 40 and from the union around line 77, delete the `case "Rubrics":` block, and change the import on line 10 to `import { RubricAssessmentPage } from "./modules/rubric/page";`.
+In `src/app.tsx`: delete `"Rubrics"` and `"Rubric"` from the route-name array around
+line 40 and from the union around line 77, delete both `case` blocks, and delete the
+`./modules/rubric/page` import line entirely.
 
 In `src/modules/gradebook/page.tsx`, delete the Grilles link:
 
@@ -696,16 +724,29 @@ it("takes a rubric column's levels with the column", async () => {
 });
 ```
 
-Add to `src/db/backup.test.ts`:
+In `src/db/backup.test.ts`, **delete the three version-11 acceptance tests** — the one
+that accepts a v11 file and backfills its séances, the one about two colliding v11
+séances, and the assertion that a v11 file parses as version 12. They assert that an
+older file is accepted and repaired, which is exactly the behaviour this design removes;
+leaving them means watching them fail and being tempted to weaken the refusal instead.
+
+Then add the refusal, using the file's own idiom — `parseBackup` THROWS, it does not
+return a result object; see the version-10 test already in the same file:
 
 ```ts
-it("refuses a file from before the grille was a column", () => {
-  // 11 and 12 both export rubricAssessments, a store that no longer exists.
-  // Half-importing is worse than refusing: the grilles would vanish silently
-  // rather than the file being turned away.
-  for (const version of [11, 12]) {
-    expect(parseBackup({ ...validBackupFixture(), version }).ok).toBe(false);
+it("refuses every file from before the grille was a column", async () => {
+  // 11 and 12 both export rubricAssessments, a store that no longer exists, so
+  // both carry grilles with nowhere to land. Half-importing is worse than
+  // refusing: the grilles would vanish silently rather than the file being
+  // turned away. From here only the current format is accepted — a file is
+  // importable only while every store it names still exists.
+  const db = openWorkspaceDb(`backup-old-${crypto.randomUUID()}`);
+  const current = await exportWorkspace(db);
+  for (const version of [10, 11, 12]) {
+    expect(() => parseBackup({ ...current, version })).toThrow();
   }
+  expect(() => parseBackup(current)).not.toThrow();
+  db.close();
 });
 ```
 
