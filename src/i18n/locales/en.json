@@ -347,7 +347,6 @@
   "today": {
     "title": "Today",
     "underway": "under way",
-    "unscheduled": "Not on the timetable",
     "noSchedule": "No lessons on your timetable. Start by declaring it:",
     "nothingToday": "Nothing scheduled today.",
     "nothingThisWeek": "Nothing scheduled this week.",

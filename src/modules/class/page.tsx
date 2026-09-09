@@ -47,7 +47,7 @@ export function ClassPage({
   classId: string;
   /** The day being taught, epoch-ms at local midnight, from the URL. */
   date?: string | undefined;
-  /** Minutes from midnight, from the URL. Absent means an untimed séance. */
+  /** Minutes from midnight, from the URL. Absent falls back to the day's first séance — see `resolveSlot`. */
   at?: string | undefined;
 }) {
   const { t } = useTranslation();

@@ -1,6 +1,6 @@
 # profs — the front door as a dated week (design)
 
-Status: designed, not yet implemented.
+Status: implemented.
 Builds on `2026-09-02-profs-phase4a-schedule-navigation.md` (the timetable and
 its A/B parity) and the hour-grid geometry described in `CLAUDE.md` under
 *The timetable is drawn as hours*.

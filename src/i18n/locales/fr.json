@@ -347,7 +347,6 @@
   "today": {
     "title": "Aujourd'hui",
     "underway": "en cours",
-    "unscheduled": "Hors emploi du temps",
     "noSchedule": "Aucun cours dans votre emploi du temps. Commencez par le déclarer :",
     "nothingToday": "Rien de prévu aujourd'hui.",
     "nothingThisWeek": "Rien de prévu cette semaine.",
