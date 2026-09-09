@@ -328,6 +328,74 @@ That list now has one shared implementation, `design-system/components/modal.tsx
 
 `WorkspaceSwitcher` sits above the destinations and changes which établissement is open. It is not a destination and deliberately not inside the `<nav>`; its buttons are still trapped, because the trap queries the panel rather than the nav. With one école it collapses to a line of text — a switcher with nothing to switch to is a control that does nothing, sitting above the navigation used every lesson.
 
+### The list pages are tables, and DataTable virtualizes
+
+`/classes` and `/students` are `DataTable`, not card grids: a music teacher's
+collège is sixteen classes and 360 pupils, and 360 cards is a wall.
+
+**`DataTable` virtualizes every table it draws** — always, with no prop and no
+threshold. An opt-in flag was rejected because it would silently make `size`
+mandatory, and the next person to flip it would get jittering columns with
+nothing to name the cause. `DataTable` has exactly three callers —
+`/classes`, `/students`, and the class roster — and the cost is paid where it
+buys nothing: the roster holds at most `MAX_STUDENTS_PER_CLASS` (100) pupils,
+so it is the one caller paying virtualization's cost for no benefit.
+`/students` is the only surface that has ever held 360; the gradebook grid,
+the rubric grid and the CSV import preview each hand-roll their own
+`<table>` and are not `DataTable` at all.
+
+**Every column declares `size`, read as a unitless RATIO** and normalised to
+percentages by `columnWidths` (`src/domain/table-layout.ts`). Automatic layout
+sizes a column from the rows it can see, and a virtualized table only ever sees
+twenty — so columns would resize as you scroll. Percentages rather than pixels
+because the app runs on a phone: pixel widths guarantee a horizontal scrollbar
+under a thumb already scrolling vertically. **`break-words` on every `<td>` and
+`<th>` is load-bearing, not decoration**: percentages do not wrap a long value
+on their own — `overflow-wrap` defaults to `normal`, which never breaks an
+unbroken token — and a surname like CHEVALIER overflowed into the next cell
+until it was added. A surname is exactly that: one unbroken token, in a
+percentage column that is narrow on a phone.
+
+That fit is for text. It has a stated limit for an interactive control with an
+irreducible minimum: the class roster's *Supprimer* button is ~110px against
+an ~88px column at 375px, because the app's `.btn` carries a 44px mid-lesson
+tap floor and the label is fixed French text neither shrinks. `flex-wrap` on
+the actions cell stacks the buttons and removed most of the overflow, but a
+residual ~18px of horizontal overflow remains on the roster at 375px. That is
+recorded here rather than hidden: the three real fixes — shrinking `.btn`
+globally, an icon-only destructive action, or dropping a column on narrow
+screens — are each a design change outside this work. Neither `/classes` nor
+`/students` is affected; neither has an action button.
+
+It is `useWindowVirtualizer`, not the scrollbox kind — nothing in this app has
+ever scrolled inside a fixed-height panel. **`scrollMargin` is load-bearing**:
+a window virtualizer measures against the document, so it must be told how far
+down the page the table starts, or it renders blank until you scroll past it.
+Rows are spaced by empty `<tr>` above and below rather than by
+`transform: translateY`, which would take each row out of table layout and
+leave the header aligned to nothing. `data-index` on each `<tr>` is required —
+`measureElement` reads it, and without it every row measures onto index 0.
+
+**A `<tr>` is never the only way to reach a row's destination.** It takes no
+focus and Enter does not fire on it, so the first cell holds a real `<Link>`
+and `onRowClick` is a mouse convenience layered on top, ignoring events that
+start inside an `<a>` or a `<button>`.
+
+**A list page's filter lives in its URL**, written with `Router.replace` and
+never `push` — a push per keystroke makes Back walk a typed name one character
+at a time. `?classe` carries a class **id**, since `classes: "id, name"` leaves
+the name non-unique. Scroll position is deliberately not restored; the filters
+coming back is the part that costs retyping.
+
+Two costs are accepted and permanent: **⌘F cannot find a row outside the
+rendered window** (which is why the search box stays directly above the table),
+and `aria-rowcount` / `aria-rowindex` are hand-maintained, counting the
+FILTERED rows plus the header.
+
+The class roster (`/classes/:classId/eleves`) has column widths and no
+`onRowClick`: its surname cell opens the `StudentCard`, and a tap on a pupil
+opening their card is the gesture of the lesson.
+
 ### One workspace per school
 
 A `Workspace` (`src/domain/workspaces.ts`) is one school-year: a name, a year, and its own database. The registry lives in `localStorage` because `DbProvider` must know which database to open before any database is open. Switching writes the active id and nothing else — the provider re-opens on it through `useSyncExternalStore`, and **every** `useLiveQuery` in the app takes `db` in its dependency array, which is what makes a switch re-read the whole app without a reload. A live query that forgets `db` keeps rendering the previous school's pupils; watch for that when adding one.
@@ -466,6 +534,18 @@ Destructive actions go through `ConfirmButton`, which opens a dialog. `confirmLa
 - The CLASS seating plan has no drag and drop, deliberately: a keyboard equivalent is needed regardless, so pick-up-then-place stays the gesture there. The salle editor does drag, on pointer events — the old "automation cannot drive it" half of this ruling was true only of HTML5 drag, and a synthesised pointer sequence drives the new one fine.
 - Changing the layout of an existing salle means moving its tables by hand. Re-stamping a shape went with the Disposition panel, and with it `applyShape`, the one piece of code that could destroy the furniture while pouring each class's pupils back in reading order.
 - An unsaved arrangement is lost by navigating away from the salle editor, silently. The marker and *Annuler* are the only guard the no-blocking-dialogs rule leaves available.
+- `/students` renders every pupil in one virtualized list with no pagination.
+  Whether 360 rows needed virtualizing was never measured — the infrastructure
+  was chosen over the measurement, and
+  `docs/superpowers/specs/2026-09-08-profs-virtualized-tables-design.md` is
+  where to start unwinding it if the small tables prove to cost more than the
+  big one saves.
+- The class roster's *Supprimer* button overflows its actions column by
+  ~18px at 375px, even after `flex-wrap` stacks it against *Modifier*: `.btn`'s
+  44px tap floor and a fixed French label don't fit an ~88px column. Shrinking
+  `.btn` globally, an icon-only destructive action, or dropping a column on
+  narrow screens would each fix it, and each is a design change outside this
+  work.
 
 ## Reference
 

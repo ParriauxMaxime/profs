@@ -75,6 +75,7 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
     () => [
       helper.accessor("lastName", {
         header: () => t("student.lastName"),
+        size: 26,
         // Through PupilName like every other surname in the app, rather than
         // repeating the styling here. The accessor keeps returning the raw
         // value, so sorting and the global search still work on what the
@@ -90,10 +91,11 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
           </button>
         ),
       }),
-      helper.accessor("firstName", { header: () => t("student.firstName") }),
+      helper.accessor("firstName", { header: () => t("student.firstName"), size: 20 }),
       helper.display({
         id: "groups",
         header: () => t("group.title"),
+        size: 28,
         cell: (info) => {
           const mine = groupsForStudent(groupsList, membershipsList, info.row.original.id);
           if (mine.length === 0) return null;
@@ -111,10 +113,15 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
       helper.display({
         id: "actions",
         header: () => "",
+        size: 26,
         cell: (info) => {
           const student = info.row.original;
           return (
-            <div className="flex gap-2">
+            // flex-wrap: two full-size (44px floor) text buttons don't fit
+            // side by side in this column's ~88px at 375px — they stack
+            // instead of forcing the page to scroll sideways. Still one line
+            // wherever there's room, e.g. desktop widths.
+            <div className="flex flex-wrap gap-2">
               <button type="button" className="btn" onClick={() => setEditing(student)}>
                 {t("common.edit")}
               </button>

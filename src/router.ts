@@ -5,8 +5,13 @@ const basePath = __BASE_PATH__ === "/" ? "" : __BASE_PATH__.replace(/\/$/, "");
 export const Router = createRouter(
   {
     Home: "/",
-    Classes: "/classes",
-    Students: "/students",
+    // A list page's filter lives in its URL: row-click navigation makes "go
+    // in, come back" the primary loop, and a teacher who typed six characters
+    // to find a pupil should not retype them after looking at that pupil.
+    // Written with `replace`, never `push` — a push per keystroke makes Back
+    // walk "bernard" one character at a time.
+    Classes: "/classes?:q",
+    Students: "/students?:q&:classe",
     Schedule: "/schedule",
     Diary: "/diary",
     // A salle belongs to the établissement, not to a class, so it is a

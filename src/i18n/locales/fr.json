@@ -356,7 +356,11 @@
   "students": {
     "searchPlaceholder": "Rechercher un élève",
     "none": "Aucun élève pour l'instant.",
-    "noMatch": "Aucun élève ne correspond à « {{query}} »."
+    "noneInClass": "Aucun élève dans cette classe.",
+    "noMatch": "Aucun élève ne correspond à « {{query}} ».",
+    "columnClass": "Classe",
+    "allClasses": "Toutes les classes",
+    "classFilterLabel": "Filtrer par classe"
   },
   "schedule": {
     "title": "Emploi du temps",
@@ -503,5 +507,10 @@
     "confirmDeleteBody": "Sa présence et son comportement partent avec elle.",
     "day": "Jour",
     "today": "aujourd'hui"
+  },
+  "classes": {
+    "searchPlaceholder": "Filtrer par nom",
+    "columnName": "Nom",
+    "columnHeadcount": "Élèves"
   }
 }
