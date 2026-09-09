@@ -249,7 +249,7 @@ export function DataTable<T>({
                   <th
                     key={header.id}
                     className={[
-                      "sticky z-10 bg-bg px-3 py-2 font-medium text-text-muted",
+                      "sticky z-10 break-words bg-bg px-3 py-2 font-medium text-text-muted",
                       header.column.columnDef.meta?.className,
                     ]
                       .filter(Boolean)
@@ -319,7 +319,15 @@ export function DataTable<T>({
                   {row.getVisibleCells().map((cell) => (
                     <td
                       key={cell.id}
-                      className={["px-3 py-3.5 md:py-2.5", cell.column.columnDef.meta?.className]
+                      // break-words: a surname is one unbroken token, and a
+                      // percentage-width column is narrow enough on a phone
+                      // that `overflow-wrap: normal` (the default) lets it run
+                      // into the next cell instead of wrapping — this is what
+                      // keeps e.g. CHEVALIER inside its own column at 375px.
+                      className={[
+                        "break-words px-3 py-3.5 md:py-2.5",
+                        cell.column.columnDef.meta?.className,
+                      ]
                         .filter(Boolean)
                         .join(" ")}
                     >
