@@ -134,7 +134,8 @@
       "icon": "Icône",
       "checkbox": "Case à cocher",
       "text": "Texte",
-      "calculation": "Calcul"
+      "calculation": "Calcul",
+      "rubric": "Grille d'évaluation"
     },
     "calcKindLabel": "Calcul",
     "calcKind": {

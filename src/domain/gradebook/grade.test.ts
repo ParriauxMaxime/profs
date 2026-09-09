@@ -64,6 +64,14 @@ describe("parseGradeValue", () => {
     expect(parseGradeValue("calculation", "14")).toBeNull();
     expect(parseGradeValue("calculation", "")).toBeNull();
   });
+
+  it("refuses input on a rubric column, the way it refuses a calculation", () => {
+    // A rubric column stores no Grade row — its levels live in
+    // criterionLevels — so accepting input here would create a row the next
+    // render discards.
+    expect(parseGradeValue("rubric", "3")).toBeNull();
+    expect(parseGradeValue("rubric", "")).toBeNull();
+  });
 });
 
 describe("isBlankInput", () => {

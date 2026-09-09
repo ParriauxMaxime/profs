@@ -134,7 +134,8 @@
       "icon": "Icon",
       "checkbox": "Checkbox",
       "text": "Text",
-      "calculation": "Calculation"
+      "calculation": "Calculation",
+      "rubric": "Rubric"
     },
     "calcKindLabel": "Calculation",
     "calcKind": {

@@ -36,7 +36,8 @@ export interface RubricCriterion {
   label: string;
 }
 
-export interface RubricScoreLike {
+/** What `rubricCell` and the summaries need from one level row. */
+export interface CriterionLevelLike {
   criterionId: string;
   studentId: string;
   level: RubricLevel;
@@ -57,12 +58,12 @@ function mean(levels: number[]): number | null {
 }
 
 /** One pupil across every criterion. Null when they have no score at all. */
-export function studentMean(scores: RubricScoreLike[], studentId: string): number | null {
+export function studentMean(scores: CriterionLevelLike[], studentId: string): number | null {
   return mean(scores.filter((s) => s.studentId === studentId).map((s) => s.level));
 }
 
 /** One criterion across every pupil — what the class found hard. */
-export function criterionMean(scores: RubricScoreLike[], criterionId: string): number | null {
+export function criterionMean(scores: CriterionLevelLike[], criterionId: string): number | null {
   return mean(scores.filter((s) => s.criterionId === criterionId).map((s) => s.level));
 }
 
@@ -70,7 +71,7 @@ export type LevelDistribution = Record<RubricLevel, number>;
 
 /** How many pupils sit at each level for one criterion. Every level present. */
 export function levelDistribution(
-  scores: RubricScoreLike[],
+  scores: CriterionLevelLike[],
   criterionId: string,
 ): LevelDistribution {
   const counts = Object.fromEntries(RUBRIC_LEVELS.map((l) => [l, 0])) as LevelDistribution;
@@ -78,4 +79,42 @@ export function levelDistribution(
     if (score.criterionId === criterionId) counts[score.level] += 1;
   }
   return counts;
+}
+
+/**
+ * What one pupil's rubric cell shows in the carnet.
+ *
+ * `complete` is the only state carrying a mean, and that is the whole point.
+ * A mean over one critère of three sits in the same column as a mean over all
+ * three, and the least-assessed pupil reliably posts the best figure — so
+ * every mean in a column is over the same denominator, always. While the
+ * grille is unfinished the cell shows its coverage instead: `2/3` is progress
+ * rather than a result, and a fraction can never be misread as a level.
+ *
+ * The count is taken against the CURRENT criteria list, never against the
+ * levels held: a level for a critère since removed is unreachable in the UI
+ * and must not make a cell read 3/2.
+ */
+export type RubricCell =
+  | { state: "empty" }
+  | { state: "partial"; scored: number; total: number }
+  | { state: "complete"; mean: number };
+
+export function rubricCell(
+  levels: CriterionLevelLike[],
+  criteria: RubricCriterion[],
+  studentId: string,
+): RubricCell {
+  const total = criteria.length;
+  if (total === 0) return { state: "empty" };
+
+  const wanted = new Set(criteria.map((criterion) => criterion.id));
+  const mine = levels.filter((row) => row.studentId === studentId && wanted.has(row.criterionId));
+  if (mine.length === 0) return { state: "empty" };
+  if (mine.length < total) return { state: "partial", scored: mine.length, total };
+
+  return {
+    state: "complete",
+    mean: round2(mine.reduce((sum, row) => sum + row.level, 0) / total),
+  };
 }

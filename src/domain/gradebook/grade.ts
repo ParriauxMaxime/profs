@@ -65,6 +65,12 @@ export function parseGradeValue(type: ColumnType, raw: unknown, max?: number): G
       // Accepting input here would create a stored value that the next
       // render discards — a lie that looks like data.
       return null;
+    case "rubric":
+      // A rubric column stores no Grade row: its levels live in
+      // `criterionLevels`, one row per critère. Accepting input here would
+      // create a value the next render discards — the same lie a
+      // `calculation` would tell.
+      return null;
   }
 }
 

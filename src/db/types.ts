@@ -58,6 +58,13 @@ export interface Period {
  * `calculation` is only meaningful when `type` is "calculation": the column
  * stores no grade rows of its own, its value is derived on read from other
  * columns' grades. See `src/domain/gradebook/calculation.ts`.
+ *
+ * `criteria` is only meaningful when `type` is "rubric", and it is the third
+ * instance of that pattern rather than a new one. Embedded rather than its own
+ * store for `RubricAssessment.criteria`'s reason, which it inherits: a
+ * critère is never queried, listed or deleted except through its column, so
+ * embedding avoids a join for something always read whole. A LEVEL is the
+ * opposite and keeps its own row — see `criterionLevels`.
  */
 export interface GradeColumn {
   id: string;
@@ -68,8 +75,10 @@ export interface GradeColumn {
   weight: number;
   max: number;
   order: number;
+  /** When the column was created. Read only for `type: "rubric"` — a grille happened on a day. */
   date?: number;
   calculation?: CalculationSpec;
+  criteria?: RubricCriterion[];
 }
 
 /**
