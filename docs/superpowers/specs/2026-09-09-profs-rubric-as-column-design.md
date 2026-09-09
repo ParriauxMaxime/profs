@@ -89,10 +89,16 @@ GradeColumn {
   criteria?: RubricCriterion[],   // only meaningful when type is "rubric"
 }
 
-rubricScores  [columnId+criterionId+studentId]  { level: RubricLevel, updatedAt }
+criterionLevels  [columnId+criterionId+studentId]  { level: RubricLevel, updatedAt }
 rubricTemplates  unchanged
 rubricAssessments  dropped
 ```
+
+The renames that follow the store: `RubricScore` → `CriterionLevel`,
+`RubricScoreLike` → `CriterionLevelLike`, `rubricScoreKey` → `criterionLevelKey`.
+`RubricLevel`, `RubricCriterion`, `RubricTemplate` and `RUBRIC_LEVELS` keep their
+names — a level and a critère are still rubric vocabulary; only the row that was
+named after a dead parent changes.
 
 `weight` and `max` are unused for a rubric column and hidden in the form. They
 are not removed from the row: they are fields of every column, and the barème
@@ -107,7 +113,7 @@ everything into `grades`. That was rejected on what a single tap costs.
 With its own row, setting Justesse to 3 for one pupil is:
 
 ```ts
-await db.rubricScores.put({ columnId, criterionId, studentId, level, updatedAt });
+await db.criterionLevels.put({ columnId, criterionId, studentId, level, updatedAt });
 ```
 
 One record. Nothing read first. Clearing is one `delete`.
@@ -153,7 +159,7 @@ export type RubricCell =
   | { state: "complete"; mean: number };                  // ◉ 3,0
 
 export function rubricCell(
-  scores: RubricScoreLike[],
+  levels: CriterionLevelLike[],
   criteria: RubricCriterion[],
   studentId: string,
 ): RubricCell;
@@ -215,67 +221,128 @@ being a row of its own.
 Every multi-table delete stays in `src/db/cascade.ts`, one `rw` transaction
 each.
 
-- `deleteColumn` gains `db.rubricScores` in its transaction and sweeps
+- `deleteColumn` gains `db.criterionLevels` in its transaction and sweeps
   `where("columnId")`. Its existing `calculation` pruning is unaffected — a
   calculation may not name a rubric column, since only numeric columns are
   valid sources.
 - `deleteGradebook` and `deletePeriod` lose their `rubricAssessments` sweeps.
   Both already collect the column ids they are destroying; the scores go with
   them, by `columnId`.
-- `deleteStudent` needs **no change**. It already sweeps `rubricScores` by
-  `studentId`, and the rekey does not touch that index.
+- `deleteStudent` keeps its shape but follows the rename: it already sweeps by
+  `studentId`, and that index survives the rekey unchanged.
 - `deleteRubricAssessment` is deleted. `deleteRubricTemplate` stays as it is.
 
 `setCriteria` moves from an assessment id to a column id and keeps its cascade:
-replacing a column's critères drops the `rubricScores` of any criterion that did
+replacing a column's critères drops the `criterionLevels` of any criterion that did
 not survive, in one transaction. Those scores are otherwise unreachable —
 invisible in the grid, never summarised, still carried by export.
 
 ## Migration
 
-The primary key of `rubricScores` changes, which Dexie refuses outright with
-`UpgradeError: Not yet support for changing primary key`. The sanctioned shape
-is two versions, per `db.version(7)`/`(8)`:
+The app is not released. So rather than adding versions 17 and 18 to a chain of
+sixteen, **the chain collapses to a single `db.version(1)`** declaring the
+schema as it now stands. That is the honest expression of "schema changes are
+disposable": there is nothing deployed to migrate, so there is no migration —
+and no history of migrations to read past when someone wants to know the
+current shape.
 
 ```ts
-db.version(17).stores({ rubricAssessments: null, rubricScores: null });
-db.version(18).stores({
-  rubricScores: "[columnId+criterionId+studentId], columnId, criterionId, studentId",
-});
+db.version(1).stores({ …the whole schema, rubricAssessments absent… });
 ```
 
-`db.version(16)` is taken — the séance-times backfill — so these are the next
-two free numbers. That version also carries the first upgrade callback in the
-file, for a field becoming required underneath rows that carry dependents. It
-does not apply here: this is a changed primary key, the case the standing rule
-already excludes and Dexie refuses outright, so drop-then-recreate remains the
-only shape available.
+The store is also **renamed**: `rubricScores` becomes `criterionLevels`. Under
+a collapse the rename costs nothing mechanically, and it is right on its own
+terms — a *score* was named against an assessment that no longer exists, while
+what the row holds is one pupil's level on one critère of one column. The type
+`RubricScore` becomes `CriterionLevel`, and `rubricScoreKey` becomes
+`criterionLevelKey`, still the only constructor of the key.
 
-`rubricScoreKey` in `src/db/index.ts` takes an `assessmentId`; it becomes
-`columnId`. It is the only constructor of the key and must stay so.
+Everything the deleted versions did survives only where it is already written
+down: `CLAUDE.md` carries the primary-key doctrine, the zombie-row argument and
+the reason `Desk` is not `Table`. The per-version comments go with the versions.
 
-No upgrade callback. **Grilles already graded are lost**,
-in the database and in an exported file alike. That cost was weighed and
-accepted: converting on import would put a format-11 fixture and its conversion
-code in the importer permanently, and an in-place upgrade across a changed
-primary key is the exact case that bricks a workspace rather than wiping it.
+### What a collapse does to an existing workspace
 
-`rubricAssessments` must be dropped rather than left standing: its rows name a
-model nothing reads, and a backup taken afterwards would export them intact —
-the silent-zombie failure `db.version(7)` was written for.
+IndexedDB refuses to open a database at a version LOWER than the stored one,
+throwing `VersionError`. Every workspace that exists today is at v16, so every
+one of them fails to open, `initWorkspace` rejects, and `main.tsx` renders
+`RecoveryShell`. That is intended: an old workspace is discarded, not upgraded.
 
-**Backup format goes to 13, and 11 and 12 are both refused.** `parseBackup`
-currently accepts `z.union([literal(11), literal(12)])`; that becomes
-`literal(13)` alone. Both older formats export `rubricAssessments`, so both
-carry grilles that have nowhere to land — and half-importing a file is worse
-than refusing it, the ruling a format-10 file already gets.
+**It only works because of a one-line fix in `src/domain/recovery.ts`, and
+without that fix this design bricks every existing workspace.** Today:
 
-Three edits in `backup.ts`, all by hand because the export is a literal and
+```ts
+const RETRY_ERRORS = ["DatabaseClosedError", "VersionError", "AbortError", "TimeoutError"];
+```
+
+`VersionError` classifies as `retry`, and `offersDiscard("retry")` is `false` —
+so the panel would offer *Recharger* and nothing else, and the reload would fail
+identically, forever. Bricked, with the pupils still in IndexedDB and no route
+to the wipe in Réglages: precisely the dead end that module exists to remove.
+
+`VersionError` is removed from `RETRY_ERRORS` and falls through to `corrupt`,
+which offers the discard. The comment above that list is corrected with it: the
+case it describes — another tab holding the database mid-upgrade — raises
+`BlockedError` or `DatabaseClosedError`, never `VersionError`. `VersionError`
+means *the code is older than the database*, which no reload can fix.
+
+**This is a latent bug today, independent of this design.** A device running a
+stale service-worker shell after any schema bump hits exactly that dead end. The
+fix is not scoped to the collapse and should not be described as if it were.
+
+The discard deletes the database and keeps the registry entry, so the workspace
+returns **named and empty**. It does not return seeded: `seedIfEmpty` gates on
+`profs-seeded-workspaces` in `localStorage`, which the discard does not touch,
+and that is deliberate — Réglages promises the wipe is permanent, and one
+discard that reseeds while another does not is two meanings for one word.
+
+### What is lost
+
+**Grilles already graded**, in the database and in an exported file alike.
+
+**`db.version(16)`'s séance backfill**, which gave `startsAt`/`endsAt` to
+séances recorded before they carried times. Nothing is stranded by that: a
+workspace old enough to need it is a workspace that gets discarded rather than
+opened. `backfillSeanceTimes` and `repairSeanceCollisions` stay in
+`src/domain/seance.ts` — they are still `backup.ts`'s and are tested there.
+
+**The upgrade-seam regression tests** in `src/db/index.test.ts` — the v2
+per-class layout, the v9 saved room, the v13 day-keyed journal, the v15 entry.
+They build a database at an earlier version and open it with current code, and
+under a single v1 that is not merely meaningless but impossible: building at v2
+and opening at v1 raises the `VersionError` being classified above. They are
+deleted and replaced by the test named below.
+
+**A backup file is accepted at the current format and no other, as a standing
+rule.** `parseBackup` accepts `z.union([literal(11), literal(12)])` today, and
+that union is the thing to remove rather than extend: a format is only
+importable while every store it names still exists, which is a coincidence each
+accumulated literal has been quietly relying on. From here it is one
+`z.literal(N)`, and a schema change that drops a store bumps N.
+
+The format goes to **13** rather than back to 1 alongside the schema. The number
+now carries no history — nothing older is accepted — but it must stay
+monotonic, or a file written today reads as older than one written last week to
+anyone who opens it in a text editor.
+
+11 and 12 are both refused. Both export `rubricAssessments`, so both carry
+grilles with nowhere to land, and half-importing a file is worse than refusing
+it — the ruling a format-10 file already gets.
+
+Four edits in `backup.ts`, all by hand because the export is a literal and
 nothing else will notice: `rubricAssessments` leaves `WorkspaceBackup`, the
-validation schema and the export/import bodies; `rubricScores`' validated shape
-swaps `assessmentId` for `columnId` (it is validated on its key fields, not
-`.loose()` alone, so it will not pass silently); and the clear list is
+validation schema and the export/import bodies; `rubricScores` becomes
+`criterionLevels` throughout and its validated shape swaps `assessmentId` for
+`columnId` (it is validated on its key fields, not `.loose()` alone, so it will
+not pass silently); the version union becomes a literal; and the clear list is
 untouched, since it reads `db.tables`.
+
+One consequence to settle while doing it: the import path applies
+`repairSeanceCollisions` unconditionally, to give times to séances from a
+format-11 file. With only format 13 accepted, every imported séance already
+carries times and that repair is inert. Inert defensive code is not this
+codebase's habit, so it should go — but it is a subtraction outside this
+design's subject, and it should be made deliberately rather than swept along.
 
 Refusing a format-12 file written days earlier is a real cost, and it is the
 one this design accepts rather than carrying a conversion. It is the same
@@ -304,16 +371,21 @@ DB (`src/db/rubrics.test.ts`, `src/db/cascade.test.ts`):
 - `deleteColumn`, `deleteGradebook`, `deletePeriod` each leave no score behind.
 - `deleteStudent` still sweeps by `studentId` after the rekey.
 
-Schema seam (`src/db/index.test.ts`) — the standing requirement that every
-schema change gets one, since nothing else in the suite runs new code against an
-old row: build a **v16** database with `fake-indexeddb` holding a
-`rubricAssessment` and an old-keyed `rubricScore`, open it with current code,
-and assert both are gone rather than carried forward as zombies.
+Recovery (`src/domain/recovery.test.ts`): `VersionError` classifies as
+`corrupt` and therefore `offersDiscard`. This is the test that stands in for
+every deleted seam test — the guarantee is no longer "an old row is dropped
+cleanly" but "an old database offers a way out", and that is now the only thing
+standing between a version collapse and a bricked workspace.
+
+Schema (`src/db/index.test.ts`): the four upgrade-seam tests are deleted, and
+one replaces them — build a database at a HIGHER version with `fake-indexeddb`,
+open it with current code, and assert the rejection classifies as discardable.
+The table-list test and the wipe test stay, and both gain `criterionLevels`.
 
 Backup (`src/db/backup.test.ts`): a format-11 file and a format-12 file are each
-refused whole; a format-13 round-trip carries rubric columns and their scores;
-the double-import row-count comparison covers `rubricScores` at its new key.
-That comparison is why `rubricScores` must be added to the export literal
+refused whole; a format-13 round-trip carries rubric columns and their levels;
+the double-import row-count comparison covers `criterionLevels` at its new key.
+That comparison is why `criterionLevels` must be added to the export literal
 deliberately — a store missing *entirely* keeps its count on both passes, which
 is how the day-keyed journal store went unexported for a whole commit with
 every backup test green.
