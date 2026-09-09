@@ -1,6 +1,7 @@
 import {
   entriesForDate,
   entriesForDay,
+  formatTime,
   formatTimeRange,
   hmToMinutes,
   minutesToHm,
@@ -113,6 +114,11 @@ describe("minutes helpers", () => {
 
   it("formats a range in the app locale", () => {
     expect(formatTimeRange(600, 660, "fr")).toBe("10:00 – 11:00");
+  });
+
+  it("formats one time, zero-padded, for the grid's hour gutter", () => {
+    expect(formatTime(600, "fr")).toBe("10:00");
+    expect(formatTime(7 * 60, "fr")).toBe("07:00");
   });
 });
 

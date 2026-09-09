@@ -362,7 +362,6 @@
     "title": "Timetable",
     "addEntry": "Add a lesson",
     "empty": "No lessons declared. Add one so Today knows what to show.",
-    "dayEmpty": "—",
     "class": "Class",
     "subject": "Subject",
     "noSubject": "No subject",
@@ -395,7 +394,22 @@
       "A": "Week A",
       "B": "Week B"
     },
-    "noRoom": "No room"
+    "noRoom": "No room",
+    "cycleShort": {
+      "A": "A",
+      "B": "B"
+    },
+    "dayShort": {
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat",
+      "7": "Sun"
+    },
+    "pickDay": "Day shown",
+    "editLesson": "Edit: {{lesson}}"
   },
   "diary": {
     "title": "Journal",

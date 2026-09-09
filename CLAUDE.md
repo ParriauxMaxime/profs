@@ -290,6 +290,18 @@ A/B week parity is **derived** from a term-start date, never stored, so no calen
 
 `weekParity` in `src/domain/schedule.ts` is the most dangerous function in the app. Wrong by one, it shows the wrong lessons for a whole week — silently, and plausibly enough that a teacher blames themselves. It counts whole ISO weeks with both ends normalised to local midnight, because raw timestamp arithmetic drifts an hour at each DST change and eventually flips a week. Beyond the DST and year-boundary spot checks, a test walks 400 days and asserts parity flips only on Mondays, 57 times; a one-day slip leaves the spot checks passing. Times are minutes from midnight, never `"10:05"`. Overlap warns, never refuses — a teacher may legitimately have two things at once.
 
+### The timetable is drawn as hours, and the geometry is domain
+
+`/schedule` is an hour grid, not a stack of cards per day. The cards it replaced made every lesson the same size, so a free morning and a solid one looked alike and the shape of a week could only be recovered by reading times off nine cards. `src/domain/timetable.ts` holds the geometry and is `monthGrid`'s counterpart for the week, for `monthGrid`'s reason: a timetable wrong by one hour still looks exactly like a timetable, and nobody checks a timetable against another timetable.
+
+`gridWindow` is 7h–19h **widened**, never clamped, to whole hours around anything outside it — a 6h30 lesson clamped to the top edge does not vanish, which would at least be noticed; it draws in the wrong hour. A lesson ending at exactly 19h does not widen it, or a teacher finishing at seven gets an empty hour under the grid every week.
+
+`layoutDay` splits a column between lessons that collide, reusing columns as they free up, and gives every member of a cluster the cluster's full width — a block whose width changed halfway down a cluster would line up with nothing. Semaine A against semaine B at one hour is the common case rather than the exception, so hiding one was never an option; the strict-`<` comparison is `overlaps`'s, so 08:55 into 09:00 stays full width.
+
+**The height is one CSS variable, not a flex chain.** `--hour` clamps around a share of `100dvh`, and every block is positioned in `calc()` off that same unit, so a block and its hour line are both `n × --hour` from the top and cannot drift apart. The floor is 3rem rather than `--control-min`: a block is a tap target, and 3rem × 55/60 is 44px exactly. The gutter column is **sized, not `auto`** — its labels are absolutely positioned, so an auto column has nothing in flow to measure and collapses, taking the left digit off every hour.
+
+**A block is a button, and tapping it opens the editor** — there is no room for a control inside a 44px target, so `Supprimer` lives in the form as a `ConfirmButton` and is the only delete path. Below `lg` the same grid draws ONE day behind a picker, branched with `useMediaQuery`: five columns on a phone are five columns of nothing legible, and a sideways-scrolling week hides the very shape the grid exists to show.
+
 ### The journal is not a cahier de textes
 
 France has required a **cahier de textes numérique** since circulaire 2010-136: per lesson it carries the contenu de la séance and the travail à faire, and pupils, parents and the chef d'établissement must be able to consult it. It lives in Pronote or the ENT.
