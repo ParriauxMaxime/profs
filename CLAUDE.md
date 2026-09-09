@@ -324,9 +324,13 @@ collège is sixteen classes and 360 pupils, and 360 cards is a wall.
 **`DataTable` virtualizes every table it draws** — always, with no prop and no
 threshold. An opt-in flag was rejected because it would silently make `size`
 mandatory, and the next person to flip it would get jittering columns with
-nothing to name the cause. The cost is paid where it buys nothing: a gradebook
-grid is one class, so ~23 rows, and `/students` is the only surface that has
-ever held 360.
+nothing to name the cause. `DataTable` has exactly three callers —
+`/classes`, `/students`, and the class roster — and the cost is paid where it
+buys nothing: the roster holds at most `MAX_STUDENTS_PER_CLASS` (100) pupils,
+so it is the one caller paying virtualization's cost for no benefit.
+`/students` is the only surface that has ever held 360; the gradebook grid,
+the rubric grid and the CSV import preview each hand-roll their own
+`<table>` and are not `DataTable` at all.
 
 **Every column declares `size`, read as a unitless RATIO** and normalised to
 percentages by `columnWidths` (`src/domain/table-layout.ts`). Automatic layout

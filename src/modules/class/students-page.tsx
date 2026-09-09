@@ -118,7 +118,7 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
           const student = info.row.original;
           return (
             // flex-wrap: two full-size (44px floor) text buttons don't fit
-            // side by side in this column's ~97px at 375px — they stack
+            // side by side in this column's ~88px at 375px — they stack
             // instead of forcing the page to scroll sideways. Still one line
             // wherever there's room, e.g. desktop widths.
             <div className="flex flex-wrap gap-2">
