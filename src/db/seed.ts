@@ -11,6 +11,15 @@ import { SUBJECT_COLORS } from "@domain/subject";
 import { readTermStart, writeTermStart } from "@domain/term";
 import { clearSeeded, hasBeenSeeded, markSeeded } from "@domain/workspaces";
 import type { AppDatabase } from ".";
+import { FIRST_NAMES, LAST_NAMES } from "./seed-names";
+
+/**
+ * Coprime to `LAST_NAMES.length` (357 = 3 × 7 × 17; 101 is prime), so striding
+ * by it is a permutation of the pool: every surname is used once before any is
+ * used twice.
+ */
+const SURNAME_STRIDE = 101;
+
 import { startOfDay } from "./sessions";
 import type {
   Assignment,
@@ -47,132 +56,6 @@ import { wipeWorkspace } from "./workspace";
  * classes, 360 pupils, one room. That shape is what the app has to survive,
  * and a two-class demo never showed it.
  */
-
-const LAST_NAMES = [
-  "Bernard",
-  "Blanc",
-  "Bonnet",
-  "Boyer",
-  "Brun",
-  "Chevalier",
-  "Clement",
-  "Colin",
-  "Dubois",
-  "Dumont",
-  "Dupont",
-  "Durand",
-  "Fabre",
-  "Faure",
-  "Fernandez",
-  "Fontaine",
-  "Garcia",
-  "Garnier",
-  "Gauthier",
-  "Girard",
-  "Guerin",
-  "Henry",
-  "Jean",
-  "Joly",
-  "Lambert",
-  "Laurent",
-  "Lefebvre",
-  "Legrand",
-  "Lemaire",
-  "Leroy",
-  "Marchand",
-  "Martin",
-  "Masson",
-  "Mathieu",
-  "Menard",
-  "Mercier",
-  "Meunier",
-  "Michel",
-  "Moreau",
-  "Morel",
-  "Muller",
-  "Nguyen",
-  "Noel",
-  "Perrin",
-  "Petit",
-  "Philippe",
-  "Picard",
-  "Renard",
-  "Rey",
-  "Richard",
-  "Riviere",
-  "Robert",
-  "Robin",
-  "Roche",
-  "Rousseau",
-  "Roux",
-  "Roy",
-  "Sanchez",
-  "Simon",
-  "Thomas",
-];
-
-const FIRST_NAMES = [
-  "Adam",
-  "Adèle",
-  "Alice",
-  "Amir",
-  "Anaïs",
-  "Antoine",
-  "Arthur",
-  "Assia",
-  "Aya",
-  "Basile",
-  "Camille",
-  "Chloé",
-  "Clara",
-  "Élias",
-  "Éliott",
-  "Élise",
-  "Emma",
-  "Enzo",
-  "Éva",
-  "Gabriel",
-  "Hugo",
-  "Ibrahim",
-  "Ilan",
-  "Inaya",
-  "Inès",
-  "Jade",
-  "Jules",
-  "Kenza",
-  "Léa",
-  "Léna",
-  "Léo",
-  "Lina",
-  "Lisa",
-  "Livia",
-  "Louis",
-  "Louise",
-  "Lucas",
-  "Maël",
-  "Malo",
-  "Manon",
-  "Marius",
-  "Mathis",
-  "Maya",
-  "Mehdi",
-  "Mila",
-  "Naël",
-  "Nina",
-  "Noah",
-  "Nour",
-  "Océane",
-  "Paul",
-  "Raphaël",
-  "Rayan",
-  "Romane",
-  "Sacha",
-  "Samuel",
-  "Sofia",
-  "Théo",
-  "Tiago",
-  "Zoé",
-];
 
 /** 6e through 3e, four classes each — a collège of 360. */
 const LEVELS = ["6e", "5e", "4e", "3e"] as const;
@@ -330,14 +213,25 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     for (let i = 0; i < size; i++) {
       const studentId = id();
       // Walks both pools out of step, so no two pupils in the school share a
-      // full name even though the pools are far smaller than the roster.
+      // full name even though the first-name pool is far smaller than the
+      // roster.
+      //
+      // The surname STRIDES the pool rather than reading it in order, and that
+      // is not decoration. Pupils are created class by class, so reading
+      // straight through handed 6°A every surname beginning with A and 6°B
+      // every one beginning with B — a roster no school has. It also parked
+      // the three siblings the pool's length produces on the first three names
+      // in the alphabet, where a reader meets all three at once. A stride
+      // coprime to the pool length still visits every surname exactly once, so
+      // nothing is lost and both giveaways go: each class draws from the whole
+      // alphabet, and the pairs fall wherever the arithmetic puts them.
       const n = students.length;
       const block = Math.floor(n / LAST_NAMES.length);
       aptitude.set(studentId, random());
       students.push({
         id: studentId,
         classId: schoolClass.id,
-        lastName: LAST_NAMES[n % LAST_NAMES.length],
+        lastName: LAST_NAMES[(n * SURNAME_STRIDE) % LAST_NAMES.length],
         firstName: FIRST_NAMES[(n + block * 7) % FIRST_NAMES.length],
         // A drawing, not a photograph — see `@domain/avatar`. About a third of
         // the roster has none, which is both what mid-September looks like and

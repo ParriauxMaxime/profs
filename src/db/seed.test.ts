@@ -171,6 +171,51 @@ describe("seedIfEmpty", () => {
   });
 });
 
+describe("the demo roster reads like a school, not like a generator", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("keeps shared surnames rare, and no surname common", async () => {
+    const db = openWorkspaceDb("seed-names");
+    await seedIfEmpty(db, "seed-names");
+    const students = await db.students.toArray();
+
+    const counts = new Map<string, number>();
+    for (const student of students) {
+      counts.set(student.lastName, (counts.get(student.lastName) ?? 0) + 1);
+    }
+
+    // Two separate properties, and the 60-name pool this replaced satisfied
+    // the first while failing the second 60 times over: every surname was 6
+    // of 360 — comfortably under 2% — yet EVERY pupil had five namesakes, and
+    // a roster sorted by surname read CHEVALIER six times before CLEMENT.
+    const largest = Math.max(...counts.values());
+    expect(largest / students.length).toBeLessThanOrEqual(0.02);
+
+    const sharing = [...counts.values()].filter((n) => n > 1).reduce((a, b) => a + b, 0);
+    expect(sharing / students.length).toBeLessThanOrEqual(0.02);
+
+    // Rare, but not absent: a collège has siblings, and a pool the size of the
+    // roster would quietly assert that no two pupils are ever related.
+    expect(sharing).toBeGreaterThan(0);
+    db.close();
+  });
+
+  it("gives no two pupils the same full name", async () => {
+    const db = openWorkspaceDb("seed-fullnames");
+    await seedIfEmpty(db, "seed-fullnames");
+    const students = await db.students.toArray();
+
+    const full = new Set(students.map((s) => `${s.lastName} ${s.firstName}`));
+
+    // The two pools are walked out of step precisely so the siblings above do
+    // not collide into one person.
+    expect(full.size).toBe(students.length);
+    db.close();
+  });
+});
+
 describe("resetToFixture", () => {
   beforeEach(() => {
     localStorage.clear();
