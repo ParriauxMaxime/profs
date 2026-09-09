@@ -507,5 +507,12 @@
     "searchPlaceholder": "Filter by name",
     "columnName": "Name",
     "columnHeadcount": "Pupils"
+  },
+  "install": {
+    "title": "Install profs on this device",
+    "body": "Once installed it opens full screen from your home screen and works with no network. Your data stays on the device, exactly as it does now.",
+    "iosSteps": "In Safari: tap Share, then “Add to Home Screen”.",
+    "action": "Install",
+    "dismiss": "Not now"
   }
 }

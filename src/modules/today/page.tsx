@@ -9,6 +9,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { useRoomNames } from "../rooms/use-room-names";
+import { InstallInvitation } from "../shared/components/install-invitation";
 
 /**
  * One row of Today: a lesson that is scheduled, under way, or both.
@@ -148,6 +149,11 @@ export function TodayPage() {
           ))}
         </ul>
       )}
+
+      {/* Last on the front door, and usually nothing at all: it renders only
+          in a browser that can actually install, and only until the teacher
+          has installed or said "plus tard" once. */}
+      <InstallInvitation />
     </div>
   );
 }

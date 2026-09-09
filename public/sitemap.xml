@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  One URL, and that is not an oversight.
+
+  Every other route in this app renders the SAME shell and fills it from the
+  teacher's own IndexedDB, so /classes and /students carry no content a
+  crawler could index and listing them would offer a search engine a dozen
+  identical pages. The root is the only address that means anything to anyone
+  who has not opened the app yet.
+
+  There is deliberately no robots.txt beside this file. A GitHub Pages PROJECT
+  site is served from a subpath, and a crawler reads robots.txt only from the
+  origin root — /profs/robots.txt would never be fetched by anything. Shipping
+  one would look like configuration and be inert. Submit this sitemap to
+  Search Console by hand instead; if the site ever moves to a custom domain or
+  to the user-site root, add robots.txt then and point it here.
+
+  __SITE_URL__ and __LASTMOD__ are stamped at build time by the
+  CopyRspackPlugin transform in rspack.config.ts, because the origin and the
+  base path are only known there.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>__SITE_URL__</loc>
+    <lastmod>__LASTMOD__</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

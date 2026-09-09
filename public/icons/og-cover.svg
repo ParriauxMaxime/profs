@@ -1,0 +1,72 @@
+<!--
+  The card that appears when someone shares the link — a WhatsApp message
+  between two colleagues in a salle des profs is how this app will actually
+  spread, and a link with no card is a grey rectangle.
+
+  It is a LOCAL file, rasterised to `og-cover.png` beside it, because
+  `og:image` must be an absolute URL and every crawler that reads one is a
+  third party fetching an image: hotlinking a generator or a CDN would put a
+  request in the promise `PRIVACY.md` makes, in the one place nobody would
+  think to check.
+
+  The card is a copie: the paper ground, its red marge, and petits carreaux —
+  the same vocabulary as `.paper` and `.carreaux` in `global.css`, kept in
+  sync by hand since an SVG cannot read CSS tokens.
+
+  Rasterise it by opening this file in the locally installed Chrome in
+  headless mode at exactly 1200×630, the size the meta tags declare.
+
+  The @font-face path is relative to THIS file and reaches into `src/`, so it
+  resolves when Chrome opens the file from the working tree — which is the
+  only time it is read. Served from `dist/` this SVG is never requested; only
+  the PNG is, and the PNG has the type every crawler accepts. Do not "fix" the
+  path to point at a bundled font: the bundle is hashed, and the name changes
+  every build.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <style>
+    @font-face {
+      font-family: "Luciole";
+      src: url("../../src/assets/fonts/Luciole-Regular.woff2") format("woff2");
+      font-weight: 400;
+    }
+    @font-face {
+      font-family: "Luciole";
+      src: url("../../src/assets/fonts/Luciole-Bold.woff2") format("woff2");
+      font-weight: 700;
+    }
+    text { font-family: "Luciole", system-ui, sans-serif; }
+    .name { font-weight: 700; font-size: 132px; fill: #16202e; letter-spacing: -0.015em; }
+    .lede { font-weight: 700; font-size: 50px; fill: #16202e; letter-spacing: -0.015em; }
+    .muted { font-weight: 400; font-size: 30px; fill: #5b6a80; }
+  </style>
+
+  <rect width="1200" height="630" fill="#fdfdfb" />
+
+  <!-- Petits carreaux, at a pitch that survives a timeline thumbnail: 1rem
+       squares would be mush at 300px wide. -->
+  <g stroke="#ccd9ec" stroke-width="1" opacity="0.55">
+    <g id="v">
+      <path d="M42 0V630M84 0V630M126 0V630M168 0V630M210 0V630M252 0V630M294 0V630M336 0V630M378 0V630M420 0V630M462 0V630M504 0V630M546 0V630M588 0V630M630 0V630M672 0V630M714 0V630M756 0V630M798 0V630M840 0V630M882 0V630M924 0V630M966 0V630M1008 0V630M1050 0V630M1092 0V630M1134 0V630M1176 0V630" />
+      <path d="M0 42H1200M0 84H1200M0 126H1200M0 168H1200M0 210H1200M0 252H1200M0 294H1200M0 336H1200M0 378H1200M0 420H1200M0 462H1200M0 504H1200M0 546H1200M0 588H1200" />
+    </g>
+  </g>
+
+  <!-- The marge of a copie: the one place this app spends any boldness. -->
+  <rect x="0" y="0" width="14" height="630" fill="#cf6b6b" />
+
+  <!-- The app mark, same geometry as icon.svg, scaled 192 → 176. -->
+  <g transform="translate(898 138) scale(0.9167)">
+    <rect width="192" height="192" rx="32" fill="#2563eb" />
+    <rect x="40" y="44" width="112" height="20" rx="6" fill="#ffffff" />
+    <rect x="40" y="86" width="112" height="20" rx="6" fill="#ffffff" opacity="0.75" />
+    <rect x="40" y="128" width="68" height="20" rx="6" fill="#ffffff" opacity="0.5" />
+  </g>
+
+  <text class="name" x="92" y="222">profs</text>
+  <text class="lede" x="92" y="322">Carnet de notes local</text>
+  <text class="lede" x="92" y="386">et open source pour enseignants</text>
+  <text class="muted" x="92" y="472">Classes · notes · moyennes · appel · plan de table</text>
+  <text class="muted" x="92" y="514">Séances, journal, grilles d'évaluation, import CSV</text>
+  <text class="muted" x="92" y="566" style="font-weight: 700; fill: #2f4fb0">Hors ligne. Aucune donnée ne quitte l'appareil.</text>
+</svg>

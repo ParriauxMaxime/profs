@@ -507,5 +507,12 @@
     "searchPlaceholder": "Filtrer par nom",
     "columnName": "Nom",
     "columnHeadcount": "Élèves"
+  },
+  "install": {
+    "title": "Installer profs sur cet appareil",
+    "body": "Installée, l'application s'ouvre en plein écran depuis l'écran d'accueil et fonctionne sans réseau. Vos données restent sur l'appareil, exactement comme aujourd'hui.",
+    "iosSteps": "Dans Safari : touchez Partager, puis « Sur l'écran d'accueil ».",
+    "action": "Installer",
+    "dismiss": "Plus tard"
   }
 }

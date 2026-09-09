@@ -1,18 +1,77 @@
 {
-  "name": "profs",
+  "id": "__BASE_PATH__",
+  "start_url": "./",
+  "scope": "./",
+  "name": "profs — carnet de notes pour enseignants",
   "short_name": "profs",
-  "description": "Carnet de notes local et open source pour enseignants",
-  "start_url": ".",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#111827",
+  "description": "Carnet de notes local et open source pour enseignants : classes, élèves, notes, moyennes, appel, plan de table, emploi du temps et journal de séance. Tout reste sur l'appareil, sans compte et sans réseau.",
   "lang": "fr",
+  "dir": "ltr",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#fdfdfb",
+  "theme_color": "#fdfdfb",
+  "categories": ["education", "productivity"],
   "icons": [
     {
-      "src": "icons/icon-192.svg",
+      "src": "icons/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshots/narrow-seance.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "La séance du jour : le plan de table de la classe, l'appel et la note de séance."
+    },
+    {
+      "src": "screenshots/narrow-today.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Aujourd'hui : les cours du jour, dans l'ordre, prêts à démarrer."
+    },
+    {
+      "src": "screenshots/wide-gradebook.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Un carnet de notes : colonnes typées, coefficients, appréciations et moyenne calculée."
+    },
+    {
+      "src": "screenshots/wide-schedule.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "L'emploi du temps de la semaine, avec alternance des semaines A et B."
     }
   ]
 }

@@ -3,7 +3,71 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#111827" />
+
+    <!--
+      Everything a search engine or a share sheet reads is French first: the
+      audience is teachers in French secondary schools, and the app's own
+      default and fallback locale is `fr`. `en` exists inside the app, but a
+      single static shell has one set of tags and they are written for the
+      people it is for.
+    -->
+    <title>profs — carnet de notes local pour enseignants</title>
+    <meta
+      name="description"
+      content="Carnet de notes gratuit et open source pour enseignants : classes, notes, moyennes, appel, plan de table, emploi du temps et journal. Hors ligne, sans compte — aucune donnée ne quitte votre appareil."
+    />
+    <meta name="application-name" content="profs" />
+    <link rel="canonical" href="<%= siteUrl %>" />
+
+    <!--
+      The share card. `og:image` MUST be absolute, so it is stamped with the
+      deployment's own origin at build time; the file itself lives in this
+      repository (`public/icons/og-cover.svg` is its source). Nothing here may
+      ever point at a third party: an image hotlinked from a CDN or a card
+      generator is a network request made on the reader's behalf, in the one
+      corner of the app nobody thinks to audit, and PRIVACY.md promises there
+      are none.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="profs" />
+    <meta property="og:title" content="profs — carnet de notes local pour enseignants" />
+    <meta
+      property="og:description"
+      content="Classes, notes, moyennes, appel, plan de table, emploi du temps et journal. Hors ligne, sans compte — aucune donnée ne quitte votre appareil."
+    />
+    <meta property="og:url" content="<%= siteUrl %>" />
+    <meta property="og:image" content="<%= siteUrl %>icons/og-cover.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="profs — carnet de notes local et open source pour enseignants"
+    />
+    <meta property="og:locale" content="fr_FR" />
+    <meta property="og:locale:alternate" content="en_GB" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="profs — carnet de notes local pour enseignants" />
+    <meta
+      name="twitter:description"
+      content="Classes, notes, moyennes, appel, plan de table, emploi du temps et journal. Hors ligne, sans compte — aucune donnée ne quitte votre appareil."
+    />
+    <meta name="twitter:image" content="<%= siteUrl %>icons/og-cover.png" />
+
+    <!--
+      The address bar and the Android splash. #fdfdfb is `copie`'s ground in
+      global.css, so the browser chrome matches the first paint rather than
+      the slate this used to declare, which belonged to neither theme.
+
+      Two static tags cannot be right on their own: the theme is the teacher's
+      CHOICE, stored on the device, and a teacher on `copie` with a dark phone
+      would get a dark bar over a paper page. The `media` attributes cover the
+      first paint before any script runs; the script below then overwrites the
+      colour with the theme it actually resolved. Keep the two in step.
+    -->
+    <meta name="theme-color" content="#fdfdfb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#121821" media="(prefers-color-scheme: dark)" />
+
     <script>
       // Applies the stored theme before first paint. Without this the page
       // renders light for a frame and then flips, which on a phone at night
@@ -18,14 +82,73 @@
             (stored === "system" &&
               window.matchMedia("(prefers-color-scheme: dark)").matches);
           document.documentElement.setAttribute("data-theme", dark ? "ardoise" : "copie");
+          // The <meta> pair above only knows the DEVICE preference. Once the
+          // stored choice is resolved, the browser chrome is told the truth:
+          // a single tag with no media query wins over both of them.
+          var meta = document.createElement("meta");
+          meta.name = "theme-color";
+          meta.content = dark ? "#121821" : "#fdfdfb";
+          document.head.appendChild(meta);
         } catch (e) {}
       })();
     </script>
+
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="<%= basePath %>manifest.json" />
-    <link rel="icon" href="<%= basePath %>icons/icon-192.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="<%= basePath %>icons/icon-192.svg" />
-    <title>profs</title>
+    <link rel="icon" href="<%= basePath %>icons/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="<%= basePath %>icons/icon-192.png" sizes="192x192" type="image/png" />
+
+    <!--
+      iOS Safari reads almost nothing from the manifest — not the name, not
+      the icons, not the display mode — so the same facts are declared again
+      here, and adding a manifest member is not enough to reach an iPhone.
+
+      The touch icon is a PNG and full bleed on purpose: Safari does not
+      honour transparency (it composites on black) and applies its own corner
+      radius, which is why `icon-square.svg` exists next to `icon.svg`.
+
+      `apple-mobile-web-app-status-bar-style` stays `default` rather than
+      `black-translucent`. Translucent lets the page run under the status bar,
+      which suits the safe-area insets this app already uses — but it also
+      forces white status text, unreadable over `copie`'s paper. A teacher's
+      theme choice must not decide whether they can read the clock.
+    -->
+    <link rel="apple-touch-icon" href="<%= basePath %>icons/apple-touch-icon-180.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="profs" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+    <!--
+      JSON-LD, for one reason: this is a free, installable application, and
+      SoftwareApplication is the schema that says so — the price, the fact
+      that it runs in a browser, and the audience. It is static, matches what
+      the visible page and the manifest already claim, and adds no request.
+      Do not grow it into review or rating markup that nothing can back up.
+    -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "profs",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "Web (Android, iOS, Windows, macOS, Linux)",
+        "url": "<%= siteUrl %>",
+        "image": "<%= siteUrl %>icons/og-cover.png",
+        "inLanguage": ["fr", "en"],
+        "isAccessibleForFree": true,
+        "license": "https://opensource.org/licenses/MIT",
+        "description": "Carnet de notes local et open source pour enseignants : classes, élèves, notes, moyennes, appel, plan de table, emploi du temps et journal de séance. Fonctionne hors ligne et ne transmet aucune donnée.",
+        "audience": {
+          "@type": "EducationalAudience",
+          "educationalRole": "teacher"
+        },
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "EUR"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

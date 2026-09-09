@@ -1,0 +1,21 @@
+<!--
+  The app mark: a register — three ruled entries, the last one short, the way a
+  roster looks half filled in.
+
+  This file is the SOURCE. The PNGs beside it are rasterisations of it and of
+  its two siblings, produced offline by opening the SVG in the locally
+  installed Chrome in headless mode at each output's exact pixel size.
+  Regenerate them from here rather than editing a PNG; nothing downloads an
+  icon, because nothing in this app makes a network request of any kind.
+
+  Rounded corners belong in THIS variant only. `icon-square.svg` is the
+  full-bleed source for iOS, which composites an apple-touch-icon on black and
+  applies its own corner mask, and `icon-maskable.svg` is the one Android
+  crops to a circle.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <rect width="192" height="192" rx="32" fill="#2563eb" />
+  <rect x="40" y="44" width="112" height="20" rx="6" fill="#ffffff" />
+  <rect x="40" y="86" width="112" height="20" rx="6" fill="#ffffff" opacity="0.75" />
+  <rect x="40" y="128" width="68" height="20" rx="6" fill="#ffffff" opacity="0.5" />
+</svg>
