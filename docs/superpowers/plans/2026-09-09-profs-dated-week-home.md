@@ -1270,11 +1270,11 @@ link that takes focus."
 **Files:**
 - Modify: `src/router.ts:15` (`Home`)
 - Modify: `src/app.tsx` (pass `date` through)
-- Modify: `src/modules/today/page.tsx` (rewritten)
+- Modify: `src/modules/today/page.tsx` (rewritten — but see the note on `InstallInvitation` in Step 5)
 - Modify: `src/i18n/locales/fr.json`, `src/i18n/locales/en.json`
 
 **Interfaces:**
-- Consumes: `addDays` (7), `CalendarNav` (8), `TimeGrid` / `GridColumn` / `GridLesson` (9), `Slot` with `endsAt` (4).
+- Consumes: `addDays` (7), `CalendarNav` (8), `TimeGrid` / `GridColumn` / `GridLesson` (9), `Slot` with `endsAt` (4), `InstallInvitation` from `../shared/components/install-invitation` (already on `main`).
 - Produces: `export function TodayPage(props: { date?: string }): JSX.Element`
 
 - [ ] **Step 1: Route and wiring**
@@ -1395,6 +1395,17 @@ const lessons: GridLesson[] = shown.flatMap(({ day, slots, scheduled }) =>
 `windowLabel` is `7 – 11 septembre 2026` on wide (an `Intl.DateTimeFormat` range over `days[0]` and the last shown day) and the full date on narrow. `nowMinute` is `new Date().getHours() * 60 + new Date().getMinutes()`.
 
 Keep `EmptyToday` exactly as it is — it is already three correct directions rather than decoration. Change only its "nothing today" string to a "nothing this week" one when `wide`, adding `today.nothingThisWeek` to both locale files.
+
+**Keep `<InstallInvitation />` as the last child of the page**, below the grid and below the empty state, exactly where it sits now:
+
+```tsx
+  {/* Last on the front door, and usually nothing at all: it renders only
+      in a browser that can actually install, and only until the teacher
+      has installed or said "plus tard" once. */}
+  <InstallInvitation />
+```
+
+It arrived on `main` after this plan was written and is easy to delete by accident, since this task rewrites the file around it. It is outside the `lessons.length === 0` branch — it shows on a full week and an empty one alike.
 
 - [ ] **Step 6: Verify in the browser**
 
