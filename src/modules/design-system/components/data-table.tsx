@@ -35,10 +35,13 @@ const OVERSCAN = 8;
  *
  * NOT `top: 0`. The drawer button is `fixed top-0 left-0 z-30`, 44px plus the
  * safe-area inset, sitting exactly where a flush header would land — on a
- * narrow screen it would cover the "Nom" label and its sort control. This is
- * the same expression `AdminLayout` uses for its `main` padding, so no new
- * constant enters the app and the header stays right if `--control-min` ever
- * changes.
+ * narrow screen it would cover the "Nom" label and its sort control. This
+ * mirrors the same construction `AdminLayout` uses for its `main` padding —
+ * safe-area inset plus the control height — with a smaller trailing gap
+ * (`0.5rem` here against `AdminLayout`'s `1rem`): enough for the header to
+ * clear the floating drawer button, without the full padding a page's first
+ * heading needs. No new constant enters the app, and the header stays right
+ * if `--control-min` ever changes.
  */
 const STICKY_TOP = "calc(max(0.5rem, env(safe-area-inset-top)) + var(--control-min) + 0.5rem)";
 
@@ -186,9 +189,15 @@ export function DataTable<T>({
 
   const virtualRows = virtualizer.getVirtualItems();
   const paddingTop = virtualRows.length > 0 ? virtualRows[0].start - scrollMargin : 0;
+  // `.end` on a virtual item is measured from the same origin as `.start` —
+  // i.e. it INCLUDES scrollMargin — but `getTotalSize()` does not, so a raw
+  // `getTotalSize() - end` comes up short by exactly scrollMargin. Subtracting
+  // it back out here is what keeps the last rows reachable; without it the
+  // bottom spacer undershoots and the tail of a long list scrolls past the
+  // end of the page before the last row is visible.
   const paddingBottom =
     virtualRows.length > 0
-      ? virtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
+      ? virtualizer.getTotalSize() - (virtualRows[virtualRows.length - 1].end - scrollMargin)
       : 0;
 
   const visibleColumns = table.getVisibleLeafColumns();
