@@ -75,7 +75,11 @@ export function ClassPage({
   }, []);
 
   const termStart = readTermStart();
-  const parsedDate = date === undefined ? Number.NaN : Number(date);
+  // An empty `?date=` is folded into the missing case before parsing:
+  // `Number("")` is `0`, not NaN, so left alone it would resolve to 1 January
+  // 1970 rather than falling back to "wherever the teacher is".
+  const rawDate = date === undefined ? "" : date.trim();
+  const parsedDate = rawDate === "" ? Number.NaN : Number(rawDate);
   const wantedDay = Number.isFinite(parsedDate) ? startOfDay(parsedDate) : null;
   // No `date` in the URL is "wherever the teacher is", so the slot is the
   // day's first. With one, the URL names a time — and `resolveSlot` falls back

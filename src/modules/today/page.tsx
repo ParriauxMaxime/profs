@@ -35,9 +35,12 @@ export function TodayPage({ date }: { date?: string }) {
   const wide = useMediaQuery("(min-width: 1024px)");
 
   // Resolve-or-ignore: a URL can name a day that no longer parses — hand-
-  // edited, or truncated by a chat client — and the front door must never
-  // open on NaN.
-  const parsed = date === undefined ? Number.NaN : Number(date);
+  // edited, truncated by a chat client, or an empty `?date=` — and the front
+  // door must never open on NaN. `Number("")` is `0`, not NaN, so an empty
+  // value is folded into the missing case before parsing rather than left for
+  // `Number` to silently turn into 1 January 1970.
+  const raw = date === undefined ? "" : date.trim();
+  const parsed = raw === "" ? Number.NaN : Number(raw);
   const anchor = Number.isFinite(parsed) ? startOfDay(parsed) : startOfDay(Date.now());
   const days = wide ? weekDays(anchor) : [anchor];
   const from = days[0];
