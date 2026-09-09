@@ -42,8 +42,6 @@ export const Router = createRouter(
     Student: "/students/:studentId",
     Gradebook: "/gradebooks/:gradebookId",
     Entry: "/gradebooks/:gradebookId/entry/:columnId",
-    Rubrics: "/gradebooks/:gradebookId/rubrics",
-    Rubric: "/gradebooks/:gradebookId/rubrics/:assessmentId",
     Settings: "/settings",
     Design: "/design",
   },

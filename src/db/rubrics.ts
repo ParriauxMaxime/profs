@@ -1,60 +1,17 @@
 import type { RubricCriterion, RubricLevel } from "@domain/rubric";
-import type { AppDatabase, RubricAssessment } from ".";
+import type { AppDatabase } from ".";
 import { rubricScoreKey } from ".";
 
 /**
- * Assessments are built from templates by copying.
+ * Writes for rubric templates and the levels recorded against a column.
  *
- * A reference would be smaller, and wrong: a teacher who improves next year's
+ * A template's criteria are COPIED into a column, never referenced. A
+ * reference would be smaller, and wrong: a teacher who improves next year's
  * oral grid must not silently rewrite the grid they graded last term with it.
  */
 
 export function newCriterion(label: string): RubricCriterion {
   return { id: crypto.randomUUID(), label };
-}
-
-export interface NewAssessment {
-  gradebookId: string;
-  periodId: string;
-  name: string;
-  criteria?: RubricCriterion[];
-  sessionId?: string;
-  date?: number;
-}
-
-export async function createAssessment(
-  db: AppDatabase,
-  input: NewAssessment,
-): Promise<RubricAssessment> {
-  const now = Date.now();
-  const assessment: RubricAssessment = {
-    id: crypto.randomUUID(),
-    gradebookId: input.gradebookId,
-    periodId: input.periodId,
-    ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
-    name: input.name,
-    date: input.date ?? now,
-    criteria: input.criteria ?? [],
-    createdAt: now,
-    updatedAt: now,
-  };
-  await db.rubricAssessments.add(assessment);
-  return assessment;
-}
-
-export async function createAssessmentFromTemplate(
-  db: AppDatabase,
-  templateId: string,
-  input: Omit<NewAssessment, "criteria">,
-): Promise<RubricAssessment> {
-  const template = await db.rubricTemplates.get(templateId);
-  if (!template) throw new Error(`unknown rubric template: ${templateId}`);
-  return await createAssessment(db, {
-    ...input,
-    // Fresh ids: two assessments from one template must not share criterion
-    // ids, or a score written on one would be readable from the other.
-    criteria: template.criteria.map((c) => ({ id: crypto.randomUUID(), label: c.label })),
-  });
 }
 
 /**

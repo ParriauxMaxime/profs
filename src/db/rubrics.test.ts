@@ -1,14 +1,6 @@
 import "fake-indexeddb/auto";
 import { openWorkspaceDb } from ".";
-import {
-  clearScore,
-  createAssessment,
-  createAssessmentFromTemplate,
-  newCriterion,
-  saveTemplate,
-  setCriteria,
-  setScore,
-} from "./rubrics";
+import { clearScore, newCriterion, saveTemplate, setCriteria, setScore } from "./rubrics";
 
 function freshDb() {
   return openWorkspaceDb(`rubrics-${crypto.randomUUID()}`);
@@ -20,108 +12,56 @@ describe("newCriterion", () => {
   });
 });
 
-describe("createAssessmentFromTemplate", () => {
-  it("copies the template's criteria rather than referencing them", async () => {
-    const db = freshDb();
-    const criteria = [newCriterion("Clarté"), newCriterion("Contenu")];
-    await db.rubricTemplates.add({
-      id: "t1",
-      name: "Oral",
-      criteria,
-      createdAt: 1,
-      updatedAt: 1,
-    });
-
-    const assessment = await createAssessmentFromTemplate(db, "t1", {
-      gradebookId: "g1",
-      periodId: "pe1",
-      name: "Oral du 12 mars",
-    });
-
-    expect(assessment.criteria.map((c) => c.label)).toEqual(["Clarté", "Contenu"]);
-
-    // Editing the template afterwards must not touch the graded assessment.
-    await db.rubricTemplates.update("t1", { criteria: [newCriterion("Autre chose")] });
-    const reloaded = await db.rubricAssessments.get(assessment.id);
-    expect(reloaded?.criteria.map((c) => c.label)).toEqual(["Clarté", "Contenu"]);
-    db.close();
-  });
-
-  it("gives fresh criterion ids, not the template's", async () => {
-    const db = freshDb();
-    const criteria = [newCriterion("Clarté")];
-    await db.rubricTemplates.add({ id: "t1", name: "Oral", criteria, createdAt: 1, updatedAt: 1 });
-
-    const a1 = await createAssessmentFromTemplate(db, "t1", {
-      gradebookId: "g1",
-      periodId: "pe1",
-      name: "Session 1",
-    });
-    const a2 = await createAssessmentFromTemplate(db, "t1", {
-      gradebookId: "g1",
-      periodId: "pe1",
-      name: "Session 2",
-    });
-
-    expect(a1.criteria[0].id).not.toBe(criteria[0].id);
-    expect(a1.criteria[0].id).not.toBe(a2.criteria[0].id);
-    db.close();
-  });
-
-  it("throws for an unknown template rather than creating an empty grid", async () => {
-    const db = freshDb();
-    await expect(
-      createAssessmentFromTemplate(db, "nope", {
-        gradebookId: "g1",
-        periodId: "pe1",
-        name: "x",
-      }),
-    ).rejects.toThrow();
-    db.close();
-  });
-});
-
 describe("setCriteria", () => {
   it("deletes the scores of a removed criterion", async () => {
     const db = freshDb();
-    const a = await createAssessment(db, {
+    const [first, second] = [newCriterion("Clarté"), newCriterion("Contenu")];
+    await db.rubricAssessments.add({
+      id: "a1",
       gradebookId: "g1",
       periodId: "pe1",
       name: "Oral",
-      criteria: [newCriterion("Clarté"), newCriterion("Contenu")],
+      date: 1,
+      criteria: [first, second],
+      createdAt: 1,
+      updatedAt: 1,
     });
-    const [first, second] = a.criteria;
     await db.rubricScores.bulkPut([
-      { assessmentId: a.id, criterionId: first.id, studentId: "p1", level: 3, updatedAt: 1 },
-      { assessmentId: a.id, criterionId: second.id, studentId: "p1", level: 4, updatedAt: 1 },
+      { assessmentId: "a1", criterionId: first.id, studentId: "p1", level: 3, updatedAt: 1 },
+      { assessmentId: "a1", criterionId: second.id, studentId: "p1", level: 4, updatedAt: 1 },
     ]);
 
-    await setCriteria(db, a.id, [first]);
+    await setCriteria(db, "a1", [first]);
 
     expect(await db.rubricScores.count()).toBe(1);
     expect((await db.rubricScores.toArray())[0].criterionId).toBe(first.id);
-    expect((await db.rubricAssessments.get(a.id))?.criteria).toHaveLength(1);
+    expect((await db.rubricAssessments.get("a1"))?.criteria).toHaveLength(1);
     db.close();
   });
 
   it("keeps every score when criteria are only reordered", async () => {
     const db = freshDb();
-    const a = await createAssessment(db, {
+    const criteria = [newCriterion("A"), newCriterion("B")];
+    await db.rubricAssessments.add({
+      id: "a1",
       gradebookId: "g1",
       periodId: "pe1",
       name: "Oral",
-      criteria: [newCriterion("A"), newCriterion("B")],
+      date: 1,
+      criteria,
+      createdAt: 1,
+      updatedAt: 1,
     });
     await db.rubricScores.bulkPut(
-      a.criteria.map((c) => ({
-        assessmentId: a.id,
+      criteria.map((c) => ({
+        assessmentId: "a1",
         criterionId: c.id,
         studentId: "p1",
         level: 2 as const,
         updatedAt: 1,
       })),
     );
-    await setCriteria(db, a.id, [...a.criteria].reverse());
+    await setCriteria(db, "a1", [...criteria].reverse());
     expect(await db.rubricScores.count()).toBe(2);
     db.close();
   });

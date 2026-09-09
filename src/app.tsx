@@ -7,7 +7,6 @@ import { EntryPage } from "./modules/entry/page";
 import { GradebookPage } from "./modules/gradebook/page";
 import { RoomEditorPage } from "./modules/rooms/editor";
 import { RoomsPage } from "./modules/rooms/page";
-import { RubricAssessmentPage, RubricsPage } from "./modules/rubric/page";
 import { SchedulePage } from "./modules/schedule/page";
 import { SettingsPage } from "./modules/settings/page";
 import { AdminLayout } from "./modules/shared/components/admin-layout";
@@ -39,8 +38,6 @@ export function App() {
     "Student",
     "Gradebook",
     "Entry",
-    "Rubrics",
-    "Rubric",
     "Settings",
     "Design",
   ]);
@@ -76,8 +73,6 @@ type AppRoute = NonNullable<
       | "Student"
       | "Gradebook"
       | "Entry"
-      | "Rubrics"
-      | "Rubric"
       | "Settings"
       | "Design"
     >
@@ -132,15 +127,6 @@ function Routes({ route }: { route: AppRoute }) {
       return <GradebookPage gradebookId={route.params.gradebookId} />;
     case "Entry":
       return <EntryPage gradebookId={route.params.gradebookId} columnId={route.params.columnId} />;
-    case "Rubrics":
-      return <RubricsPage gradebookId={route.params.gradebookId} />;
-    case "Rubric":
-      return (
-        <RubricAssessmentPage
-          gradebookId={route.params.gradebookId}
-          assessmentId={route.params.assessmentId}
-        />
-      );
     case "Settings":
       return <SettingsPage />;
     case "Design":
