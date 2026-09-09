@@ -2,6 +2,49 @@ import { nextDay, previousDay } from "./calendar";
 import { entriesForDay, type ScheduleEntryLike } from "./schedule";
 
 /**
+ * The ordinary French lesson, in minutes.
+ *
+ * It is the default END of a séance that has no lesson to take one from —
+ * never a stored duration, and never a render-time guess. A séance's end is
+ * a fact about that lesson, so it is written down.
+ */
+export const DEFAULT_SEANCE_MINUTES = 55;
+
+/**
+ * The local hour of a timestamp, as minutes from midnight.
+ *
+ * `getHours` rather than any arithmetic on the epoch value: the offset from
+ * UTC is not constant, so dividing a timestamp would land an hour out for
+ * half the year.
+ */
+export function hourOfDay(ms: number): number {
+  return new Date(ms).getHours() * 60;
+}
+
+/**
+ * A séance's times, repaired from whatever an older row does carry.
+ *
+ * Pure, and in the domain, because it has two callers in two layers — the
+ * `db.version(16)` upgrade and `parseBackup` — and a repair rule kept in two
+ * places is a repair rule that eventually disagrees with itself. This is the
+ * argument that made `entriesForDay` one function.
+ *
+ * `createdAt` is the right source for a missing start because of how a séance
+ * comes into being: all four things that create one — an attendance mark, a
+ * behaviour event, note text, "Commencer une séance" — are acts performed
+ * during the lesson, so the hour a séance was created in is the hour it was
+ * taught in. Where it guesses wrong, the séance strip's editor corrects it.
+ */
+export function backfillSeanceTimes(row: {
+  startsAt?: number;
+  endsAt?: number;
+  createdAt: number;
+}): { startsAt: number; endsAt: number } {
+  const startsAt = row.startsAt ?? hourOfDay(row.createdAt);
+  return { startsAt, endsAt: row.endsAt ?? startsAt + DEFAULT_SEANCE_MINUTES };
+}
+
+/**
  * A slot: a lesson that is scheduled, taught, or merely prepared.
  *
  * The timetable predicts and never pre-creates, so a lesson exists on screen

@@ -1,6 +1,14 @@
 import { nextDay, previousDay } from "./calendar";
 import { entriesForDay } from "./schedule";
-import { resolveSlot, type Slot, slotsForDay, teachingDays } from "./seance";
+import {
+  backfillSeanceTimes,
+  DEFAULT_SEANCE_MINUTES,
+  hourOfDay,
+  resolveSlot,
+  type Slot,
+  slotsForDay,
+  teachingDays,
+} from "./seance";
 
 const DAY = 1_757_289_600_000; // an arbitrary startOfDay
 
@@ -212,5 +220,57 @@ describe("teachingDays", () => {
     for (const day of days) {
       expect(new Date(day).getHours()).toBe(0);
     }
+  });
+});
+
+describe("hourOfDay", () => {
+  it("floors a timestamp to its local hour, in minutes from midnight", () => {
+    // 10:37 local on an arbitrary day.
+    const at = new Date(2026, 8, 9, 10, 37, 12).getTime();
+    expect(hourOfDay(at)).toBe(10 * 60);
+  });
+
+  it("keeps an exact hour where it is", () => {
+    expect(hourOfDay(new Date(2026, 8, 9, 14, 0, 0).getTime())).toBe(14 * 60);
+  });
+
+  it("reads midnight as zero", () => {
+    expect(hourOfDay(new Date(2026, 8, 9, 0, 12, 0).getTime())).toBe(0);
+  });
+});
+
+describe("backfillSeanceTimes", () => {
+  it("takes the hour a séance was created in when it has no start", () => {
+    // A séance is created BY a mid-lesson act — a mark, a behaviour event —
+    // so the hour it was created in is the hour it was taught in.
+    const createdAt = new Date(2026, 8, 9, 10, 37, 0).getTime();
+    expect(backfillSeanceTimes({ createdAt })).toEqual({
+      startsAt: 600,
+      endsAt: 600 + DEFAULT_SEANCE_MINUTES,
+    });
+  });
+
+  it("keeps a start it already has, and gives it the default end", () => {
+    const createdAt = new Date(2026, 8, 9, 21, 4, 0).getTime();
+    expect(backfillSeanceTimes({ startsAt: 480, createdAt })).toEqual({
+      startsAt: 480,
+      endsAt: 480 + DEFAULT_SEANCE_MINUTES,
+    });
+  });
+
+  it("returns a fully timed row unchanged", () => {
+    const createdAt = new Date(2026, 8, 9, 10, 0, 0).getTime();
+    expect(backfillSeanceTimes({ startsAt: 480, endsAt: 600, createdAt })).toEqual({
+      startsAt: 480,
+      endsAt: 600,
+    });
+  });
+
+  it("never lets a repaired end run past midnight", () => {
+    // 23:30 floors to 23:00; 23:00 + 55 is 23:55, still inside the day.
+    const createdAt = new Date(2026, 8, 9, 23, 30, 0).getTime();
+    const { startsAt, endsAt } = backfillSeanceTimes({ createdAt });
+    expect(startsAt).toBe(23 * 60);
+    expect(endsAt).toBeLessThanOrEqual(24 * 60);
   });
 });
