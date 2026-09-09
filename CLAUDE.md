@@ -369,11 +369,30 @@ focus and Enter does not fire on it, so the first cell holds a real `<Link>`
 and `onRowClick` is a mouse convenience layered on top, ignoring events that
 start inside an `<a>` or a `<button>`.
 
-**A list page's filter lives in its URL**, written with `Router.replace` and
-never `push` — a push per keystroke makes Back walk a typed name one character
-at a time. `?classe` carries a class **id**, since `classes: "id, name"` leaves
-the name non-unique. Scroll position is deliberately not restored; the filters
-coming back is the part that costs retyping.
+**A list page's filter AND its sort live in its URL**, written with
+`Router.replace` and never `push` — a push per keystroke makes Back walk a typed
+name one character at a time, and a sort click is a change of view rather than a
+navigation. `?classe` carries a class **id**, since `classes: "id, name"` leaves
+the name non-unique. The sort is two params, `?sort=<columnId>&dir=asc|desc`,
+mapped by `sortingFromParams` / `paramsFromSorting` in
+`src/domain/table-sort.ts` — the only place that mapping is expressed, so a URL
+one page writes another can read.
+
+`sortingFromParams` takes the list of column ids it is allowed to name, and that
+argument is load-bearing rather than defensive: a URL can name a column that no
+longer exists — hand-edited, or bookmarked before a rename — and handing it
+straight to TanStack sorts by a phantom column. It falls back to the default
+order instead, the same resolve-or-ignore rule `?classe` follows for a deleted
+class.
+
+**Every handler writes every param the page owns.** `/students` now carries
+four (`q`, `classe`, `sort`, `dir`), which is why its writes go through one
+local `replaceParams` rather than four `Router.replace` calls: a handler that
+names only the param it changes silently clears the others, costing the teacher
+a filter they set and reporting nothing.
+
+Scroll position is deliberately not restored; the filters and the sort coming
+back is the part that costs redoing.
 
 Two costs are accepted and permanent: **⌘F cannot find a row outside the
 rendered window** (which is why the search box stays directly above the table),

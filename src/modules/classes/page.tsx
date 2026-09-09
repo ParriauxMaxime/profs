@@ -1,5 +1,6 @@
 import type { SchoolClass } from "@db";
 import { useDb } from "@db/provider";
+import { paramsFromSorting, sortingFromParams } from "@domain/table-sort";
 import { Link } from "@swan-io/chicane";
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -15,9 +16,16 @@ import { DataTable } from "../design-system/components/data-table";
 /** The headcount is a real column so that it sorts as a number. */
 type ClassRow = SchoolClass & { headcount: number };
 
+/**
+ * The columns a URL may name in `?sort=`. Listed explicitly rather than derived
+ * from `columns`, because TanStack fills an accessor column's `id` in itself
+ * and a definition here carries `undefined` until it does.
+ */
+const SORTABLE_COLUMNS = ["name", "headcount"];
+
 const helper = createColumnHelper<ClassRow>();
 
-export function ClassesPage({ q }: { q?: string }) {
+export function ClassesPage({ q, sort, dir }: { q?: string; sort?: string; dir?: string }) {
   const { t } = useTranslation();
   const db = useDb();
   const [addingClass, setAddingClass] = useState(false);
@@ -72,6 +80,11 @@ export function ClassesPage({ q }: { q?: string }) {
     [t],
   );
 
+  // A `?sort=` naming a column that does not exist falls back to the default
+  // order rather than sorting by a phantom column — the same rule `?classe`
+  // follows on /students for a class that has been deleted.
+  const sorting = sortingFromParams(sort, dir, SORTABLE_COLUMNS);
+
   if (!data) return <p className="text-text-muted">{t("common.loading")}</p>;
 
   return (
@@ -93,9 +106,16 @@ export function ClassesPage({ q }: { q?: string }) {
         searchPlaceholder={t("classes.searchPlaceholder")}
         globalFilter={q ?? ""}
         // `replace`, never `push`: a push per keystroke makes Back walk the
-        // typed name one character at a time. An empty value drops the param
-        // rather than leaving `?q=` on the URL.
-        onGlobalFilterChange={(value) => Router.replace("Classes", { q: value || undefined })}
+        // typed name one character at a time, and a sort click is a change of
+        // view rather than a navigation. Every handler carries the params it
+        // does not own — omitting one silently clears state the teacher set.
+        onGlobalFilterChange={(value) =>
+          Router.replace("Classes", { q: value || undefined, ...paramsFromSorting(sorting) })
+        }
+        sorting={sorting}
+        onSortingChange={(next) =>
+          Router.replace("Classes", { q: q || undefined, ...paramsFromSorting(next) })
+        }
         onRowClick={(schoolClass) => Router.push("Class", { classId: schoolClass.id })}
         emptyMessage={t("dashboard.noClasses")}
       />

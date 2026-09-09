@@ -10,8 +10,8 @@ export const Router = createRouter(
     // to find a pupil should not retype them after looking at that pupil.
     // Written with `replace`, never `push` — a push per keystroke makes Back
     // walk "bernard" one character at a time.
-    Classes: "/classes?:q",
-    Students: "/students?:q&:classe",
+    Classes: "/classes?:q&:sort&:dir",
+    Students: "/students?:q&:classe&:sort&:dir",
     Schedule: "/schedule",
     Diary: "/diary",
     // A salle belongs to the établissement, not to a class, so it is a

@@ -1,5 +1,6 @@
 import type { Student } from "@db";
 import { useDb } from "@db/provider";
+import { type ColumnSort, paramsFromSorting, sortingFromParams } from "@domain/table-sort";
 import { Link } from "@swan-io/chicane";
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -20,6 +21,13 @@ import { PupilName } from "../design-system/components/pupil-name";
  */
 type StudentRow = Student & { classLabel: string };
 
+/**
+ * The columns a URL may name in `?sort=`. Listed explicitly rather than derived
+ * from `columns`, because TanStack fills an accessor column's `id` in itself
+ * and a definition here carries `undefined` until it does.
+ */
+const SORTABLE_COLUMNS = ["lastName", "firstName", "classLabel"];
+
 const helper = createColumnHelper<StudentRow>();
 
 /**
@@ -30,7 +38,17 @@ const helper = createColumnHelper<StudentRow>();
  * and drilling through it. Both filters live in the URL so that going into a
  * pupil and coming back does not throw away what the teacher typed.
  */
-export function StudentsPage({ q, classe }: { q?: string; classe?: string }) {
+export function StudentsPage({
+  q,
+  classe,
+  sort,
+  dir,
+}: {
+  q?: string;
+  classe?: string;
+  sort?: string;
+  dir?: string;
+}) {
   const { t } = useTranslation();
   const db = useDb();
 
@@ -89,6 +107,22 @@ export function StudentsPage({ q, classe }: { q?: string; classe?: string }) {
     ? rows.filter((row) => row.classId === selectedClassId)
     : rows;
 
+  // A `?sort=` naming a column that does not exist falls back to the default
+  // order rather than sorting by a phantom column — the same resolve-or-ignore
+  // rule `?classe` follows just above.
+  const sorting = sortingFromParams(sort, dir, SORTABLE_COLUMNS);
+
+  // ONE place that knows every param this page owns. There are four now, and a
+  // handler naming only the one it changes silently clears the others — a bug
+  // that costs the teacher a filter they set and reports nothing. Callers pass
+  // only what they are changing; "" clears a param, absent leaves it alone.
+  const replaceParams = (next: { q?: string; classe?: string; sorting?: ColumnSort[] }) =>
+    Router.replace("Students", {
+      q: (next.q ?? q) || undefined,
+      classe: (next.classe ?? selectedClassId ?? "") || undefined,
+      ...paramsFromSorting(next.sorting ?? sorting),
+    });
+
   return (
     <div className="flex flex-col gap-3">
       <h2 className="font-semibold text-lg">{t("nav.students")}</h2>
@@ -100,12 +134,9 @@ export function StudentsPage({ q, classe }: { q?: string; classe?: string }) {
         globalSearchFields={["lastName", "firstName", "classLabel"]}
         searchPlaceholder={t("students.searchPlaceholder")}
         globalFilter={q ?? ""}
-        onGlobalFilterChange={(value) =>
-          Router.replace("Students", {
-            q: value || undefined,
-            classe: selectedClassId ?? undefined,
-          })
-        }
+        onGlobalFilterChange={(value) => replaceParams({ q: value })}
+        sorting={sorting}
+        onSortingChange={(next) => replaceParams({ sorting: next })}
         onRowClick={(student) => Router.push("Student", { studentId: student.id })}
         // The class filter runs before DataTable ever sees the rows, so an
         // empty result for a chosen class is not "no pupils at all" — pick
@@ -123,12 +154,7 @@ export function StudentsPage({ q, classe }: { q?: string; classe?: string }) {
               className="field"
               aria-label={t("students.classFilterLabel")}
               value={selectedClassId ?? ""}
-              onChange={(e) =>
-                Router.replace("Students", {
-                  q: q || undefined,
-                  classe: e.target.value || undefined,
-                })
-              }
+              onChange={(e) => replaceParams({ classe: e.target.value })}
             >
               <option value="">{t("students.allClasses")}</option>
               {data.classes.map((schoolClass) => (

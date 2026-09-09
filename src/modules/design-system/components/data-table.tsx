@@ -85,6 +85,14 @@ interface DataTableProps<T> {
    */
   globalFilter?: string;
   onGlobalFilterChange?: (value: string) => void;
+  /**
+   * The sort, when the page owns it — a list page mirrors it into the URL for
+   * the same reason it mirrors the search: re-sorting 360 rows and then
+   * opening one of them should not land you back at the default order on the
+   * way back. Omit BOTH this and `onSortingChange` to let DataTable hold it.
+   */
+  sorting?: SortingState;
+  onSortingChange?: (sorting: SortingState) => void;
   /** Replaces the generic "Aucun résultat" when a filter empties the list. */
   noResultsMessage?: ReactNode;
 }
@@ -100,10 +108,22 @@ export function DataTable<T>({
   onRowClick,
   globalFilter,
   onGlobalFilterChange,
+  sorting,
+  onSortingChange,
   noResultsMessage,
 }: DataTableProps<T>) {
   const { t } = useTranslation();
-  const [sorting, setSorting] = useState<SortingState>([]);
+
+  // Controlled exactly when the caller passes a value — the same split as the
+  // filter below, and the same visible failure if only half of it is passed.
+  const [uncontrolledSorting, setUncontrolledSorting] = useState<SortingState>([]);
+  const isSortingControlled = sorting !== undefined;
+  const sortingValue = isSortingControlled ? sorting : uncontrolledSorting;
+
+  const setSortingValue = (next: SortingState) => {
+    if (!isSortingControlled) setUncontrolledSorting(next);
+    onSortingChange?.(next);
+  };
 
   // Controlled when the caller passes a value, uncontrolled otherwise. This
   // fails visibly rather than silently: pass the value without the handler and
@@ -121,8 +141,12 @@ export function DataTable<T>({
     data,
     columns,
     getRowId: getRowId && ((row) => getRowId(row)),
-    state: { sorting, globalFilter: filterValue },
-    onSortingChange: setSorting,
+    state: { sorting: sortingValue, globalFilter: filterValue },
+    // TanStack hands this an updater that may be a function or a value; both
+    // branches are needed, or a functional update is silently dropped.
+    onSortingChange: (updater) => {
+      setSortingValue(typeof updater === "function" ? updater(sortingValue) : updater);
+    },
     onGlobalFilterChange: (updater) => {
       setFilterValue(typeof updater === "function" ? updater(filterValue) : (updater as string));
     },
