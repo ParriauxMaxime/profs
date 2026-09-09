@@ -1,5 +1,6 @@
 import { classesOverCapacity, MAX_STUDENTS_PER_CLASS } from "@domain/class-size";
 import { gradeValueSchema } from "@domain/gradebook/grade";
+import { repairSeanceCollisions } from "@domain/seance";
 import { z } from "zod";
 import type { AppDatabase } from ".";
 import type {
@@ -26,7 +27,7 @@ import type {
 } from "./types";
 
 export interface WorkspaceBackup {
-  version: 11;
+  version: 12;
   exportedAt: number;
   classes: SchoolClass[];
   students: Student[];
@@ -69,9 +70,15 @@ export interface WorkspaceBackup {
  * The rule for the next schema change is unchanged: bump the version, do not
  * write an upgrade — importing a file half-populated is worse than refusing
  * it, because half a workspace looks like a whole one.
+ *
+ * Version 11 is the one exception: it predates a séance's required
+ * `startsAt`/`endsAt`, but nothing in it is LOST — `backfillSeanceTimes`
+ * repairs exactly what is missing, the same function the v16 Dexie upgrade
+ * runs. Refusing it whole, the way v10 is refused, would cost a teacher last
+ * week's export for nothing.
  */
 const backupSchema = z.object({
-  version: z.literal(11),
+  version: z.union([z.literal(11), z.literal(12)]),
   exportedAt: z.number(),
   classes: z.array(z.object({ id: z.string() }).loose()),
   students: z.array(z.object({ id: z.string() }).loose()),
@@ -187,7 +194,7 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
   ]);
 
   return {
-    version: 11,
+    version: 12,
     exportedAt: Date.now(),
     classes,
     students: students.map(({ photo: _photo, ...rest }) => rest),
@@ -265,7 +272,29 @@ export function parseBackup(backup: unknown): WorkspaceBackup {
   const over = classesOverCapacity(data.students);
   if (over.length > 0) throw new BackupOverCapacityError(over);
 
-  return data;
+  // A v11 file's séances carry no times. The same function the v16 upgrade
+  // uses repairs them — one implementation, two callers — so a v11 export
+  // imports as a v12 workspace with every séance timed and no two séances of
+  // one class on one day sharing a start (`repairSeanceCollisions`). Applied
+  // unconditionally rather than behind a version check: a v12 file's séances
+  // are already timed and already collision-free, and the repair returns
+  // those unchanged, so a version branch would only be a second thing to keep
+  // right.
+  // Zipped by INDEX, not by an id lookup: `repairSeanceCollisions` returns
+  // exactly one repaired entry per input row, in the same order, so this
+  // avoids asserting a lookup can never miss.
+  const repairedTimes = repairSeanceCollisions(data.sessions);
+  const sessions = data.sessions.map((session, i) => ({
+    ...session,
+    ...repairedTimes[i],
+  }));
+
+  // Honest about what comes out, not just what went in: by this point a v11
+  // file has been fully repaired to v12 shape — every séance timed and
+  // collision-free — so the returned `version` says so rather than echoing
+  // the file's own, which `WorkspaceBackup["version"]` no longer allows to be
+  // anything else.
+  return { ...data, sessions, version: 12 };
 }
 
 /** Destructive: clears every table, then writes the backup's rows. */

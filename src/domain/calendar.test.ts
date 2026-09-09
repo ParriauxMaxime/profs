@@ -1,4 +1,5 @@
 import {
+  addDays,
   agendaDays,
   daysInRange,
   monthGrid,
@@ -196,6 +197,52 @@ describe("agendaDays", () => {
       (e) => e.on,
     );
     expect(shuffled.map((d) => label(d.date))).toEqual(["2026-09-01", "2026-09-02", "2026-09-04"]);
+  });
+});
+
+describe("addDays", () => {
+  it("walks forward and back to the right calendar day", () => {
+    const start = day(2026, 8, 9);
+    expect(new Date(addDays(start, 7)).getDate()).toBe(16);
+    expect(new Date(addDays(start, -7)).getDate()).toBe(2);
+  });
+
+  it("is identity for zero", () => {
+    const start = day(2026, 8, 9);
+    expect(addDays(start, 0)).toBe(start);
+  });
+
+  // jest.setup.js pins TZ=Europe/Paris precisely so these two assertions mean
+  // something: under UTC there is no spring-forward or fall-back, so a naive
+  // `ms + n * 86_400_000` produces output identical to a calendar walk and
+  // both would pass here vacuously.
+  it("crosses a spring DST boundary without losing a day", () => {
+    // Europe/Paris springs forward on 29 March 2026. Adding 7 × 86_400_000
+    // lands an hour early and eventually a whole day out.
+    const before = day(2026, 2, 26);
+    const after = addDays(before, 7);
+    expect(new Date(after).getDate()).toBe(2);
+    expect(new Date(after).getMonth()).toBe(3);
+    expect(new Date(after).getHours()).toBe(0);
+  });
+
+  it("crosses an autumn DST boundary without gaining one", () => {
+    const before = day(2026, 9, 22);
+    const after = addDays(before, 7);
+    expect(new Date(after).getDate()).toBe(29);
+    expect(new Date(after).getHours()).toBe(0);
+  });
+
+  it("crosses a year end", () => {
+    const after = addDays(day(2026, 11, 29), 5);
+    expect(new Date(after).getFullYear()).toBe(2027);
+    expect(new Date(after).getMonth()).toBe(0);
+    expect(new Date(after).getDate()).toBe(3);
+  });
+
+  it("mirrors: forward then back returns to the start", () => {
+    const start = day(2026, 2, 26);
+    expect(addDays(addDays(start, 7), -7)).toBe(start);
   });
 });
 

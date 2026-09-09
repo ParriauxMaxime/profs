@@ -52,7 +52,14 @@ describe("wipeWorkspace", () => {
       value: { type: "numeric", value: 14 },
       updatedAt: 1,
     });
-    await db.sessions.add({ id: "sess1", classId: "c1", date: 1, createdAt: 1 });
+    await db.sessions.add({
+      id: "sess1",
+      classId: "c1",
+      date: 1,
+      startsAt: 480,
+      endsAt: 535,
+      createdAt: 1,
+    });
     await db.attendance.add({
       sessionId: "sess1",
       studentId: "s1",

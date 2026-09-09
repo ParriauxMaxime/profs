@@ -4,7 +4,10 @@ const basePath = __BASE_PATH__ === "/" ? "" : __BASE_PATH__.replace(/\/$/, "");
 
 export const Router = createRouter(
   {
-    Home: "/",
+    // `date` names a DAY, never a week — the width decides whether the front
+    // door draws that day's week or that single day, so a phone and a tablet
+    // read the same param differently rather than needing two URLs.
+    Home: "/?:date",
     // A list page's filter lives in its URL: row-click navigation makes "go
     // in, come back" the primary loop, and a teacher who typed six characters
     // to find a pupil should not retype them after looking at that pupil.

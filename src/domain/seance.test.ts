@@ -1,29 +1,39 @@
 import { nextDay, previousDay } from "./calendar";
 import { entriesForDay } from "./schedule";
-import { resolveSlot, type Slot, slotsForDay, teachingDays } from "./seance";
+import {
+  backfillSeanceTimes,
+  DEFAULT_SEANCE_MINUTES,
+  hourOfDay,
+  repairSeanceCollisions,
+  resolveSlot,
+  type Slot,
+  slotsForDay,
+  teachingDays,
+} from "./seance";
 
 const DAY = 1_757_289_600_000; // an arbitrary startOfDay
 
-const session = (id: string, startsAt?: number, classId = "c1") => ({
+const session = (id: string, startsAt: number, classId = "c1", endsAt = startsAt + 55) => ({
   id,
   classId,
-  date: DAY,
-  createdAt: 1,
-  ...(startsAt === undefined ? {} : { startsAt }),
+  startsAt,
+  endsAt,
 });
-const entry = (id: string, startMinute: number, classId = "c1") => ({
+const entry = (id: string, startMinute: number, classId = "c1", endMinute = startMinute + 55) => ({
   id,
   classId,
   weekday: 1,
   startMinute,
-  endMinute: startMinute + 55,
+  endMinute,
   weekCycle: "all" as const,
 });
 
 describe("slotsForDay", () => {
   it("pairs a séance with the lesson it was taught at", () => {
     const slots = slotsForDay([session("s1", 600)], [entry("e1", 600)], DAY);
-    expect(slots).toEqual([{ date: DAY, startsAt: 600, sessionId: "s1", entryId: "e1" }]);
+    expect(slots).toEqual([
+      { date: DAY, startsAt: 600, endsAt: 655, sessionId: "s1", entryId: "e1" },
+    ]);
   });
 
   /**
@@ -32,17 +42,27 @@ describe("slotsForDay", () => {
    */
   it("keeps a scheduled lesson that has no séance", () => {
     const slots = slotsForDay([], [entry("e1", 600)], DAY);
-    expect(slots).toEqual([{ date: DAY, startsAt: 600, sessionId: null, entryId: "e1" }]);
+    expect(slots).toEqual([
+      { date: DAY, startsAt: 600, endsAt: 655, sessionId: null, entryId: "e1" },
+    ]);
   });
 
-  it("keeps a séance no lesson predicted", () => {
-    const slots = slotsForDay([session("s1")], [], DAY);
-    expect(slots).toEqual([{ date: DAY, startsAt: null, sessionId: "s1", entryId: null }]);
+  it("gives a slot the entry's end when the timetable predicted it", () => {
+    const slots = slotsForDay(
+      [],
+      [{ id: "e1", classId: "c1", startMinute: 600, endMinute: 655 }],
+      DAY,
+    );
+    expect(slots).toEqual([
+      { date: DAY, startsAt: 600, endsAt: 655, sessionId: null, entryId: "e1" },
+    ]);
   });
 
-  it("orders by time, untimed last", () => {
-    const slots = slotsForDay([session("s1"), session("s2", 840)], [entry("e1", 600)], DAY);
-    expect(slots.map((s) => s.startsAt)).toEqual([600, 840, null]);
+  it("gives an unpaired séance its own stored end, not a guess", () => {
+    const slots = slotsForDay([{ id: "s1", classId: "c1", startsAt: 840, endsAt: 950 }], [], DAY);
+    expect(slots).toEqual([
+      { date: DAY, startsAt: 840, endsAt: 950, sessionId: "s1", entryId: null },
+    ]);
   });
 
   /**
@@ -58,7 +78,40 @@ describe("slotsForDay", () => {
       DAY,
     );
     expect(slots.find((s) => s.sessionId === "s1")?.entryId).toBe("e1");
-    expect(slots).toContainEqual({ date: DAY, startsAt: 600, sessionId: null, entryId: "e2" });
+    expect(slots).toContainEqual({
+      date: DAY,
+      startsAt: 600,
+      endsAt: 655,
+      sessionId: null,
+      entryId: "e2",
+    });
+  });
+
+  it("still pairs a séance only with a lesson of its own class", () => {
+    // Two classes at one minute is legal, and Aujourd'hui reads every class at
+    // once — so time alone would let one class's séance claim another's lesson.
+    const slots = slotsForDay(
+      [{ id: "s1", classId: "c2", startsAt: 600, endsAt: 655 }],
+      [
+        { id: "e1", classId: "c1", startMinute: 600, endMinute: 655 },
+        { id: "e2", classId: "c2", startMinute: 600, endMinute: 655 },
+      ],
+      DAY,
+    );
+    expect(slots.find((s) => s.sessionId === "s1")?.entryId).toBe("e2");
+    expect(slots).toHaveLength(2);
+  });
+
+  it("takes the séance's end over the entry's when a paired lesson ran long", () => {
+    // The séance records what happened; the entry records what was intended.
+    const slots = slotsForDay(
+      [{ id: "s1", classId: "c1", startsAt: 600, endsAt: 720 }],
+      [{ id: "e1", classId: "c1", startMinute: 600, endMinute: 655 }],
+      DAY,
+    );
+    expect(slots).toEqual([
+      { date: DAY, startsAt: 600, endsAt: 720, sessionId: "s1", entryId: "e1" },
+    ]);
   });
 
   it("pairs each class's séance with its own lesson when both are at the same minute", () => {
@@ -72,36 +125,6 @@ describe("slotsForDay", () => {
     expect(slots.find((s) => s.sessionId === "s2")?.entryId).toBe("e2");
   });
 
-  /**
-   * A séance recorded before séances carried a time. It belongs to the lesson
-   * the timetable predicted; a second row would render one lesson twice.
-   */
-  it("pairs an untimed séance with its own class's lesson", () => {
-    const slots = slotsForDay([session("s1")], [entry("e1", 600)], DAY);
-    expect(slots).toEqual([{ date: DAY, startsAt: 600, sessionId: "s1", entryId: "e1" }]);
-  });
-
-  it("does not pair an untimed séance with another class's lesson", () => {
-    const slots = slotsForDay([session("s1", undefined, "c1")], [entry("e1", 600, "c2")], DAY);
-    expect(slots).toEqual([
-      { date: DAY, startsAt: 600, sessionId: null, entryId: "e1" },
-      { date: DAY, startsAt: null, sessionId: "s1", entryId: null },
-    ]);
-  });
-
-  /**
-   * The unscheduled séance the strip's "Commencer une séance" makes is created
-   * BESIDE another one. Absorbing it into a lesson nobody started would leave
-   * the strip with no unscheduled slot to open.
-   */
-  it("leaves a deliberate unscheduled séance unpaired when the class already has one", () => {
-    const slots = slotsForDay([session("s1", 600), session("s2")], [entry("e1", 600)], DAY);
-    expect(slots).toEqual([
-      { date: DAY, startsAt: 600, sessionId: "s1", entryId: "e1" },
-      { date: DAY, startsAt: null, sessionId: "s2", entryId: null },
-    ]);
-  });
-
   it("does not pair two séances with one lesson", () => {
     const slots = slotsForDay([session("s1", 600), session("s2", 600)], [entry("e1", 600)], DAY);
     expect(slots).toHaveLength(2);
@@ -111,8 +134,8 @@ describe("slotsForDay", () => {
 
 describe("resolveSlot", () => {
   const slots: Slot[] = [
-    { date: DAY, startsAt: 600, sessionId: "s1", entryId: "e1" },
-    { date: DAY, startsAt: 840, sessionId: null, entryId: "e2" },
+    { date: DAY, startsAt: 600, endsAt: 655, sessionId: "s1", entryId: "e1" },
+    { date: DAY, startsAt: 840, endsAt: 895, sessionId: null, entryId: "e2" },
   ];
 
   it("finds the slot at the time asked for", () => {
@@ -129,11 +152,6 @@ describe("resolveSlot", () => {
 
   it("takes the day's first slot when no time is asked for", () => {
     expect(resolveSlot(slots, null)?.startsAt).toBe(600);
-  });
-
-  it("finds an untimed slot when one is asked for", () => {
-    const withUntimed = [...slots, { date: DAY, startsAt: null, sessionId: "s3", entryId: null }];
-    expect(resolveSlot(withUntimed, { startsAt: null })?.sessionId).toBe("s3");
   });
 
   it("gives nothing for a day with nothing on it", () => {
@@ -212,5 +230,170 @@ describe("teachingDays", () => {
     for (const day of days) {
       expect(new Date(day).getHours()).toBe(0);
     }
+  });
+});
+
+describe("hourOfDay", () => {
+  it("floors a timestamp to its local hour, in minutes from midnight", () => {
+    // 10:37 local on an arbitrary day.
+    const at = new Date(2026, 8, 9, 10, 37, 12).getTime();
+    expect(hourOfDay(at)).toBe(10 * 60);
+  });
+
+  it("keeps an exact hour where it is", () => {
+    expect(hourOfDay(new Date(2026, 8, 9, 14, 0, 0).getTime())).toBe(14 * 60);
+  });
+
+  it("reads midnight as zero", () => {
+    expect(hourOfDay(new Date(2026, 8, 9, 0, 12, 0).getTime())).toBe(0);
+  });
+});
+
+describe("backfillSeanceTimes", () => {
+  it("takes the hour a séance was created in when it has no start", () => {
+    // A séance is created BY a mid-lesson act — a mark, a behaviour event —
+    // so the hour it was created in is the hour it was taught in.
+    const createdAt = new Date(2026, 8, 9, 10, 37, 0).getTime();
+    expect(backfillSeanceTimes({ createdAt })).toEqual({
+      startsAt: 600,
+      endsAt: 600 + DEFAULT_SEANCE_MINUTES,
+    });
+  });
+
+  it("keeps a start it already has, and gives it the default end", () => {
+    const createdAt = new Date(2026, 8, 9, 21, 4, 0).getTime();
+    expect(backfillSeanceTimes({ startsAt: 480, createdAt })).toEqual({
+      startsAt: 480,
+      endsAt: 480 + DEFAULT_SEANCE_MINUTES,
+    });
+  });
+
+  it("returns a fully timed row unchanged", () => {
+    const createdAt = new Date(2026, 8, 9, 10, 0, 0).getTime();
+    expect(backfillSeanceTimes({ startsAt: 480, endsAt: 600, createdAt })).toEqual({
+      startsAt: 480,
+      endsAt: 600,
+    });
+  });
+
+  it("never lets a repaired end run past midnight", () => {
+    // 23:30 floors to 23:00; 23:00 + 55 is 23:55, still inside the day.
+    const createdAt = new Date(2026, 8, 9, 23, 30, 0).getTime();
+    const { startsAt, endsAt } = backfillSeanceTimes({ createdAt });
+    expect(startsAt).toBe(23 * 60);
+    expect(endsAt).toBeLessThanOrEqual(24 * 60);
+  });
+});
+
+describe("repairSeanceCollisions", () => {
+  // Two mid-lesson acts an hour apart in wall-clock reality, but both fall
+  // inside 10h–11h, so both floor to the same derived start — the exact
+  // hazard `startSeance`'s old untimed branch produced routinely.
+  const tenOhFive = new Date(2026, 8, 9, 10, 5, 0).getTime();
+  const tenOhForty = new Date(2026, 8, 9, 10, 40, 0).getTime();
+
+  const row = (
+    id: string,
+    overrides: Partial<{
+      classId: string;
+      date: number;
+      createdAt: number;
+      startsAt: number;
+      endsAt: number;
+    }> = {},
+  ) => ({
+    id,
+    classId: "c1",
+    date: DAY,
+    createdAt: tenOhFive,
+    ...overrides,
+  });
+
+  it("gives two untimed séances of one class created in the same hour different starts", () => {
+    const result = repairSeanceCollisions([
+      row("first", { createdAt: tenOhFive }),
+      row("second", { createdAt: tenOhForty }),
+    ]);
+    const first = result.find((r) => r.id === "first");
+    const second = result.find((r) => r.id === "second");
+    // Earliest created keeps the exact hour.
+    expect(first).toEqual({ id: "first", startsAt: 10 * 60, endsAt: 10 * 60 + 55 });
+    // The later one is nudged a minute forward rather than a whole hour.
+    expect(second).toEqual({ id: "second", startsAt: 10 * 60 + 1, endsAt: 10 * 60 + 1 + 55 });
+  });
+
+  it("never moves a row that already has a stored start, even when a derived row wants that minute", () => {
+    const result = repairSeanceCollisions([
+      // Stored exactly on the hour a derived row would also floor to.
+      row("stored", { startsAt: 10 * 60, endsAt: 10 * 60 + 55, createdAt: tenOhForty }),
+      row("derived", { createdAt: tenOhFive }),
+    ]);
+    const stored = result.find((r) => r.id === "stored");
+    const derived = result.find((r) => r.id === "derived");
+    expect(stored).toEqual({ id: "stored", startsAt: 10 * 60, endsAt: 10 * 60 + 55 });
+    // The derived row is the one that yields, since a repair may only move a
+    // time it invented.
+    expect(derived?.startsAt).not.toBe(10 * 60);
+  });
+
+  it("does not let two different classes at the same hour interfere", () => {
+    const result = repairSeanceCollisions([
+      row("c1-a", { classId: "c1", createdAt: tenOhFive }),
+      row("c2-a", { classId: "c2", createdAt: tenOhFive }),
+    ]);
+    // Same day, same created hour, different classes: neither has to move.
+    expect(result.find((r) => r.id === "c1-a")?.startsAt).toBe(10 * 60);
+    expect(result.find((r) => r.id === "c2-a")?.startsAt).toBe(10 * 60);
+  });
+
+  it("does not let the same class on different days interfere", () => {
+    const result = repairSeanceCollisions([
+      row("day1", { date: DAY, createdAt: tenOhFive }),
+      row("day2", { date: nextDay(DAY), createdAt: tenOhFive }),
+    ]);
+    expect(result.find((r) => r.id === "day1")?.startsAt).toBe(10 * 60);
+    expect(result.find((r) => r.id === "day2")?.startsAt).toBe(10 * 60);
+  });
+
+  it("preserves a stored endsAt, and derives one for a derived start", () => {
+    const result = repairSeanceCollisions([
+      row("stored", { startsAt: 8 * 60, endsAt: 8 * 60 + 90, createdAt: tenOhFive }),
+      row("derived", { createdAt: tenOhFive }),
+    ]);
+    expect(result.find((r) => r.id === "stored")).toEqual({
+      id: "stored",
+      startsAt: 8 * 60,
+      endsAt: 8 * 60 + 90,
+    });
+    const derived = result.find((r) => r.id === "derived");
+    expect(derived?.endsAt).toBe((derived?.startsAt ?? 0) + DEFAULT_SEANCE_MINUTES);
+  });
+
+  // The point of the whole fix: fed through the real pairing and resolution,
+  // both séances must be reachable — not merely have different `startsAt`
+  // values in isolation.
+  it("makes both séances of a collision reachable through slotsForDay and resolveSlot", () => {
+    // Repaired by INDEX, not by an id lookup that would need a non-null
+    // assertion: `repairSeanceCollisions` returns one entry per input row, in
+    // the same order.
+    const repairedTimes = repairSeanceCollisions([
+      row("s-first", { createdAt: tenOhFive }),
+      row("s-second", { createdAt: tenOhForty }),
+    ]);
+    const sessions = [
+      { classId: "c1", ...repairedTimes[0] },
+      { classId: "c1", ...repairedTimes[1] },
+    ];
+
+    const slots = slotsForDay(sessions, [], DAY);
+    expect(slots).toHaveLength(2);
+
+    const first = slots.find((s) => s.sessionId === "s-first");
+    const second = slots.find((s) => s.sessionId === "s-second");
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+
+    expect(resolveSlot(slots, { startsAt: first?.startsAt ?? -1 })?.sessionId).toBe("s-first");
+    expect(resolveSlot(slots, { startsAt: second?.startsAt ?? -1 })?.sessionId).toBe("s-second");
   });
 });

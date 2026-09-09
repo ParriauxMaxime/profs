@@ -1,7 +1,7 @@
 import { ATTENDANCE_VALUES } from "@domain/attendance";
 import { avatarSvg, hasAvatar } from "@domain/avatar";
 import { BEHAVIOUR_TYPES } from "@domain/behaviour";
-import { nextDay, previousDay } from "@domain/calendar";
+import { addDays, nextDay } from "@domain/calendar";
 import { defaultGradebookName } from "@domain/gradebook/naming";
 import { DEFAULT_PERIOD_NAMES } from "@domain/gradebook/period";
 import { buildRoom, DEFAULT_TEMPLATE } from "@domain/room-templates";
@@ -515,8 +515,7 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
   // `entriesForDay` is the same function the class page and Aujourd'hui read
   // with, so what is seeded and what is displayed cannot disagree about A/B.
   const today = startOfDay(now);
-  let earliest = today;
-  for (let i = 0; i < MAX_HISTORY_DAYS; i++) earliest = previousDay(earliest);
+  const earliest = addDays(today, -MAX_HISTORY_DAYS);
   const firstDay = Math.max(rentree, earliest);
 
   const sessions: Session[] = [];
@@ -533,6 +532,7 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
         classId: entry.classId,
         date: day,
         startsAt: entry.startMinute,
+        endsAt: entry.endMinute,
         subjectId: entry.subjectId,
         createdAt: day,
       };

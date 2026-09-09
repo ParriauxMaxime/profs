@@ -99,14 +99,21 @@ export interface Session {
   subjectId?: string;
   date: number;
   /**
-   * Minutes from midnight, when the lesson has a time. Absent for an
-   * unscheduled séance — a cover lesson, a catch-up.
+   * Minutes from midnight. Required: a séance always has a time.
+   *
+   * It was optional until v16, and the absence meant "recorded before séances
+   * carried a time, or opened outside the timetable". That absence had to be
+   * covered by everything that read a séance, and on an hour grid it has no
+   * answer at all — a lesson with no time has no position.
    *
    * This records WHEN THIS LESSON WAS; it is not a foreign key into the
    * timetable. A lesson moved to another hour next term leaves every past
-   * séance holding the time it actually happened at.
+   * séance holding the time it actually happened at, which is why both ends
+   * are COPIED from the schedule entry rather than read through it.
    */
-  startsAt?: number;
+  startsAt: number;
+  /** Minutes from midnight. `startsAt + DEFAULT_SEANCE_MINUTES` by default. */
+  endsAt: number;
   /** What was done in this lesson. Free text, written and read whole. */
   note?: string;
   createdAt: number;

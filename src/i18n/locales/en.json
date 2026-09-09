@@ -350,11 +350,11 @@
   },
   "today": {
     "title": "Today",
-    "underway": "under way",
-    "unscheduled": "Not on the timetable",
     "noSchedule": "No lessons on your timetable. Start by declaring it:",
     "nothingToday": "Nothing scheduled today.",
-    "needsTermStart": "Lessons in week A or B need a start-of-year date:"
+    "nothingThisWeek": "Nothing scheduled this week.",
+    "needsTermStart": "Lessons in week A or B need a start-of-year date:",
+    "recorded": "Lesson recorded"
   },
   "students": {
     "searchPlaceholder": "Search for a student",
@@ -416,15 +416,16 @@
     "pickDay": "Day shown",
     "editLesson": "Edit: {{lesson}}"
   },
+  "calendar": {
+    "previous": "Previous",
+    "next": "Next",
+    "today": "Today"
+  },
   "diary": {
     "view": "View",
     "searchPlaceholder": "Search the journal",
-    "today": "Today",
-    "previous": "Previous",
-    "next": "Next",
     "entryLabel": "Lesson note",
     "seanceAt": "{{time}}",
-    "unscheduled": "Unscheduled lesson",
     "noNote": "No note",
     "hasEntry": "Has a note",
     "empty": "Nothing written for this period. Pick a day and note what you did.",
@@ -498,14 +499,17 @@
   },
   "seance": {
     "at": "{{hoursPadded}}:{{minutes}}",
-    "unscheduled": "Off the timetable",
     "none": "No lesson",
     "start": "Start a lesson",
     "delete": "Delete the lesson",
     "confirmDelete": "Delete the lesson of {{day}}?",
     "confirmDeleteBody": "Its attendance and behaviour go with it.",
     "day": "Day",
-    "today": "today"
+    "today": "today",
+    "editTimes": "Edit times",
+    "startsAt": "Start",
+    "endsAt": "End",
+    "timesInvalid": "The end must come after the start."
   },
   "classes": {
     "searchPlaceholder": "Filter by name",

@@ -350,11 +350,11 @@
   },
   "today": {
     "title": "Aujourd'hui",
-    "underway": "en cours",
-    "unscheduled": "Hors emploi du temps",
     "noSchedule": "Aucun cours dans votre emploi du temps. Commencez par le déclarer :",
     "nothingToday": "Rien de prévu aujourd'hui.",
-    "needsTermStart": "Les cours en semaine A ou B ont besoin d'une date de début d'année :"
+    "nothingThisWeek": "Rien de prévu cette semaine.",
+    "needsTermStart": "Les cours en semaine A ou B ont besoin d'une date de début d'année :",
+    "recorded": "Séance enregistrée"
   },
   "students": {
     "searchPlaceholder": "Rechercher un élève",
@@ -416,15 +416,16 @@
     "pickDay": "Jour affiché",
     "editLesson": "Modifier : {{lesson}}"
   },
+  "calendar": {
+    "previous": "Précédent",
+    "next": "Suivant",
+    "today": "Aujourd'hui"
+  },
   "diary": {
     "view": "Affichage",
     "searchPlaceholder": "Rechercher dans le journal",
-    "today": "Aujourd'hui",
-    "previous": "Précédent",
-    "next": "Suivant",
     "entryLabel": "Note de la séance",
     "seanceAt": "{{time}}",
-    "unscheduled": "Séance non planifiée",
     "noNote": "Aucune note",
     "hasEntry": "Contient une note",
     "empty": "Rien d'écrit sur cette période. Choisissez un jour et notez ce que vous avez fait.",
@@ -498,14 +499,17 @@
   },
   "seance": {
     "at": "{{hours}}h{{minutes}}",
-    "unscheduled": "Hors emploi du temps",
     "none": "Aucune séance",
     "start": "Commencer une séance",
     "delete": "Supprimer la séance",
     "confirmDelete": "Supprimer la séance du {{day}} ?",
     "confirmDeleteBody": "Sa présence et son comportement partent avec elle.",
     "day": "Jour",
-    "today": "aujourd'hui"
+    "today": "aujourd'hui",
+    "editTimes": "Modifier l'horaire",
+    "startsAt": "Début",
+    "endsAt": "Fin",
+    "timesInvalid": "La fin doit suivre le début."
   },
   "classes": {
     "searchPlaceholder": "Filtrer par nom",

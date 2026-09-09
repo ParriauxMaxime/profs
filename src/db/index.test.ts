@@ -283,3 +283,113 @@ describe("schema v15 — a lesson no longer names a carnet", () => {
     fresh.close();
   });
 });
+
+describe("schema v16 — a séance gets a start and an end", () => {
+  /**
+   * The schema as it stood at v15: `sessions`, `attendance` and
+   * `behaviourEvents` verbatim, since none of the three has been redeclared
+   * since v2 — copied here rather than paraphrased, so this fixture matches
+   * the real prior schema.
+   */
+  function openV15(name: string) {
+    const db = new Dexie(`profs-${name}`);
+    db.version(15).stores({
+      sessions: "id, classId, date, [classId+date], subjectId",
+      attendance: "[sessionId+studentId], sessionId, studentId",
+      behaviourEvents: "id, sessionId, studentId, classId, createdAt",
+    });
+    return db;
+  }
+
+  it("gives a v15 séance a start and an end, and keeps what hangs off it", async () => {
+    // A v15 database: the séance carries no times, and an attendance row and a
+    // behaviour event are keyed to it. Dropping the store — what the
+    // disposable-schema rule prescribes for a changed shape — would destroy
+    // the séance and leave these two as orphans nothing reads and every
+    // export carries. That is why v16 backfills instead.
+    const name = `repro-times-${crypto.randomUUID()}`;
+    const sessionId = crypto.randomUUID();
+    const studentId = crypto.randomUUID();
+    // 10:37 local, so the repaired start must be 10:00 and not 11:00.
+    const createdAt = new Date(2026, 8, 9, 10, 37, 0).getTime();
+    const dateOnly = new Date(2026, 8, 9).getTime();
+
+    const old = openV15(name);
+    await old.open();
+    await old.table("sessions").add({
+      id: sessionId,
+      classId: "c1",
+      date: dateOnly,
+      createdAt,
+    });
+    await old.table("attendance").add({
+      sessionId,
+      studentId,
+      value: "present",
+      updatedAt: createdAt,
+    });
+    await old.table("behaviourEvents").add({
+      id: crypto.randomUUID(),
+      sessionId,
+      studentId,
+      classId: "c1",
+      type: "positive",
+      createdAt,
+    });
+    old.close();
+
+    const fresh = openWorkspaceDb(name);
+    await fresh.open();
+
+    const session = await fresh.sessions.get(sessionId);
+    expect(session?.startsAt).toBe(10 * 60);
+    expect(session?.endsAt).toBe(10 * 60 + 55);
+
+    // The two assertions the whole design hangs on.
+    expect(await fresh.attendance.where("sessionId").equals(sessionId).count()).toBe(1);
+    expect(await fresh.behaviourEvents.where("sessionId").equals(sessionId).count()).toBe(1);
+
+    fresh.close();
+  });
+
+  it("keeps BOTH séances of a collision reachable, not just present", async () => {
+    // Two séances of the same class on the same day, created within the same
+    // hour — precisely what `startSeance`'s old untimed branch produced
+    // routinely, since it fired mid-lesson at the scheduled hour. Backfilling
+    // each row in isolation would floor both to 10:00, and `resolveSlot`
+    // always returns the first match, stranding the second — present in the
+    // database, invisible everywhere the teacher looks.
+    const name = `repro-collision-${crypto.randomUUID()}`;
+    const dateOnly = new Date(2026, 8, 9).getTime();
+    const createdEarly = new Date(2026, 8, 9, 10, 5, 0).getTime();
+    const createdLate = new Date(2026, 8, 9, 10, 40, 0).getTime();
+
+    const old = openV15(name);
+    await old.open();
+    await old.table("sessions").add({
+      id: "s-early",
+      classId: "c1",
+      date: dateOnly,
+      createdAt: createdEarly,
+    });
+    await old.table("sessions").add({
+      id: "s-late",
+      classId: "c1",
+      date: dateOnly,
+      createdAt: createdLate,
+    });
+    old.close();
+
+    const fresh = openWorkspaceDb(name);
+    await fresh.open();
+
+    const early = await fresh.sessions.get("s-early");
+    const late = await fresh.sessions.get("s-late");
+    expect(early?.startsAt).toBe(10 * 60);
+    // Nudged a minute forward rather than lost to the same hour as its
+    // sibling — this is the assertion F1's bug would fail.
+    expect(late?.startsAt).not.toBe(early?.startsAt);
+
+    fresh.close();
+  });
+});

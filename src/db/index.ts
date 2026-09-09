@@ -1,3 +1,4 @@
+import { repairSeanceCollisions } from "@domain/seance";
 import Dexie, { type EntityTable, type Table } from "dexie";
 import type {
   Assignment,
@@ -268,6 +269,42 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
    */
   db.version(15).stores({
     scheduleEntries: "id, classId, weekday, roomId",
+  });
+  /**
+   * A séance gets a start and an end. THE FIRST UPGRADE FUNCTION HERE, and a
+   * deliberate exception to "schema changes are disposable".
+   *
+   * The standing rule's move for a store whose SHAPE changed is to drop it and
+   * redeclare it in the next version. That is wrong for `sessions`:
+   * `attendance` and `behaviourEvents` are both keyed to `sessions.id`, so
+   * dropping it destroys every séance and leaves a term of attendance and
+   * behaviour as rows nothing reads, nothing counts, and every export carries
+   * — the invisible-orphan failure `cascade.ts` exists to prevent, produced
+   * deliberately by the rule meant to keep the schema simple.
+   *
+   * The rule is not abandoned. It still stands for every change that ADDS a
+   * table or a field. What it does not cover — as it already admits for a
+   * changed primary key — is a field becoming required underneath rows that
+   * carry dependents.
+   *
+   * No `.stores()`: no index changes, so the schema is inherited.
+   */
+  db.version(16).upgrade(async (tx) => {
+    // Repaired as a WHOLE collection, never row by row: `backfillSeanceTimes`
+    // alone cannot see that two untimed séances of one class on one day floor
+    // to the same hour, and the first `resolveSlot` match would strand the
+    // second forever. See `repairSeanceCollisions` for the invariant.
+    const sessions = await tx.table("sessions").toArray();
+    const repaired = new Map(repairSeanceCollisions(sessions).map((r) => [r.id, r]));
+    await tx
+      .table("sessions")
+      .toCollection()
+      .modify((session) => {
+        const times = repaired.get(session.id);
+        if (!times) return;
+        session.startsAt = times.startsAt;
+        session.endsAt = times.endsAt;
+      });
   });
   return db;
 }

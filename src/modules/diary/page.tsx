@@ -1,12 +1,13 @@
 import type { Session } from "@db";
 import { useDb } from "@db/provider";
 import { sessionsInRange, startOfDay } from "@db/sessions";
-import { monthGrid, nextDay, previousDay, startOfIsoWeek, weekDays } from "@domain/calendar";
+import { addDays, monthGrid, startOfIsoWeek, weekDays } from "@domain/calendar";
 import { minutesToHm } from "@domain/schedule";
 import { fuzzyMatchAny } from "@domain/search";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { CalendarNav } from "../design-system/components/calendar-nav";
 import { ToggleGroup, ToggleOption } from "../design-system/components/primitives";
 import { SeanceNote } from "./components/seance-note";
 
@@ -90,29 +91,12 @@ export function DiaryPage({ classId }: { classId: string }) {
           onChange={(e) => setQuery(e.target.value)}
         />
 
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            className="btn"
-            aria-label={t("diary.previous")}
-            onClick={() => setAnchor(shift(view, anchor, -1))}
-          >
-            ‹
-          </button>
-          <button type="button" className="btn" onClick={() => setAnchor(startOfDay(Date.now()))}>
-            {t("diary.today")}
-          </button>
-          <button
-            type="button"
-            className="btn"
-            aria-label={t("diary.next")}
-            onClick={() => setAnchor(shift(view, anchor, 1))}
-          >
-            ›
-          </button>
-        </div>
-
-        <span className="text-sm text-text-muted">{windowLabel(view, anchor, i18n.language)}</span>
+        <CalendarNav
+          label={windowLabel(view, anchor, i18n.language)}
+          onPrevious={() => setAnchor(shift(view, anchor, -1))}
+          onNext={() => setAnchor(shift(view, anchor, 1))}
+          onToday={() => setAnchor(startOfDay(Date.now()))}
+        />
       </div>
 
       {view === "agenda" && (
@@ -179,7 +163,7 @@ function windowFor(view: View, anchor: number): { from: number; to: number } {
 /**
  * Move the window one week or one month.
  *
- * A week is walked a day at a time rather than by adding seven times
+ * A week is walked with `addDays` rather than by adding seven times
  * 86_400_000: across a daylight-saving change that offset lands an hour early
  * and eventually a whole day out.
  */
@@ -188,11 +172,7 @@ function shift(view: View, anchor: number, by: number): number {
     const d = new Date(anchor);
     return startOfDay(new Date(d.getFullYear(), d.getMonth() + by, 1).getTime());
   }
-  let day = startOfIsoWeek(anchor);
-  for (let i = 0; i < 7; i += 1) {
-    day = by > 0 ? nextDay(day) : previousDay(day);
-  }
-  return day;
+  return addDays(startOfIsoWeek(anchor), by > 0 ? 7 : -7);
 }
 
 function windowLabel(view: View, anchor: number, locale: string): string {
@@ -266,9 +246,7 @@ function AgendaView({
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span className="font-medium">{className(session.classId)}</span>
                 <span className="text-sm text-text-muted">
-                  {session.startsAt === undefined
-                    ? t("diary.unscheduled")
-                    : t("diary.seanceAt", { time: formatSeanceTime(session.startsAt, locale) })}
+                  {t("diary.seanceAt", { time: formatSeanceTime(session.startsAt, locale) })}
                 </span>
               </div>
               <SeanceNote
