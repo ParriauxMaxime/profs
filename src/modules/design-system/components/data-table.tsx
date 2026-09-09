@@ -29,6 +29,18 @@ const ROW_ESTIMATE_PX = 48;
 /** Rows rendered beyond the viewport, so a fast scroll does not show a gap. */
 const OVERSCAN = 8;
 
+/**
+ * Where the sticky header comes to rest.
+ *
+ * NOT `top: 0`. The drawer button is `fixed top-0 left-0 z-30`, 44px plus the
+ * safe-area inset, sitting exactly where a flush header would land — on a
+ * narrow screen it would cover the "Nom" label and its sort control. This is
+ * the same expression `AdminLayout` uses for its `main` padding, so no new
+ * constant enters the app and the header stays right if `--control-min` ever
+ * changes.
+ */
+const STICKY_TOP = "calc(max(0.5rem, env(safe-area-inset-top)) + var(--control-min) + 0.5rem)";
+
 interface DataTableProps<T> {
   columns: ColumnDef<T, unknown>[];
   data: T[];
@@ -178,11 +190,12 @@ export function DataTable<T>({
                   <th
                     key={header.id}
                     className={[
-                      "px-3 py-2 font-medium text-text-muted",
+                      "sticky z-10 bg-bg px-3 py-2 font-medium text-text-muted",
                       header.column.columnDef.meta?.className,
                     ]
                       .filter(Boolean)
                       .join(" ")}
+                    style={{ top: STICKY_TOP }}
                     aria-sort={
                       header.column.getCanSort()
                         ? header.column.getIsSorted() === "asc"
