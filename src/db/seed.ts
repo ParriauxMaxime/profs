@@ -532,29 +532,56 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
 
   // ---- the timetable -----------------------------------------------------
   //
-  // One hour a week per class, which is what éducation musicale is, plus a
-  // fortnightly extra for 3°D so the A/B mechanism is visible in the demo
-  // rather than being something a teacher must build before they can see it
-  // work. Weekdays are ISO (1 = Monday); minutes are from midnight.
-  const scheduleShape: { className: string; weekday: number; start: number; cycle: WeekCycle }[] = [
+  // One hour a week per class, which is what éducation musicale is, laid out
+  // on a real collège's bell times rather than on the hour. That is the point
+  // of the shape: M3 begins at 10h05 after the récréation and the afternoon
+  // at 13h30, so a timetable is NOT a stack of whole hours, and a demo that
+  // pretended otherwise never showed the grid a block it had to place between
+  // two lines.
+  //
+  // Four entries run à la quinzaine, not one. Two of them — 5°D and 3°B —
+  // share Tuesday afternoon on opposite weeks, which is what a teacher
+  // splitting a group actually does and what makes the A/B mechanism visible
+  // without anyone having to build it first.
+  //
+  // Two adjacencies are deliberate. Thursday's 4°B ends at 11h00 and 3°A
+  // begins at 11h05: consecutive, not a clash, and the demo says so. And
+  // mercredi après-midi is empty, as it is in every collège in France.
+  //
+  // Weekdays are ISO (1 = Monday); minutes are from midnight. `minutes` is
+  // the lesson's length and defaults to the 55-minute hour — only the chorale
+  // is longer.
+  const scheduleShape: {
+    className: string;
+    weekday: number;
+    start: number;
+    cycle: WeekCycle;
+    minutes?: number;
+  }[] = [
+    // Lundi — a full morning, a hole at 10h05, one lesson after lunch.
     { className: "6°A", weekday: 1, start: 8 * 60, cycle: "all" },
     { className: "6°B", weekday: 1, start: 9 * 60, cycle: "all" },
-    { className: "5°A", weekday: 1, start: 10 * 60, cycle: "all" },
-    { className: "5°B", weekday: 1, start: 11 * 60, cycle: "all" },
-    { className: "4°A", weekday: 2, start: 8 * 60, cycle: "all" },
-    { className: "4°B", weekday: 2, start: 9 * 60, cycle: "all" },
-    { className: "3°A", weekday: 2, start: 10 * 60, cycle: "all" },
-    { className: "3°B", weekday: 2, start: 11 * 60, cycle: "all" },
-    { className: "6°C", weekday: 3, start: 8 * 60, cycle: "all" },
-    { className: "5°C", weekday: 3, start: 9 * 60, cycle: "all" },
-    { className: "4°C", weekday: 3, start: 10 * 60, cycle: "all" },
-    { className: "3°C", weekday: 4, start: 8 * 60, cycle: "all" },
-    { className: "6°D", weekday: 4, start: 9 * 60, cycle: "all" },
-    { className: "5°D", weekday: 4, start: 10 * 60, cycle: "all" },
-    { className: "4°D", weekday: 5, start: 8 * 60, cycle: "all" },
-    { className: "3°D", weekday: 5, start: 9 * 60, cycle: "all" },
-    // The chorale hour, one week in two.
-    { className: "3°D", weekday: 5, start: 13 * 60, cycle: "A" },
+    { className: "5°C", weekday: 1, start: 11 * 60 + 5, cycle: "all" },
+    { className: "4°D", weekday: 1, start: 13 * 60 + 30, cycle: "all" },
+    // Mardi — and the shared slot at 14h30.
+    { className: "5°A", weekday: 2, start: 9 * 60, cycle: "all" },
+    { className: "5°B", weekday: 2, start: 10 * 60 + 5, cycle: "all" },
+    { className: "5°D", weekday: 2, start: 14 * 60 + 30, cycle: "A" },
+    { className: "3°B", weekday: 2, start: 14 * 60 + 30, cycle: "B" },
+    // Mercredi — morning only.
+    { className: "4°C", weekday: 3, start: 8 * 60, cycle: "all" },
+    { className: "6°C", weekday: 3, start: 9 * 60, cycle: "all" },
+    { className: "6°D", weekday: 3, start: 10 * 60 + 5, cycle: "all" },
+    // Jeudi — 4°B runs into 3°A without a gap.
+    { className: "4°A", weekday: 4, start: 9 * 60, cycle: "all" },
+    { className: "4°B", weekday: 4, start: 10 * 60 + 5, cycle: "all" },
+    { className: "3°A", weekday: 4, start: 11 * 60 + 5, cycle: "all" },
+    // Vendredi — two troisièmes on alternating weeks, then the chorale.
+    { className: "3°C", weekday: 5, start: 10 * 60 + 5, cycle: "A" },
+    { className: "3°D", weekday: 5, start: 11 * 60 + 5, cycle: "B" },
+    // The chorale, every week and nearly two hours of it: the one lesson in
+    // the demo that is visibly longer than an hour.
+    { className: "3°D", weekday: 5, start: 15 * 60 + 40, cycle: "all", minutes: 110 },
   ];
 
   const classByName = new Map(classes.map((c) => [c.name, c]));
@@ -569,7 +596,7 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       gradebookId: gradebookByClass.get(schoolClass.id)?.id,
       weekday: entry.weekday,
       startMinute: entry.start,
-      endMinute: entry.start + 55,
+      endMinute: entry.start + (entry.minutes ?? 55),
       weekCycle: entry.cycle,
       roomId,
       createdAt: now,

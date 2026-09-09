@@ -22,6 +22,33 @@ describe("seedIfEmpty", () => {
     db.close();
   });
 
+  it("gives every class exactly one weekly lesson, plus the chorale", async () => {
+    // The timetable is written out by hand and deliberately scattered, so a
+    // class is one careless edit away from having no lesson at all — which
+    // would leave it with a carnet, thirty pupils and nothing on Aujourd'hui,
+    // and nothing else in the suite would notice.
+    const db = openWorkspaceDb("seed-timetable");
+    await seedIfEmpty(db, "seed-timetable");
+
+    const classes = await db.classes.toArray();
+    const entries = await db.scheduleEntries.toArray();
+    const byClass = new Map(classes.map((c) => [c.id, c.name]));
+
+    const lessonsPerClass = new Map(classes.map((c) => [c.name, 0]));
+    for (const entry of entries) {
+      const name = byClass.get(entry.classId);
+      expect(name).toBeDefined();
+      lessonsPerClass.set(name as string, (lessonsPerClass.get(name as string) ?? 0) + 1);
+    }
+
+    // Every class once, except 3°D which also holds the chorale.
+    const surprises = [...lessonsPerClass].filter(
+      ([name, count]) => count !== (name === "3°D" ? 2 : 1),
+    );
+    expect(surprises).toEqual([]);
+    db.close();
+  });
+
   it("gives every gradebook three periods and at least five columns", async () => {
     const db = openWorkspaceDb("seed-shape");
     await seedIfEmpty(db, "seed-shape");
