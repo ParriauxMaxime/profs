@@ -525,7 +525,7 @@ Destructive actions go through `ConfirmButton`, which opens a dialog. `confirmLa
   where to start unwinding it if the small tables prove to cost more than the
   big one saves.
 - The class roster's *Supprimer* button overflows its actions column by
-  ~18px at 375px, even after `flex-wrap` stacks it against *Déplacer*: `.btn`'s
+  ~18px at 375px, even after `flex-wrap` stacks it against *Modifier*: `.btn`'s
   44px tap floor and a fixed French label don't fit an ~88px column. Shrinking
   `.btn` globally, an icon-only destructive action, or dropping a column on
   narrow screens would each fix it, and each is a design change outside this
