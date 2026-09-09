@@ -350,6 +350,7 @@
     "unscheduled": "Hors emploi du temps",
     "noSchedule": "Aucun cours dans votre emploi du temps. Commencez par le déclarer :",
     "nothingToday": "Rien de prévu aujourd'hui.",
+    "nothingThisWeek": "Rien de prévu cette semaine.",
     "needsTermStart": "Les cours en semaine A ou B ont besoin d'une date de début d'année :",
     "recorded": "Séance enregistrée"
   },
@@ -497,7 +498,6 @@
   },
   "seance": {
     "at": "{{hours}}h{{minutes}}",
-    "unscheduled": "Hors emploi du temps",
     "none": "Aucune séance",
     "start": "Commencer une séance",
     "delete": "Supprimer la séance",
@@ -508,8 +508,7 @@
     "editTimes": "Modifier l'horaire",
     "startsAt": "Début",
     "endsAt": "Fin",
-    "timesInvalid": "La fin doit suivre le début.",
-    "save": "Enregistrer"
+    "timesInvalid": "La fin doit suivre le début."
   },
   "classes": {
     "searchPlaceholder": "Filtrer par nom",

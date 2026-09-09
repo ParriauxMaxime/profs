@@ -95,7 +95,7 @@ function SeanceTimeEditor({
           setEditing(false);
         }}
       >
-        {t("seance.save")}
+        {t("common.save")}
       </button>
       <button type="button" className="btn" onClick={() => setEditing(false)}>
         {t("common.cancel")}

@@ -87,7 +87,7 @@ type AppRoute = NonNullable<
 function Routes({ route }: { route: AppRoute }) {
   switch (route.name) {
     case "Home":
-      return <TodayPage />;
+      return <TodayPage date={route.params.date} />;
     case "Classes":
       return <ClassesPage q={route.params.q} sort={route.params.sort} dir={route.params.dir} />;
     case "Students":

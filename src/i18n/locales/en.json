@@ -350,6 +350,7 @@
     "unscheduled": "Not on the timetable",
     "noSchedule": "No lessons on your timetable. Start by declaring it:",
     "nothingToday": "Nothing scheduled today.",
+    "nothingThisWeek": "Nothing scheduled this week.",
     "needsTermStart": "Lessons in week A or B need a start-of-year date:",
     "recorded": "Lesson recorded"
   },
@@ -497,7 +498,6 @@
   },
   "seance": {
     "at": "{{hoursPadded}}:{{minutes}}",
-    "unscheduled": "Off the timetable",
     "none": "No lesson",
     "start": "Start a lesson",
     "delete": "Delete the lesson",
@@ -508,8 +508,7 @@
     "editTimes": "Edit times",
     "startsAt": "Start",
     "endsAt": "End",
-    "timesInvalid": "The end must come after the start.",
-    "save": "Save"
+    "timesInvalid": "The end must come after the start."
   },
   "classes": {
     "searchPlaceholder": "Filter by name",
