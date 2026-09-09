@@ -156,6 +156,23 @@ export function hasBeenSeeded(workspaceId: string): boolean {
   return seededIds().includes(workspaceId);
 }
 
+/**
+ * Forget that a workspace was seeded, so the demo school may be laid down
+ * again.
+ *
+ * The marker exists to keep "supprimer toutes les données" WIPED — gating on
+ * the tables being empty used to resurrect the demo school on the next
+ * reload, against what PRIVACY.md promises. Clearing it is therefore never
+ * something a boot does: it is only ever the deliberate, confirmed reset in
+ * Réglages, which puts the fixture back because the teacher asked for it.
+ */
+export function clearSeeded(workspaceId: string): void {
+  localStorage.setItem(
+    SEEDED_KEY,
+    JSON.stringify(seededIds().filter((seeded) => seeded !== workspaceId)),
+  );
+}
+
 export function markSeeded(workspaceId: string): void {
   const ids = seededIds();
   if (ids.includes(workspaceId)) return;

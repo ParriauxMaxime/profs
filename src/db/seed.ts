@@ -9,7 +9,7 @@ import { RUBRIC_LEVELS } from "@domain/rubric";
 import { entriesForDay, type WeekCycle } from "@domain/schedule";
 import { SUBJECT_COLORS } from "@domain/subject";
 import { readTermStart, writeTermStart } from "@domain/term";
-import { hasBeenSeeded, markSeeded } from "@domain/workspaces";
+import { clearSeeded, hasBeenSeeded, markSeeded } from "@domain/workspaces";
 import type { AppDatabase } from ".";
 import { startOfDay } from "./sessions";
 import type {
@@ -32,6 +32,7 @@ import type {
   Student,
   StudentGroup,
 } from "./types";
+import { wipeWorkspace } from "./workspace";
 
 /**
  * Demo data so a first-time visitor sees a working gradebook instead of an
@@ -773,4 +774,25 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
   );
 
   return true;
+}
+
+/**
+ * Empty the workspace and lay the demo school down over it.
+ *
+ * `wipeWorkspace` alone leaves an empty shell, and `seedIfEmpty` alone
+ * refuses a workspace already marked seeded — which every workspace that has
+ * ever been used is. So the reset does all three in order, and the middle
+ * step is the one that is easy to leave out: without `clearSeeded` this wipes
+ * the teacher's school and then seeds NOTHING, which looks exactly like the
+ * wipe they did not ask for. A test covers precisely that.
+ *
+ * Deliberately not a transaction across the two: `wipeWorkspace` and the seed
+ * each own their own, and an interruption between them leaves an empty
+ * workspace — recoverable by running the reset again, which is what an empty
+ * workspace invites anyway.
+ */
+export async function resetToFixture(db: AppDatabase, workspaceId: string): Promise<void> {
+  await wipeWorkspace(db);
+  clearSeeded(workspaceId);
+  await seedIfEmpty(db, workspaceId);
 }

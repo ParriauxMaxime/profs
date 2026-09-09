@@ -8,10 +8,12 @@ import {
 } from "@db/backup";
 import { deleteRubricTemplate, deleteSubject } from "@db/cascade";
 import { useDb } from "@db/provider";
+import { resetToFixture } from "@db/seed";
 import { wipeWorkspace } from "@db/workspace";
 import { MAX_STUDENTS_PER_CLASS } from "@domain/class-size";
 import { fromDateInputValue, readTermStart, toDateInputValue, writeTermStart } from "@domain/term";
 import { THEME_CHOICES } from "@domain/theme";
+import { useActiveWorkspaceId } from "@domain/workspaces";
 import { LOCALES, type Locale, loadLocale, saveLocale } from "@i18n";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRef, useState } from "react";
@@ -40,6 +42,7 @@ export function SettingsPage() {
   const { choice, setChoice } = useTheme();
   const { t } = useTranslation();
   const db = useDb();
+  const workspaceId = useActiveWorkspaceId();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
@@ -112,6 +115,14 @@ export function SettingsPage() {
 
   async function onWipe(): Promise<void> {
     await wipeWorkspace(db);
+  }
+
+  // The hook, not `activeWorkspaceId()`: the id has to be the one this render
+  // is looking at, and a reset filed against a stale id would clear the wrong
+  // workspace's seed marker while wiping this one.
+  async function onReset(): Promise<void> {
+    if (!workspaceId) return;
+    await resetToFixture(db, workspaceId);
   }
 
   return (
@@ -420,8 +431,12 @@ export function SettingsPage() {
 
       <section className="flex flex-col gap-2">
         <h2 className="font-semibold text-danger text-lg">{t("settings.dangerZone")}</h2>
-        <p className="text-sm text-text-muted">{t("settings.wipeHelp")}</p>
-        <div className="flex gap-2">
+        {/* Each destructive action carries its OWN sentence. Both erase this
+            school, and only the second puts anything back — a single shared
+            paragraph over two buttons would leave which is which to the
+            labels alone, in the one section where a mis-tap is unrecoverable. */}
+        <div className="flex flex-col gap-1">
+          <p className="text-sm text-text-muted">{t("settings.wipeHelp")}</p>
           <ConfirmButton
             danger
             className="self-start"
@@ -429,6 +444,18 @@ export function SettingsPage() {
             confirmLabel={t("settings.wipeConfirm")}
             body={t("settings.wipeConfirmBody")}
             onConfirm={onWipe}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <p className="text-sm text-text-muted">{t("settings.resetHelp")}</p>
+          <ConfirmButton
+            danger
+            className="self-start"
+            label={t("settings.reset")}
+            confirmLabel={t("settings.resetConfirm")}
+            body={t("settings.resetConfirmBody")}
+            onConfirm={onReset}
           />
         </div>
       </section>

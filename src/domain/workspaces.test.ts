@@ -33,6 +33,7 @@ if (!("localStorage" in globalThis)) {
 import {
   activeWorkspaceId,
   addWorkspace,
+  clearSeeded,
   createWorkspace,
   ensureDefaultWorkspace,
   hasBeenSeeded,
@@ -85,6 +86,22 @@ describe("workspaces registry", () => {
 
     expect(hasBeenSeeded("a")).toBe(true);
     expect(hasBeenSeeded("b")).toBe(false);
+  });
+
+  it("clearSeeded forgets one workspace's marker and leaves the others", () => {
+    markSeeded("a");
+    markSeeded("b");
+
+    clearSeeded("a");
+
+    expect(hasBeenSeeded("a")).toBe(false);
+    expect(hasBeenSeeded("b")).toBe(true);
+  });
+
+  it("clearSeeded on an unmarked workspace is a no-op, not a throw", () => {
+    markSeeded("b");
+    expect(() => clearSeeded("never-seeded")).not.toThrow();
+    expect(hasBeenSeeded("b")).toBe(true);
   });
 
   it("markSeeded is idempotent and keeps earlier markers", () => {

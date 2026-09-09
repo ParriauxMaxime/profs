@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto";
+import { hasBeenSeeded } from "@domain/workspaces";
 import { openWorkspaceDb } from ".";
-import { seedIfEmpty } from "./seed";
+import { resetToFixture, seedIfEmpty } from "./seed";
 
 describe("seedIfEmpty", () => {
   beforeEach(() => {
@@ -166,6 +167,57 @@ describe("seedIfEmpty", () => {
         expect(criterionIds.has(score.criterionId)).toBe(true);
       }
     }
+    db.close();
+  });
+});
+
+describe("resetToFixture", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("puts the demo school back over a workspace that has diverged from it", async () => {
+    const db = openWorkspaceDb("reset-diverged");
+    await seedIfEmpty(db, "reset-diverged");
+    await db.classes.add({
+      id: "extra",
+      name: "Chorale bis",
+      level: "6e",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await db.students.where("classId").equals("extra").delete();
+    expect(await db.classes.count()).toBe(17);
+
+    await resetToFixture(db, "reset-diverged");
+
+    // The fixture, exactly — not the fixture plus what was there before.
+    expect(await db.classes.count()).toBe(16);
+    expect(await db.students.count()).toBe(360);
+    expect(await db.classes.get("extra")).toBeUndefined();
+    db.close();
+  });
+
+  it("seeds even though the workspace is already marked seeded", async () => {
+    // The marker is what makes "supprimer toutes les données" stay wiped, so
+    // a reset that did not clear it would wipe and then seed nothing at all —
+    // the failure this test exists to catch.
+    const db = openWorkspaceDb("reset-marked");
+    await seedIfEmpty(db, "reset-marked");
+    expect(hasBeenSeeded("reset-marked")).toBe(true);
+
+    await resetToFixture(db, "reset-marked");
+
+    expect(await db.classes.count()).toBe(16);
+    expect(hasBeenSeeded("reset-marked")).toBe(true);
+    db.close();
+  });
+
+  it("works on a workspace that was never seeded", async () => {
+    const db = openWorkspaceDb("reset-fresh");
+    await resetToFixture(db, "reset-fresh");
+
+    expect(await db.classes.count()).toBe(16);
     db.close();
   });
 });
