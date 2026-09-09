@@ -501,7 +501,12 @@
     "confirmDelete": "Supprimer la séance du {{day}} ?",
     "confirmDeleteBody": "Sa présence et son comportement partent avec elle.",
     "day": "Jour",
-    "today": "aujourd'hui"
+    "today": "aujourd'hui",
+    "editTimes": "Modifier l'horaire",
+    "startsAt": "Début",
+    "endsAt": "Fin",
+    "timesInvalid": "La fin doit suivre le début.",
+    "save": "Enregistrer"
   },
   "classes": {
     "searchPlaceholder": "Filtrer par nom",

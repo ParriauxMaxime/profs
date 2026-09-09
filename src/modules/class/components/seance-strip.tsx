@@ -1,10 +1,108 @@
 import { deleteSession } from "@db/cascade";
+import type { AppDatabase } from "@db/index";
 import { useDb } from "@db/provider";
-import { startOfDay } from "@db/sessions";
-import { minutesToHm } from "@domain/schedule";
+import { setSessionTimes, startOfDay } from "@db/sessions";
+import { formatTimeRange, hmToMinutes, minutesToHm } from "@domain/schedule";
 import type { Slot } from "@domain/seance";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ConfirmButton } from "../../design-system/components/confirm-button";
+
+/** `HH:MM` for an `<input type="time">`. */
+function toTimeValue(minutes: number): string {
+  const { hours, minutes: mins } = minutesToHm(minutes);
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+}
+
+/** `HH:MM` back to minutes. Returns null for anything else. */
+function fromTimeValue(value: string): number | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const mins = Number(match[2]);
+  if (hours > 23 || mins > 59) return null;
+  return hmToMinutes(hours, mins);
+}
+
+/**
+ * Correct a séance's times — including the ones the v16 backfill guessed at.
+ *
+ * Keyed by the caller on the séance id, so tapping a different lesson in the
+ * strip resets the draft rather than carrying one séance's times onto
+ * another — the bug this codebase has produced in five disguises.
+ *
+ * Save is disabled rather than clamping or swapping when the end does not
+ * follow the start: the same posture `parseGradeValue` takes for a bad mark —
+ * refuse, leave the existing value standing, keep the bad input visible for
+ * correction.
+ */
+function SeanceTimeEditor({
+  db,
+  sessionId,
+  current,
+}: {
+  db: AppDatabase;
+  sessionId: string;
+  current: Slot;
+}) {
+  const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
+  const [draftStart, setDraftStart] = useState(toTimeValue(current.startsAt));
+  const [draftEnd, setDraftEnd] = useState(toTimeValue(current.endsAt));
+
+  if (!editing) {
+    return (
+      <button type="button" className="btn" onClick={() => setEditing(true)}>
+        {t("seance.editTimes")}
+      </button>
+    );
+  }
+
+  const startMinutes = fromTimeValue(draftStart);
+  const endMinutes = fromTimeValue(draftEnd);
+  const invalid = startMinutes === null || endMinutes === null || endMinutes <= startMinutes;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <label className="flex items-center gap-1">
+        <span className="sr-only">{t("seance.startsAt")}</span>
+        <input
+          type="time"
+          className="field"
+          value={draftStart}
+          onChange={(e) => setDraftStart(e.target.value)}
+        />
+      </label>
+      <label className="flex items-center gap-1">
+        <span className="sr-only">{t("seance.endsAt")}</span>
+        <input
+          type="time"
+          className="field"
+          value={draftEnd}
+          onChange={(e) => setDraftEnd(e.target.value)}
+        />
+      </label>
+      {invalid ? <span className="text-danger text-sm">{t("seance.timesInvalid")}</span> : null}
+      <button
+        type="button"
+        className="btn"
+        disabled={invalid}
+        onClick={async () => {
+          if (startMinutes === null || endMinutes === null) return;
+          await setSessionTimes(db, sessionId, { startsAt: startMinutes, endsAt: endMinutes });
+          setDraftStart(toTimeValue(startMinutes));
+          setDraftEnd(toTimeValue(endMinutes));
+          setEditing(false);
+        }}
+      >
+        {t("seance.save")}
+      </button>
+      <button type="button" className="btn" onClick={() => setEditing(false)}>
+        {t("common.cancel")}
+      </button>
+    </div>
+  );
+}
 
 /**
  * Which day is on screen, and which of that day's lessons.
@@ -127,6 +225,23 @@ export function SeanceStrip({
       )}
 
       <span className="flex-1" />
+
+      {current !== null && currentSessionId !== null ? (
+        <span className="text-sm text-text-muted tabular-nums">
+          {formatTimeRange(current.startsAt, current.endsAt, i18n.language)}
+        </span>
+      ) : null}
+
+      {current !== null && currentSessionId !== null ? (
+        // Keyed by séance id: a draft must never carry one lesson's times
+        // onto another when the teacher taps a different one in the strip.
+        <SeanceTimeEditor
+          key={`edit-times-${currentSessionId}`}
+          db={db}
+          sessionId={currentSessionId}
+          current={current}
+        />
+      ) : null}
 
       {/* Deleting cascades the register and the behaviour with it, so it sits
           behind a confirm rather than under a thumb operating this page
