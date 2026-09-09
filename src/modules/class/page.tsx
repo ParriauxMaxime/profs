@@ -149,12 +149,14 @@ export function ClassPage({
   const slotSubjectId = dayEntries.find((e) => e.id === slot?.entryId)?.subjectId;
   // The day's séances, for `canStart` — see `startSeance`.
   const daySessions = lesson === undefined ? [] : lesson.daySessions;
-  // "Commencer une séance" starts a NEW séance at the current hour once this
-  // one is already recorded; hidden once a séance already sits at that hour,
-  // since pressing it again could only reuse a row already reachable from the
-  // strip — a button that cannot do anything is worse than no button.
+  // "Commencer une séance" offers to make THIS slot real when it has no
+  // séance yet, or — when it already does — to start an extra one at the
+  // current hour. It hides only in the second case, and only once a séance
+  // already sits at that hour: starting another there could only reuse a row
+  // the strip already reaches. A button that cannot do anything is worse than
+  // no button.
   const canStart =
-    slotSessionId !== null && !daySessions.some((s) => s.startsAt === hourOfDay(Date.now()));
+    slotSessionId === null || !daySessions.some((s) => s.startsAt === hourOfDay(Date.now()));
 
   /**
    * The séance to write against, brought into being if it does not exist yet.

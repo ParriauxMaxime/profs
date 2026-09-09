@@ -44,10 +44,10 @@ export function SeanceStrip({
   slots: Slot[];
   current: Slot | null;
   /**
-   * True only once this lesson is already recorded and no séance sits at the
-   * current clock hour — starting then would only reuse a row already
-   * reachable from the strip. A button that cannot do anything is worse than
-   * no button.
+   * True when this lesson has no séance yet — starting makes it real — or
+   * when it already does but no séance sits at the current clock hour, so an
+   * extra one there would be new rather than a row already reachable from the
+   * strip. A button that cannot do anything is worse than no button.
    */
   canStart: boolean;
   className?: string;
