@@ -212,14 +212,13 @@ describe("addDays", () => {
     expect(addDays(start, 0)).toBe(start);
   });
 
-  // jest.config.js / jest.setup.js pin no TZ, so these two DST tests run in
-  // whatever zone the machine (or CI) is set to. Rather than assert the exact
-  // Europe/Paris transition dates the brief's narrative uses — which would
-  // pass only on a machine set to Europe/Paris — they assert what holds in
-  // ANY zone that shifts on the corresponding date: the calendar date lands
-  // where a plain 7-day walk expects, and the result is local midnight, never
-  // an hour early or late.
+  // jest.setup.js pins TZ=Europe/Paris precisely so these two assertions mean
+  // something: under UTC there is no spring-forward or fall-back, so a naive
+  // `ms + n * 86_400_000` produces output identical to a calendar walk and
+  // both would pass here vacuously.
   it("crosses a spring DST boundary without losing a day", () => {
+    // Europe/Paris springs forward on 29 March 2026. Adding 7 × 86_400_000
+    // lands an hour early and eventually a whole day out.
     const before = day(2026, 2, 26);
     const after = addDays(before, 7);
     expect(new Date(after).getDate()).toBe(2);
