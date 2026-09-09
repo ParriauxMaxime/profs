@@ -356,6 +356,7 @@
   "students": {
     "searchPlaceholder": "Search for a student",
     "none": "No students yet.",
+    "noneInClass": "No pupils in this class.",
     "noMatch": "No student matches “{{query}}”.",
     "columnClass": "Class",
     "allClasses": "All classes",

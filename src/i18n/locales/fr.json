@@ -356,6 +356,7 @@
   "students": {
     "searchPlaceholder": "Rechercher un élève",
     "none": "Aucun élève pour l'instant.",
+    "noneInClass": "Aucun élève dans cette classe.",
     "noMatch": "Aucun élève ne correspond à « {{query}} ».",
     "columnClass": "Classe",
     "allClasses": "Toutes les classes",
