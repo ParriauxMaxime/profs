@@ -4,6 +4,20 @@ import { BackupOverCapacityError, exportWorkspace, importWorkspace, parseBackup 
 import { seedIfEmpty } from "./seed";
 import { wipeWorkspace } from "./workspace";
 
+/**
+ * The double-import tests seed the demo school — sixteen classes, 360 pupils —
+ * and then import that whole export twice, which makes them the heaviest
+ * fake-indexeddb workload in the suite.
+ *
+ * The gap was measured, not assumed: the file runs in 9.5s locally and 35.4s
+ * on CI, and each double-import test takes under 2s here. A runner ~3.7x
+ * slower puts that just past Jest's 5s default, which is exactly where it
+ * landed once the demo school grew (run 34271881990) — the export and the
+ * import did not change. If either ever becomes slow in the BROWSER, this
+ * timeout is not the thing to raise.
+ */
+jest.setTimeout(30_000);
+
 describe("workspace backup", () => {
   it("round-trips a seeded workspace into an empty one, values intact", async () => {
     const source = openWorkspaceDb("backup-source");
