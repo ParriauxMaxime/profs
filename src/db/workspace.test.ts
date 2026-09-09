@@ -82,18 +82,19 @@ describe("wipeWorkspace", () => {
       createdAt: 1,
       updatedAt: 1,
     });
-    await db.rubricAssessments.add({
-      id: "a1",
+    await db.columns.add({
+      id: "col2",
       gradebookId: "g1",
       periodId: "p1",
-      name: "Exposé",
-      date: 1,
+      label: "Projet",
+      type: "rubric",
+      max: 20,
+      weight: 1,
+      order: 1,
       criteria: [{ id: "cr1", label: "Clarté" }],
-      createdAt: 1,
-      updatedAt: 1,
     });
-    await db.rubricScores.add({
-      assessmentId: "a1",
+    await db.criterionLevels.add({
+      columnId: "col2",
       criterionId: "cr1",
       studentId: "s1",
       level: 3,
@@ -134,8 +135,12 @@ describe("wipeWorkspace", () => {
     });
 
     // Every table really was seeded — a wipe over empty tables proves nothing.
+    // Counted as "holds rows" rather than "holds exactly one": `columns` holds
+    // two, since a level hangs off a rubric column and a grade off a numeric
+    // one, and pinning the number would make the fixture's shape the assertion
+    // instead of its completeness.
     for (const table of db.tables) {
-      expect([table.name, await table.count()]).toEqual([table.name, 1]);
+      expect([table.name, (await table.count()) > 0]).toEqual([table.name, true]);
     }
 
     await wipeWorkspace(db);

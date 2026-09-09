@@ -7,7 +7,6 @@ import {
   deleteGroup,
   deletePeriod,
   deleteRoom,
-  deleteRubricAssessment,
   deleteRubricTemplate,
   deleteScheduleEntry,
   deleteSession,
@@ -18,8 +17,8 @@ import { seedIfEmpty } from "./seed";
 import { createSession, startOfDay } from "./sessions";
 
 /**
- * These run against the demo collège — 360 pupils, 1275 grades, 968 rubric
- * scores — and `fake-indexeddb` is slow in a way real IndexedDB is not. A
+ * These run against the demo collège — 360 pupils, 1275 grades, 968 criterion
+ * levels — and `fake-indexeddb` is slow in a way real IndexedDB is not. A
  * cascade that Chrome completes in about 650ms takes nearly five seconds here,
  * past Jest's 5s default.
  *
@@ -97,6 +96,33 @@ describe("cascading deletes", () => {
 
     const calc = await db.columns.get("calc");
     expect(calc?.calculation?.sourceColumnIds).toEqual(["b"]);
+    db.close();
+  });
+
+  it("takes a rubric column's levels with the column", async () => {
+    const db = openWorkspaceDb(crypto.randomUUID());
+    await db.columns.add({
+      id: "col",
+      gradebookId: "gb",
+      periodId: "p1",
+      type: "rubric",
+      label: "Oral",
+      weight: 1,
+      max: 20,
+      order: 0,
+      criteria: [{ id: "just", label: "Justesse" }],
+    });
+    await db.criterionLevels.put({
+      columnId: "col",
+      criterionId: "just",
+      studentId: "adam",
+      level: 3,
+      updatedAt: Date.now(),
+    });
+
+    await deleteColumn(db, "col");
+
+    expect(await db.criterionLevels.where("columnId").equals("col").count()).toBe(0);
     db.close();
   });
 
@@ -827,31 +853,6 @@ describe("deleteClass — defensive sweeps", () => {
     db.close();
   });
 
-  describe("deleteRubricAssessment", () => {
-    it("takes its scores and leaves another assessment's alone", async () => {
-      const db = openWorkspaceDb("cascade-rubric-assessment");
-      await db.rubricAssessments.add({
-        id: "a1",
-        gradebookId: "g1",
-        periodId: "pe1",
-        name: "Oral",
-        date: 1,
-        criteria: [],
-        createdAt: 1,
-        updatedAt: 1,
-      });
-      await db.rubricScores.bulkPut([
-        { assessmentId: "a1", criterionId: "c1", studentId: "p1", level: 3, updatedAt: 1 },
-        { assessmentId: "a2", criterionId: "c1", studentId: "p1", level: 3, updatedAt: 1 },
-      ]);
-      await deleteRubricAssessment(db, "a1");
-      expect(await db.rubricAssessments.count()).toBe(0);
-      expect(await db.rubricScores.count()).toBe(1);
-      expect((await db.rubricScores.toArray())[0].assessmentId).toBe("a2");
-      db.close();
-    });
-  });
-
   describe("deleteRubricTemplate", () => {
     it("removes only the named template", async () => {
       const db = openWorkspaceDb("cascade-rubric-template");
@@ -866,8 +867,8 @@ describe("deleteClass — defensive sweeps", () => {
     });
   });
 
-  describe("deleteStudent — rubric scores", () => {
-    it("takes the pupil's scores", async () => {
+  describe("deleteStudent — criterion levels", () => {
+    it("takes the pupil's levels", async () => {
       const db = openWorkspaceDb("cascade-rubric-student");
       await db.students.add({
         id: "p1",
@@ -877,19 +878,19 @@ describe("deleteClass — defensive sweeps", () => {
         createdAt: 1,
         updatedAt: 1,
       });
-      await db.rubricScores.bulkPut([
-        { assessmentId: "a1", criterionId: "c1", studentId: "p1", level: 3, updatedAt: 1 },
-        { assessmentId: "a1", criterionId: "c1", studentId: "p2", level: 2, updatedAt: 1 },
+      await db.criterionLevels.bulkPut([
+        { columnId: "col", criterionId: "c1", studentId: "p1", level: 3, updatedAt: 1 },
+        { columnId: "col", criterionId: "c1", studentId: "p2", level: 2, updatedAt: 1 },
       ]);
       await deleteStudent(db, "p1");
-      expect(await db.rubricScores.count()).toBe(1);
-      expect((await db.rubricScores.toArray())[0].studentId).toBe("p2");
+      expect(await db.criterionLevels.count()).toBe(1);
+      expect((await db.criterionLevels.toArray())[0].studentId).toBe("p2");
       db.close();
     });
   });
 
-  describe("deleteGradebook — rubric assessments", () => {
-    it("leaves zero orphan scores", async () => {
+  describe("deleteGradebook — rubric columns", () => {
+    it("leaves zero orphan levels", async () => {
       const db = openWorkspaceDb("cascade-rubric-gradebook");
       await db.gradebooks.add({
         id: "g1",
@@ -899,76 +900,79 @@ describe("deleteClass — defensive sweeps", () => {
         createdAt: 1,
         updatedAt: 1,
       });
-      await db.rubricAssessments.add({
-        id: "a1",
+      await db.columns.add({
+        id: "col",
         gradebookId: "g1",
         periodId: "pe1",
-        name: "Oral",
-        date: 1,
-        criteria: [],
-        createdAt: 1,
-        updatedAt: 1,
+        type: "rubric",
+        label: "Oral",
+        weight: 1,
+        max: 20,
+        order: 0,
+        criteria: [{ id: "c1", label: "Clarté" }],
       });
-      await db.rubricScores.put({
-        assessmentId: "a1",
+      await db.criterionLevels.put({
+        columnId: "col",
         criterionId: "c1",
         studentId: "p1",
         level: 1,
         updatedAt: 1,
       });
       await deleteGradebook(db, "g1");
-      expect(await db.rubricAssessments.count()).toBe(0);
-      expect(await db.rubricScores.count()).toBe(0);
+      expect(await db.columns.count()).toBe(0);
+      expect(await db.criterionLevels.count()).toBe(0);
       db.close();
     });
   });
 
-  describe("deletePeriod — rubric assessments", () => {
-    it("takes an assessment naming that period and leaves another period's alone", async () => {
+  describe("deletePeriod — rubric columns", () => {
+    it("takes a column in that period and leaves another period's alone", async () => {
       const db = openWorkspaceDb("cascade-rubric-period");
       await db.periods.bulkAdd([
         { id: "pe1", gradebookId: "g1", name: "Trimestre 1", order: 0 },
         { id: "pe2", gradebookId: "g1", name: "Trimestre 2", order: 1 },
       ]);
-      await db.rubricAssessments.bulkAdd([
+      await db.columns.bulkAdd([
         {
-          id: "a1",
+          id: "col1",
           gradebookId: "g1",
           periodId: "pe1",
-          name: "Oral 1",
-          date: 1,
-          criteria: [],
-          createdAt: 1,
-          updatedAt: 1,
+          type: "rubric",
+          label: "Oral 1",
+          weight: 1,
+          max: 20,
+          order: 0,
+          criteria: [{ id: "c1", label: "Clarté" }],
         },
         {
-          id: "a2",
+          id: "col2",
           gradebookId: "g1",
           periodId: "pe2",
-          name: "Oral 2",
-          date: 1,
-          criteria: [],
-          createdAt: 1,
-          updatedAt: 1,
+          type: "rubric",
+          label: "Oral 2",
+          weight: 1,
+          max: 20,
+          order: 0,
+          criteria: [{ id: "c1", label: "Clarté" }],
         },
       ]);
-      await db.rubricScores.bulkPut([
-        { assessmentId: "a1", criterionId: "c1", studentId: "p1", level: 3, updatedAt: 1 },
-        { assessmentId: "a2", criterionId: "c1", studentId: "p1", level: 4, updatedAt: 1 },
+      await db.criterionLevels.bulkPut([
+        { columnId: "col1", criterionId: "c1", studentId: "p1", level: 3, updatedAt: 1 },
+        { columnId: "col2", criterionId: "c1", studentId: "p1", level: 4, updatedAt: 1 },
       ]);
 
       await deletePeriod(db, "pe1");
 
-      expect(await db.rubricAssessments.get("a1")).toBeUndefined();
-      expect(await db.rubricAssessments.get("a2")).toBeDefined();
-      expect(await db.rubricScores.count()).toBe(1);
-      expect((await db.rubricScores.toArray())[0].assessmentId).toBe("a2");
+      expect(await db.columns.get("col1")).toBeUndefined();
+      expect(await db.columns.get("col2")).toBeDefined();
+      expect(await db.criterionLevels.count()).toBe(1);
+      expect((await db.criterionLevels.toArray())[0].columnId).toBe("col2");
       db.close();
     });
   });
 
-  describe("deleteClass — rubric assessments", () => {
-    it("takes assessments belonging to the class's gradebooks and leaves another class's alone", async () => {
+  describe("deleteClass — rubric columns", () => {
+    it("takes the levels of the class's own columns and leaves another class's alone", async () => {
       const db = openWorkspaceDb("cascade-rubric-class");
       await db.classes.bulkAdd([
         { id: "c1", name: "3B", createdAt: 1, updatedAt: 1 },
@@ -978,39 +982,41 @@ describe("deleteClass — defensive sweeps", () => {
         { id: "g1", classId: "c1", subjectId: "s1", name: "Maths c1", createdAt: 1, updatedAt: 1 },
         { id: "g2", classId: "c2", subjectId: "s1", name: "Maths c2", createdAt: 1, updatedAt: 1 },
       ]);
-      await db.rubricAssessments.bulkAdd([
+      await db.columns.bulkAdd([
         {
-          id: "a1",
+          id: "col1",
           gradebookId: "g1",
           periodId: "pe1",
-          name: "Oral c1",
-          date: 1,
-          criteria: [],
-          createdAt: 1,
-          updatedAt: 1,
+          type: "rubric",
+          label: "Oral c1",
+          weight: 1,
+          max: 20,
+          order: 0,
+          criteria: [{ id: "cr1", label: "Clarté" }],
         },
         {
-          id: "a2",
+          id: "col2",
           gradebookId: "g2",
           periodId: "pe1",
-          name: "Oral c2",
-          date: 1,
-          criteria: [],
-          createdAt: 1,
-          updatedAt: 1,
+          type: "rubric",
+          label: "Oral c2",
+          weight: 1,
+          max: 20,
+          order: 0,
+          criteria: [{ id: "cr1", label: "Clarté" }],
         },
       ]);
-      await db.rubricScores.bulkPut([
-        { assessmentId: "a1", criterionId: "c1", studentId: "p1", level: 3, updatedAt: 1 },
-        { assessmentId: "a2", criterionId: "c1", studentId: "p2", level: 2, updatedAt: 1 },
+      await db.criterionLevels.bulkPut([
+        { columnId: "col1", criterionId: "cr1", studentId: "p1", level: 3, updatedAt: 1 },
+        { columnId: "col2", criterionId: "cr1", studentId: "p2", level: 2, updatedAt: 1 },
       ]);
 
       await deleteClass(db, "c1");
 
-      expect(await db.rubricAssessments.get("a1")).toBeUndefined();
-      expect(await db.rubricAssessments.get("a2")).toBeDefined();
-      expect(await db.rubricScores.count()).toBe(1);
-      expect((await db.rubricScores.toArray())[0].assessmentId).toBe("a2");
+      expect(await db.columns.get("col1")).toBeUndefined();
+      expect(await db.columns.get("col2")).toBeDefined();
+      expect(await db.criterionLevels.count()).toBe(1);
+      expect((await db.criterionLevels.toArray())[0].columnId).toBe("col2");
       db.close();
     });
   });

@@ -1,9 +1,9 @@
-import { repairSeanceCollisions } from "@domain/seance";
 import Dexie, { type EntityTable, type Table } from "dexie";
 import type {
   Assignment,
   AttendanceRecord,
   BehaviourEvent,
+  CriterionLevel,
   Desk,
   Grade,
   Gradebook,
@@ -11,8 +11,6 @@ import type {
   GroupMember,
   Period,
   Room,
-  RubricAssessment,
-  RubricScore,
   RubricTemplate,
   ScheduleEntry,
   SchoolClass,
@@ -27,6 +25,7 @@ export type {
   Assignment,
   AttendanceRecord,
   BehaviourEvent,
+  CriterionLevel,
   Desk,
   Grade,
   Gradebook,
@@ -34,8 +33,6 @@ export type {
   GroupMember,
   Period,
   Room,
-  RubricAssessment,
-  RubricScore,
   RubricTemplate,
   ScheduleEntry,
   SchoolClass,
@@ -62,8 +59,7 @@ export type AppDatabase = Dexie & {
   seatingPlans: EntityTable<SeatingPlan, "id">;
   assignments: Table<Assignment, [string, string]>;
   rubricTemplates: EntityTable<RubricTemplate, "id">;
-  rubricAssessments: EntityTable<RubricAssessment, "id">;
-  rubricScores: Table<RubricScore, [string, string, string]>;
+  criterionLevels: Table<CriterionLevel, [string, string, string]>;
   studentGroups: EntityTable<StudentGroup, "id">;
   groupMembers: Table<GroupMember, [string, string]>;
   scheduleEntries: EntityTable<ScheduleEntry, "id">;
@@ -83,13 +79,13 @@ export function attendanceKey(sessionId: string, studentId: string): [string, st
   return [sessionId, studentId];
 }
 
-/** The compound primary key of one rubric cell. */
-export function rubricScoreKey(
-  assessmentId: string,
+/** The compound primary key of one pupil's level on one critère. */
+export function criterionLevelKey(
+  columnId: string,
   criterionId: string,
   studentId: string,
 ): [string, string, string] {
-  return [assessmentId, criterionId, studentId];
+  return [columnId, criterionId, studentId];
 }
 
 /** The compound primary key of one pupil's membership in one group. */
@@ -99,10 +95,31 @@ export function groupMemberKey(groupId: string, studentId: string): [string, str
 
 export function openWorkspaceDb(workspaceId: string): AppDatabase {
   const db = new Dexie(`profs-${workspaceId}`) as AppDatabase;
-  // v2 adds the classroom tables. Existing data is disposable — there is no
-  // upgrade callback, so Dexie creates the new stores empty and any attendance
-  // grade row left over from v1 is garbage the wipe in Réglages clears.
-  db.version(2).stores({
+  /**
+   * ONE version, declaring the schema as it stands.
+   *
+   * There were sixteen, each a bump with no upgrade callback, because schema
+   * changes here are disposable: a stale workspace is wiped on the next boot
+   * rather than migrated. Nothing is deployed, so that chain described
+   * migrations nobody will ever run, and the current shape could only be read
+   * by replaying fifteen diffs.
+   *
+   * The consequence is load-bearing and deliberate: IndexedDB refuses to open
+   * a database at a version LOWER than the stored one, so every workspace
+   * built by an earlier build fails to open with `VersionError`, reaches
+   * `RecoveryShell`, and is offered the discard. That is only true because
+   * `classifyOpenFailure` treats `VersionError` as `corrupt` — see
+   * `src/domain/recovery.ts`. Without that, this line bricks every existing
+   * workspace instead of wiping it.
+   *
+   * The rule for the next change is unchanged: add a table or a field, bump to
+   * version 2, write no upgrade function.
+   *
+   * `&` marks a unique index. `desks` refuses two tables on one square,
+   * `seatingPlans` one plan per class per salle, and `assignments` one pupil
+   * in two chairs — invariants that used to live only in careful code.
+   */
+  db.version(1).stores({
     classes: "id, name",
     students: "id, classId, lastName",
     subjects: "id, name",
@@ -113,198 +130,19 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
     sessions: "id, classId, date, [classId+date], subjectId",
     attendance: "[sessionId+studentId], sessionId, studentId",
     behaviourEvents: "id, sessionId, studentId, classId, createdAt",
-    seatingLayouts: "id, classId",
-    seats: "[layoutId+row+col], layoutId, studentId",
-  });
-  // v3 adds the rubric tables. Dexie carries forward every unchanged store,
-  // so only the three new ones are listed here.
-  db.version(3).stores({
-    rubricTemplates: "id, name",
-    rubricAssessments: "id, gradebookId, periodId, date",
-    rubricScores: "[assessmentId+criterionId+studentId], assessmentId, criterionId, studentId",
-  });
-  // v4 adds student groups. Existing data is disposable — there is no
-  // upgrade callback, so only the two new stores are listed here.
-  db.version(4).stores({
-    studentGroups: "id, classId",
-    groupMembers: "[groupId+studentId], groupId, studentId",
-  });
-  // v5 adds the recurring timetable. Existing data is disposable — there is no
-  // upgrade callback, so only the new store is listed here.
-  db.version(5).stores({
-    scheduleEntries: "id, classId, weekday, gradebookId",
-  });
-  // v6 adds the journal. Existing data is disposable — there is no upgrade
-  // callback, so only the new store is listed here.
-  db.version(6).stores({
-    diaryEntries: "[classId+date], classId, date",
-  });
-  // v7 turns the room from a grid into free positions, and it takes TWO
-  // versions to do it. Every earlier bump in this file added a table, and
-  // "bump the version, write no upgrade" holds for that. Changing a table's
-  // PRIMARY KEY is different: Dexie refuses it outright with `UpgradeError:
-  // Not yet support for changing primary key`, thrown while opening. `init.ts`
-  // does not catch it, so a teacher with an existing workspace would get a
-  // blank screen — their pupils still in IndexedDB, and no route to the wipe
-  // in Réglages. Disposable must mean wiped on the next boot, never bricked.
-  //
-  // Dropping the store and recreating it is the whole of the migration: a v6
-  // seat keyed [layoutId+row+col] is garbage either way, and every other table
-  // is carried forward untouched.
-  //
-  // `seatingLayouts` goes with the seats, and it must. Its primary key never
-  // changed, so Dexie would happily carry a v6 room forward — but a v6 room
-  // carries `rows`/`cols` where the new one carries `width`/`height`, and a
-  // layout whose every seat was just discarded describes nothing anyway.
-  // Carried forward, `layout.width` is `undefined`: the room renders at
-  // `scale(NaN)`, `floorSlots` yields nothing, `addTable` refuses every
-  // placement, and a backup taken in that window exports the zombie row
-  // intact. Same doctrine as the seats — disposable, not migrated.
-  db.version(7).stores({
-    seats: null,
-    seatingLayouts: null,
-  });
-  // v8 lays the free-position room down in a fresh store. `&[layoutId+x+y]` is
-  // unique: it is the database's own guarantee that two tables never share a
-  // point, so a bug in `canPlace` surfaces as a rejected write rather than as
-  // a pupil nobody can tap. `seatingLayouts` is redeclared at its unchanged
-  // key so the empty store comes back for `getOrCreateLayout` to fill.
-  db.version(8).stores({
-    seats: "id, layoutId, studentId, &[layoutId+x+y]",
-    seatingLayouts: "id, classId",
-  });
-  // v9 adds saved rooms — a named shape a teacher can stamp onto any class.
-  // A plain add, so it is one version and no upgrade callback, per the standing
-  // rule; the drop-then-recreate pair v7/v8 used is only for a key that changes.
-  // `positions` is embedded in the row and therefore not indexed: a room is
-  // always read whole, and nothing ever queries one position.
-  db.version(9).stores({
-    rooms: "id, name",
-  });
-  // v10 drops the saved room. It was a user-defined TEMPLATE — positions
-  // embedded in the row, stamped through `applyTemplate`, no back-reference,
-  // "stamps and ceases to exist". A shared salle is the opposite: editing 204
-  // must change what 3°B and 5°A both see, which a stamp cannot do.
-  //
-  // The name is reused at v11 for that new meaning, so the old shape has to go
-  // rather than be carried forward — a v9 row would feed `positions` into code
-  // reading a `desks` table, which is the silent-zombie failure v7 was written
-  // for.
-  db.version(10).stores({
-    rooms: null,
-  });
-  // v11 lays down the salle: furniture that belongs to no class, and the
-  // assignation as its own row.
-  //
-  // `&[roomId+x+y]` keeps v8's guarantee that no two desks share a point, so a
-  // bug in `canPlace` surfaces as a rejected write rather than as a pupil
-  // nobody can tap.
-  //
-  // `&[planId+studentId]` is new, and it is the database refusing to seat one
-  // pupil in two chairs — an invariant that used to live only in careful code.
-  // Its consequence is load-bearing rather than incidental: seating an
-  // already-seated pupil THROWS unless the write clears their old row first,
-  // so every seat and swap is one transaction that deletes before it puts.
-  //
-  // `&[classId+roomId]` is what makes "one plan per class per salle" a fact
-  // rather than a convention `getOrCreatePlan` has to be trusted to keep.
-  //
-  // `[planId+deskId]` as the primary key copies `grades`: seating is a one-row
-  // put, unseating a one-row delete, and nothing read-modify-writes a
-  // collection.
-  db.version(11).stores({
     rooms: "id, name",
     desks: "id, roomId, &[roomId+x+y]",
     seatingPlans: "id, classId, roomId, &[classId+roomId]",
     assignments: "[planId+deskId], planId, deskId, studentId, &[planId+studentId]",
-  });
-  // v12 drops the per-class layout, now that the plan tab reads the salle.
-  //
-  // Both stores changed SHAPE rather than key, which is the case v7's comment
-  // generalised: a Seat carried a `studentId` and a SeatingLayout carried a
-  // `classId`, and neither means anything once furniture belongs to a salle
-  // and the assignation is its own row. Carried forward, a v11 seat would feed
-  // a `layoutId` into code reading `planId` — a room that renders nothing and
-  // cannot be told from an empty one.
-  db.version(12).stores({
-    seats: null,
-    seatingLayouts: null,
-  });
-  // v13 points a timetable entry at a salle. A plain field add would need no
-  // bump at all, but it is INDEXED — `deleteRoom` has to find every lesson
-  // naming the salle it is about to remove, and a full scan of the timetable
-  // on every delete is the kind of thing that is fine until it is not.
-  //
-  // The store is redeclared whole because Dexie's `stores` is a replacement,
-  // not a patch. No upgrade callback, per the standing rule: a row carrying
-  // the old free-text `room` simply keeps an unread property. That is NOT the
-  // zombie case v7 was written for — a leftover string is inert, where a
-  // missing `width` fed `undefined` into arithmetic and rendered scale(NaN).
-  db.version(13).stores({
-    scheduleEntries: "id, classId, weekday, gradebookId, roomId",
-  });
-  /**
-   * A note belongs to a séance, not to a day.
-   *
-   * The store is dropped rather than migrated, per the standing rule: schema
-   * changes are disposable, and a stale workspace is wiped rather than
-   * upgraded. Every existing journal entry goes, which is accepted — the text
-   * now lives on `Session.note`, which needed no version of its own because
-   * `.stores()` declares indexes, not fields.
-   */
-  db.version(14).stores({ diaryEntries: null });
-  /**
-   * A lesson names a class and a matiere; it no longer names a carnet.
-   *
-   * `gradebookId` was a field the form wrote and NOTHING read — Today and the
-   * hour grid both colour by `subjectId`, and the grid a lesson opens onto was
-   * never built. What a `Gradebook` already knows is `(classId, subjectId)`,
-   * which the entry states twice over, so the picker asked the teacher to
-   * re-declare an association the two fields above it had already made.
-   *
-   * Only the INDEX needs a version — `.stores()` declares indexes, not fields
-   * — and the store is redeclared whole because Dexie replaces rather than
-   * patches. No upgrade callback: an existing row keeps an unread
-   * `gradebookId` property, inert the way v13's leftover free-text `room` is.
-   */
-  db.version(15).stores({
+    rubricTemplates: "id, name",
+    // A level, not a score: it is one pupil's level on one critère of one
+    // COLUMN. The name it had pointed at an assessment row that no longer
+    // exists. Keyed like `grades` — one tap is one put, one clear is one
+    // delete, and nothing read-modify-writes a collection of them.
+    criterionLevels: "[columnId+criterionId+studentId], columnId, criterionId, studentId",
+    studentGroups: "id, classId",
+    groupMembers: "[groupId+studentId], groupId, studentId",
     scheduleEntries: "id, classId, weekday, roomId",
-  });
-  /**
-   * A séance gets a start and an end. THE FIRST UPGRADE FUNCTION HERE, and a
-   * deliberate exception to "schema changes are disposable".
-   *
-   * The standing rule's move for a store whose SHAPE changed is to drop it and
-   * redeclare it in the next version. That is wrong for `sessions`:
-   * `attendance` and `behaviourEvents` are both keyed to `sessions.id`, so
-   * dropping it destroys every séance and leaves a term of attendance and
-   * behaviour as rows nothing reads, nothing counts, and every export carries
-   * — the invisible-orphan failure `cascade.ts` exists to prevent, produced
-   * deliberately by the rule meant to keep the schema simple.
-   *
-   * The rule is not abandoned. It still stands for every change that ADDS a
-   * table or a field. What it does not cover — as it already admits for a
-   * changed primary key — is a field becoming required underneath rows that
-   * carry dependents.
-   *
-   * No `.stores()`: no index changes, so the schema is inherited.
-   */
-  db.version(16).upgrade(async (tx) => {
-    // Repaired as a WHOLE collection, never row by row: `backfillSeanceTimes`
-    // alone cannot see that two untimed séances of one class on one day floor
-    // to the same hour, and the first `resolveSlot` match would strand the
-    // second forever. See `repairSeanceCollisions` for the invariant.
-    const sessions = await tx.table("sessions").toArray();
-    const repaired = new Map(repairSeanceCollisions(sessions).map((r) => [r.id, r]));
-    await tx
-      .table("sessions")
-      .toCollection()
-      .modify((session) => {
-        const times = repaired.get(session.id);
-        if (!times) return;
-        session.startsAt = times.startsAt;
-        session.endsAt = times.endsAt;
-      });
   });
   return db;
 }

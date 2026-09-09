@@ -1,5 +1,4 @@
 import "fake-indexeddb/auto";
-import { startOfDay } from "@domain/term";
 import { openWorkspaceDb } from ".";
 import { BackupOverCapacityError, exportWorkspace, importWorkspace, parseBackup } from "./backup";
 import { seedIfEmpty } from "./seed";
@@ -107,7 +106,7 @@ describe("workspace backup", () => {
     // asserting nothing about the version at all.
     await expect(
       importWorkspace(db, {
-        version: 13,
+        version: 14,
         exportedAt: 0,
         classes: [],
         students: [],
@@ -120,8 +119,7 @@ describe("workspace backup", () => {
         attendance: [],
         behaviourEvents: [],
         rubricTemplates: [],
-        rubricAssessments: [],
-        rubricScores: [],
+        criterionLevels: [],
         studentGroups: [],
         groupMembers: [],
         scheduleEntries: [],
@@ -165,8 +163,7 @@ describe("workspace backup", () => {
         seatingPlans: [],
         assignments: [],
         rubricTemplates: [],
-        rubricAssessments: [],
-        rubricScores: [],
+        criterionLevels: [],
         studentGroups: [],
         groupMembers: [],
         scheduleEntries: [],
@@ -176,60 +173,25 @@ describe("workspace backup", () => {
     db.close();
   });
 
-  it("accepts a version-11 file and gives its séances times", async () => {
-    // Nothing in a v11 file is lost — the same backfill repairs it — so it is
-    // accepted rather than refused. A v10 file is a different case: its
-    // journal store no longer exists, and that is a loss no backfill can undo.
-    const db = openWorkspaceDb(`backup-v11-${crypto.randomUUID()}`);
-    const createdAt = new Date(2026, 8, 9, 14, 20, 0).getTime();
-    const file = {
-      ...(await exportWorkspace(db)),
-      version: 11,
-      sessions: [{ id: "s1", classId: "c1", date: startOfDay(createdAt), createdAt }],
-    };
-
-    const parsed = parseBackup(file);
-
-    expect(parsed.sessions[0].startsAt).toBe(14 * 60);
-    expect(parsed.sessions[0].endsAt).toBe(14 * 60 + 55);
-    // The repair upgrades the shape to v12 in full — a v11 file's séances are
-    // now timed and collision-free — so the returned version says 12, not the
-    // 11 the file arrived as.
-    expect(parsed.version).toBe(12);
+  it("exports at version 13", async () => {
+    const db = openWorkspaceDb(`backup-v13-${crypto.randomUUID()}`);
+    expect((await exportWorkspace(db)).version).toBe(13);
     db.close();
   });
 
-  it("gives two colliding v11 séances of one class on one day different, reachable starts", async () => {
-    // The exact hazard F1 fixed: `startSeance`'s old untimed branch fired
-    // mid-lesson, at the scheduled hour, so two séances of one class on one
-    // day routinely floor to the same `startsAt` once backfilled alone.
-    const db = openWorkspaceDb(`backup-v11-collision-${crypto.randomUUID()}`);
-    const day = startOfDay(new Date(2026, 8, 9).getTime());
-    const createdEarly = new Date(2026, 8, 9, 10, 5, 0).getTime();
-    const createdLate = new Date(2026, 8, 9, 10, 40, 0).getTime();
-    const file = {
-      ...(await exportWorkspace(db)),
-      version: 11,
-      sessions: [
-        { id: "s-early", classId: "c1", date: day, createdAt: createdEarly },
-        { id: "s-late", classId: "c1", date: day, createdAt: createdLate },
-      ],
-    };
-
-    const parsed = parseBackup(file);
-    const starts = parsed.sessions.map((s) => s.startsAt);
-    expect(new Set(starts).size).toBe(2);
+  it("refuses every file from before the grille was a column", async () => {
+    // 11 and 12 both export rubricAssessments, a store that no longer exists, so
+    // both carry grilles with nowhere to land. Half-importing is worse than
+    // refusing: the grilles would vanish silently rather than the file being
+    // turned away. From here only the current format is accepted — a file is
+    // importable only while every store it names still exists.
+    const db = openWorkspaceDb(`backup-old-${crypto.randomUUID()}`);
+    const current = await exportWorkspace(db);
+    for (const version of [10, 11, 12]) {
+      expect(() => parseBackup({ ...current, version })).toThrow();
+    }
+    expect(() => parseBackup(current)).not.toThrow();
     db.close();
-  });
-
-  it("exports at version 12", async () => {
-    const db = openWorkspaceDb(`backup-v12-${crypto.randomUUID()}`);
-    expect((await exportWorkspace(db)).version).toBe(12);
-    db.close();
-  });
-
-  it("still refuses a version-10 file", () => {
-    expect(() => parseBackup({ version: 10 })).toThrow();
   });
 
   it("rejects a version 5 backup rather than half-importing it", async () => {
@@ -252,8 +214,7 @@ describe("workspace backup", () => {
         attendance: [],
         behaviourEvents: [],
         rubricTemplates: [],
-        rubricAssessments: [],
-        rubricScores: [],
+        criterionLevels: [],
         studentGroups: [],
         groupMembers: [],
         scheduleEntries: [],
@@ -283,8 +244,7 @@ describe("workspace backup", () => {
         attendance: [],
         behaviourEvents: [],
         rubricTemplates: [],
-        rubricAssessments: [],
-        rubricScores: [],
+        criterionLevels: [],
         studentGroups: [],
         groupMembers: [],
         scheduleEntries: [],
@@ -311,8 +271,7 @@ describe("workspace backup", () => {
         attendance: [],
         behaviourEvents: [],
         rubricTemplates: [],
-        rubricAssessments: [],
-        rubricScores: [],
+        criterionLevels: [],
       }),
     ).toThrow();
     db.close();
@@ -346,7 +305,7 @@ describe("workspace backup", () => {
     });
     await db.groupMembers.put({ groupId: "g1", studentId: "p1" });
     const backup = await exportWorkspace(db);
-    expect(backup.version).toBe(12);
+    expect(backup.version).toBe(13);
     expect(backup.sessions).toHaveLength(1);
     expect(backup.attendance).toHaveLength(1);
     expect(backup.rubricTemplates).toHaveLength(1);
@@ -406,7 +365,7 @@ describe("workspace backup", () => {
     db.close();
   });
 
-  it("round-trips a rubric assessment's embedded criteria and its scores", async () => {
+  it("round-trips a rubric column's embedded critères and its levels", async () => {
     const db = openWorkspaceDb("backup-round-trip-rubric");
     await db.rubricTemplates.add({
       id: "t1",
@@ -415,21 +374,23 @@ describe("workspace backup", () => {
       createdAt: 1,
       updatedAt: 1,
     });
-    await db.rubricAssessments.add({
-      id: "a1",
+    await db.columns.add({
+      id: "col1",
       gradebookId: "g1",
       periodId: "pe1",
-      name: "Oral du 12 mars",
+      type: "rubric",
+      label: "Oral du 12 mars",
+      weight: 1,
+      max: 20,
+      order: 0,
       date: 1,
       criteria: [
         { id: "c1", label: "Clarté" },
         { id: "c2", label: "Contenu" },
       ],
-      createdAt: 1,
-      updatedAt: 1,
     });
-    await db.rubricScores.put({
-      assessmentId: "a1",
+    await db.criterionLevels.put({
+      columnId: "col1",
       criterionId: "c1",
       studentId: "p1",
       level: 3,
@@ -440,11 +401,11 @@ describe("workspace backup", () => {
     await importWorkspace(db, JSON.parse(JSON.stringify(backup)));
 
     expect(await db.rubricTemplates.get("t1")).toMatchObject({ name: "Exposé oral" });
-    expect((await db.rubricAssessments.get("a1"))?.criteria).toEqual([
+    expect((await db.columns.get("col1"))?.criteria).toEqual([
       { id: "c1", label: "Clarté" },
       { id: "c2", label: "Contenu" },
     ]);
-    expect(await db.rubricScores.get(["a1", "c1", "p1"])).toMatchObject({ level: 3 });
+    expect(await db.criterionLevels.get(["col1", "c1", "p1"])).toMatchObject({ level: 3 });
     db.close();
   });
 
@@ -475,18 +436,20 @@ describe("workspace backup", () => {
       createdAt: 1,
       updatedAt: 1,
     });
-    await db.rubricAssessments.add({
-      id: "a1",
+    await db.columns.add({
+      id: "col1",
       gradebookId: "g1",
       periodId: "pe1",
-      name: "Oral",
+      type: "rubric",
+      label: "Oral",
+      weight: 1,
+      max: 20,
+      order: 0,
       date: 1,
       criteria: [{ id: "c1", label: "Clarté" }],
-      createdAt: 1,
-      updatedAt: 1,
     });
-    await db.rubricScores.put({
-      assessmentId: "a1",
+    await db.criterionLevels.put({
+      columnId: "col1",
       criterionId: "c1",
       studentId: "p1",
       level: 2,
@@ -504,8 +467,7 @@ describe("workspace backup", () => {
       attendance: await db.attendance.count(),
       behaviourEvents: await db.behaviourEvents.count(),
       rubricTemplates: await db.rubricTemplates.count(),
-      rubricAssessments: await db.rubricAssessments.count(),
-      rubricScores: await db.rubricScores.count(),
+      criterionLevels: await db.criterionLevels.count(),
       studentGroups: await db.studentGroups.count(),
       groupMembers: await db.groupMembers.count(),
     };
@@ -521,8 +483,7 @@ describe("workspace backup", () => {
       attendance: await db.attendance.count(),
       behaviourEvents: await db.behaviourEvents.count(),
       rubricTemplates: await db.rubricTemplates.count(),
-      rubricAssessments: await db.rubricAssessments.count(),
-      rubricScores: await db.rubricScores.count(),
+      criterionLevels: await db.criterionLevels.count(),
       studentGroups: await db.studentGroups.count(),
       groupMembers: await db.groupMembers.count(),
     };
@@ -702,7 +663,7 @@ describe("class-size ceiling on import", () => {
   /** A minimal, schema-valid backup carrying `count` pupils in one class. */
   function backupWithRoster(count: number) {
     return {
-      version: 11,
+      version: 13,
       exportedAt: Date.now(),
       classes: [{ id: "c1", name: "3°B", createdAt: 1, updatedAt: 1 }],
       students: Array.from({ length: count }, (_, i) => ({
@@ -722,8 +683,7 @@ describe("class-size ceiling on import", () => {
       attendance: [],
       behaviourEvents: [],
       rubricTemplates: [],
-      rubricAssessments: [],
-      rubricScores: [],
+      criterionLevels: [],
       studentGroups: [],
       groupMembers: [],
       scheduleEntries: [],

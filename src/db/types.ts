@@ -60,11 +60,11 @@ export interface Period {
  * columns' grades. See `src/domain/gradebook/calculation.ts`.
  *
  * `criteria` is only meaningful when `type` is "rubric", and it is the third
- * instance of that pattern rather than a new one. Embedded rather than its own
- * store for `RubricAssessment.criteria`'s reason, which it inherits: a
- * critère is never queried, listed or deleted except through its column, so
- * embedding avoids a join for something always read whole. A LEVEL is the
- * opposite and keeps its own row — see `criterionLevels`.
+ * instance of that pattern rather than a new one: it is embedded rather than
+ * given its own store because a critère is never queried, listed or deleted
+ * except through its column, so embedding avoids a join for something always
+ * read whole. A LEVEL is the opposite and keeps its own row — see
+ * `criterionLevels`.
  */
 export interface GradeColumn {
   id: string;
@@ -239,26 +239,16 @@ export interface RubricTemplate {
 }
 
 /**
- * One assessment of one gradebook's class against a set of criteria.
+ * One pupil's level on one critère of one column. Keyed
+ * [columnId+criterionId+studentId].
  *
- * `criteria` is a COPY taken when a template was attached, never a reference:
- * editing the template afterwards must not rewrite a grid already graded.
+ * Its own row rather than a map inside a `Grade`, because a level is written
+ * and cleared one tap at a time — the same fork `Grade` and `Assignment` are
+ * on the other side of. A map would make each tap a read-modify-write, and
+ * two fast taps could lose one silently.
  */
-export interface RubricAssessment {
-  id: string;
-  gradebookId: string;
-  periodId: string;
-  sessionId?: string;
-  name: string;
-  date: number;
-  criteria: RubricCriterion[];
-  createdAt: number;
-  updatedAt: number;
-}
-
-/** One cell. Keyed [assessmentId+criterionId+studentId]. */
-export interface RubricScore {
-  assessmentId: string;
+export interface CriterionLevel {
+  columnId: string;
   criterionId: string;
   studentId: string;
   level: RubricLevel;
