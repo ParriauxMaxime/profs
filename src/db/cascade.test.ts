@@ -570,7 +570,10 @@ describe("deleteSubject", () => {
     const now = Date.now();
     const id = crypto.randomUUID();
     await db.subjects.add({ id, name: "Sport", color: "#a855f7", createdAt: now, updatedAt: now });
-    await createSession(db, schoolClass.id, startOfDay(Date.now()), { subjectId: id });
+    await createSession(db, schoolClass.id, startOfDay(Date.now()), {
+      subjectId: id,
+      startsAt: 480,
+    });
     const before = await db.subjects.count();
 
     const result = await deleteSubject(db, id);
@@ -635,7 +638,14 @@ describe("deleteStudent — phase 2 rows", () => {
       createdAt: 1,
       updatedAt: 1,
     });
-    await db.sessions.add({ id: "s1", classId: "c1", date: 1, createdAt: 1 });
+    await db.sessions.add({
+      id: "s1",
+      classId: "c1",
+      date: 1,
+      startsAt: 480,
+      endsAt: 535,
+      createdAt: 1,
+    });
     await db.attendance.put({
       sessionId: "s1",
       studentId: "p1",
@@ -686,7 +696,14 @@ describe("deleteClass — phase 2 rows", () => {
       createdAt: 1,
       updatedAt: 1,
     });
-    await db.sessions.add({ id: "s1", classId: "c1", date: 1, createdAt: 1 });
+    await db.sessions.add({
+      id: "s1",
+      classId: "c1",
+      date: 1,
+      startsAt: 480,
+      endsAt: 535,
+      createdAt: 1,
+    });
     await db.attendance.put({ sessionId: "s1", studentId: "p1", value: "late", updatedAt: 1 });
     await db.behaviourEvents.add({
       id: "e1",
@@ -726,8 +743,22 @@ describe("deleteClass — phase 2 rows", () => {
 describe("deleteSession", () => {
   it("takes its attendance and behaviour events", async () => {
     const db = openWorkspaceDb(`cascade-session-${crypto.randomUUID()}`);
-    await db.sessions.add({ id: "s1", classId: "c1", date: 1, createdAt: 1 });
-    await db.sessions.add({ id: "s2", classId: "c1", date: 2, createdAt: 2 });
+    await db.sessions.add({
+      id: "s1",
+      classId: "c1",
+      date: 1,
+      startsAt: 480,
+      endsAt: 535,
+      createdAt: 1,
+    });
+    await db.sessions.add({
+      id: "s2",
+      classId: "c1",
+      date: 2,
+      startsAt: 480,
+      endsAt: 535,
+      createdAt: 2,
+    });
     await db.attendance.bulkPut([
       { sessionId: "s1", studentId: "p1", value: "absent", updatedAt: 1 },
       { sessionId: "s2", studentId: "p1", value: "present", updatedAt: 1 },
@@ -767,7 +798,14 @@ describe("deleteClass — defensive sweeps", () => {
     ]);
     // A row an import could produce but the UI never would: c1's pupil
     // recorded against c2's session.
-    await db.sessions.add({ id: "s2", classId: "c2", date: 1, createdAt: 1 });
+    await db.sessions.add({
+      id: "s2",
+      classId: "c2",
+      date: 1,
+      startsAt: 480,
+      endsAt: 535,
+      createdAt: 1,
+    });
     await db.attendance.bulkPut([
       { sessionId: "s2", studentId: "p1", value: "absent", updatedAt: 1 },
       { sessionId: "s2", studentId: "p2", value: "present", updatedAt: 1 },

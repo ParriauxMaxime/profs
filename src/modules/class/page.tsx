@@ -3,7 +3,7 @@ import { useDb } from "@db/provider";
 import { listRooms } from "@db/rooms";
 import { getOrCreateSessionAt, sessionsForClass, sessionsForDay, startOfDay } from "@db/sessions";
 import { entriesForDay } from "@domain/schedule";
-import { resolveSlot, type Slot, slotsForDay, teachingDays } from "@domain/seance";
+import { hourOfDay, resolveSlot, type Slot, slotsForDay, teachingDays } from "@domain/seance";
 import { readTermStart } from "@domain/term";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -141,11 +141,20 @@ export function ClassPage({
   // Broken out of `slot` so the callbacks below depend on values rather than
   // on an object rebuilt every render.
   const slotStartsAt = slot?.startsAt ?? null;
+  // Task 4 makes this a real value once `Slot` carries an end; until then it
+  // is always null, which `ensureSeance` treats as "let `createSession` pick
+  // the default end".
+  const slotEndsAt = slot?.endsAt ?? null;
   const slotSessionId = slot?.sessionId ?? null;
   const slotSubjectId = dayEntries.find((e) => e.id === slot?.entryId)?.subjectId;
-  // Whether the day already holds a séance nobody scheduled. One is the most
-  // a day can have — see `startSeance`.
-  const hasUntimedSeance = slots.some((s) => s.startsAt === null && s.sessionId !== null);
+  // The day's séances, for `canStart` — see `startSeance`.
+  const daySessions = lesson === undefined ? [] : lesson.daySessions;
+  // "Commencer une séance" starts a NEW séance at the current hour once this
+  // one is already recorded; hidden once a séance already sits at that hour,
+  // since pressing it again could only reuse a row already reachable from the
+  // strip — a button that cannot do anything is worse than no button.
+  const canStart =
+    slotSessionId !== null && !daySessions.some((s) => s.startsAt === hourOfDay(Date.now()));
 
   /**
    * The séance to write against, brought into being if it does not exist yet.
@@ -156,13 +165,15 @@ export function ClassPage({
    */
   const ensureSeance = useCallback(async (): Promise<string> => {
     if (slotSessionId !== null) return slotSessionId;
+    const startsAt = slotStartsAt ?? hourOfDay(Date.now());
     const session = await getOrCreateSessionAt(db, classId, {
       date: seanceDay,
-      ...(slotStartsAt === null ? {} : { startsAt: slotStartsAt }),
+      startsAt,
+      ...(slotEndsAt === null || slotEndsAt === undefined ? {} : { endsAt: slotEndsAt }),
       ...(slotSubjectId === undefined ? {} : { subjectId: slotSubjectId }),
     });
     return session.id;
-  }, [db, classId, slotSessionId, seanceDay, slotStartsAt, slotSubjectId]);
+  }, [db, classId, slotSessionId, seanceDay, slotStartsAt, slotEndsAt, slotSubjectId]);
 
   /**
    * Choosing a day, not a lesson: no `at`, so `resolveSlot` falls back to that
@@ -188,22 +199,35 @@ export function ClassPage({
 
   /**
    * "Commencer une séance": make this slot real, or — when it already is —
-   * open the day's UNSCHEDULED séance, creating it only if the day has none.
+   * start a NEW séance at the CURRENT clock hour.
    *
-   * Reuse rather than a second row, because `resolveSlot` matches a slot by
-   * its time: two untimed séances on one day both answer to "no time", the
-   * first wins every lookup, and the second would be written unreachable —
-   * invisible in the strip, invisible in the register, present in the export.
-   * A day therefore holds at most one unscheduled séance, and the button
-   * hides once it exists rather than pretending to make another.
+   * The old contract was "open the day's UNSCHEDULED séance, creating it only
+   * if the day has none", because `resolveSlot` matched a slot by its time:
+   * two untimed séances on one day both answered to "no time", the first won
+   * every lookup, and the second would be written unreachable — invisible in
+   * the strip, invisible in the register, present only in the export. Times
+   * are required now, so a séance started now lands on the hour it was
+   * started rather than on no time at all, and `getOrCreateSessionAt` reuses
+   * whichever séance already sits at that hour instead of making a second.
+   * The hazard does not disappear, it changes shape: the rule relaxes from
+   * "at most one unscheduled séance a day" to "at most one séance an hour",
+   * and `canStart` guards it the same way — hidden once starting could only
+   * reuse a row already reachable.
    */
   const startSeance = useCallback(async (): Promise<void> => {
     if (slotSessionId === null) {
       await ensureSeance();
       return;
     }
-    const session = await getOrCreateSessionAt(db, classId, { date: seanceDay });
-    selectSlot({ date: session.date, startsAt: null, sessionId: session.id, entryId: null });
+    const startsAt = hourOfDay(Date.now());
+    const session = await getOrCreateSessionAt(db, classId, { date: seanceDay, startsAt });
+    selectSlot({
+      date: session.date,
+      startsAt: session.startsAt,
+      endsAt: session.endsAt,
+      sessionId: session.id,
+      entryId: null,
+    });
   }, [db, classId, ensureSeance, slotSessionId, seanceDay, selectSlot]);
 
   // The roster register's marks for the slot on screen. Read directly rather
@@ -315,7 +339,7 @@ export function ClassPage({
         days={dayOptions}
         slots={slots}
         current={slot}
-        canStart={slotSessionId === null || !hasUntimedSeance}
+        canStart={canStart}
         className="border-border border-b pb-3"
         onSelectDay={selectDay}
         onSelect={selectSlot}

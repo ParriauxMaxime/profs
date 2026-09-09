@@ -638,6 +638,7 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
         classId: entry.classId,
         date: day,
         startsAt: entry.startMinute,
+        endsAt: entry.endMinute,
         subjectId: entry.subjectId,
         createdAt: day,
       };

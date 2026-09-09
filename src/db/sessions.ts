@@ -1,3 +1,4 @@
+import { DEFAULT_SEANCE_MINUTES } from "@domain/seance";
 import type { AppDatabase, Session } from ".";
 
 /**
@@ -25,7 +26,7 @@ export async function createSession(
   db: AppDatabase,
   classId: string,
   date: number,
-  options: { subjectId?: string; startsAt?: number } = {},
+  options: { subjectId?: string; startsAt: number; endsAt?: number },
 ): Promise<Session> {
   const day = startOfDay(date);
   // A forced second session can land in the same millisecond as the first in
@@ -38,7 +39,8 @@ export async function createSession(
     id: crypto.randomUUID(),
     classId,
     ...(options.subjectId === undefined ? {} : { subjectId: options.subjectId }),
-    ...(options.startsAt === undefined ? {} : { startsAt: options.startsAt }),
+    startsAt: options.startsAt,
+    endsAt: options.endsAt ?? options.startsAt + DEFAULT_SEANCE_MINUTES,
     date: day,
     createdAt: Math.max(Date.now(), latestExisting + 1),
   };
@@ -128,7 +130,7 @@ export async function sessionsInRange(
 export async function getOrCreateSessionAt(
   db: AppDatabase,
   classId: string,
-  at: { date: number; startsAt?: number; subjectId?: string },
+  at: { date: number; startsAt: number; endsAt?: number; subjectId?: string },
 ): Promise<Session> {
   const date = startOfDay(at.date);
   return db.transaction("rw", db.sessions, async () => {
@@ -139,7 +141,24 @@ export async function getOrCreateSessionAt(
     }
     return createSession(db, classId, date, {
       ...(at.subjectId === undefined ? {} : { subjectId: at.subjectId }),
-      ...(at.startsAt === undefined ? {} : { startsAt: at.startsAt }),
+      startsAt: at.startsAt,
+      ...(at.endsAt === undefined ? {} : { endsAt: at.endsAt }),
     });
   });
+}
+
+/**
+ * Move a séance's start, its end, or both.
+ *
+ * Both ends are written together because they are one fact: an end before its
+ * start is not a lesson, and letting them move separately would make that
+ * state reachable between two writes. The caller validates the order; this
+ * records the result.
+ */
+export async function setSessionTimes(
+  db: AppDatabase,
+  sessionId: string,
+  times: { startsAt: number; endsAt: number },
+): Promise<void> {
+  await db.sessions.update(sessionId, times);
 }

@@ -44,9 +44,10 @@ export function SeanceStrip({
   slots: Slot[];
   current: Slot | null;
   /**
-   * False when the day already holds both this séance and an unscheduled one,
-   * so starting could only produce a row nothing can reach. A button that
-   * cannot do anything is worse than no button.
+   * True only once this lesson is already recorded and no séance sits at the
+   * current clock hour — starting then would only reuse a row already
+   * reachable from the strip. A button that cannot do anything is worse than
+   * no button.
    */
   canStart: boolean;
   className?: string;
