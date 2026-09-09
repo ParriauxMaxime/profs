@@ -356,7 +356,10 @@
   "students": {
     "searchPlaceholder": "Rechercher un élève",
     "none": "Aucun élève pour l'instant.",
-    "noMatch": "Aucun élève ne correspond à « {{query}} »."
+    "noMatch": "Aucun élève ne correspond à « {{query}} ».",
+    "columnClass": "Classe",
+    "allClasses": "Toutes les classes",
+    "classFilterLabel": "Filtrer par classe"
   },
   "schedule": {
     "title": "Emploi du temps",

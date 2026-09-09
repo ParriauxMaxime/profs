@@ -356,7 +356,10 @@
   "students": {
     "searchPlaceholder": "Search for a student",
     "none": "No students yet.",
-    "noMatch": "No student matches “{{query}}”."
+    "noMatch": "No student matches “{{query}}”.",
+    "columnClass": "Class",
+    "allClasses": "All classes",
+    "classFilterLabel": "Filter by class"
   },
   "schedule": {
     "title": "Timetable",

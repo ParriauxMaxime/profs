@@ -1,25 +1,38 @@
+import type { Student } from "@db";
 import { useDb } from "@db/provider";
-import { fuzzyMatchAny } from "@domain/search";
 import { Link } from "@swan-io/chicane";
+import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useState } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
+import { DataTable } from "../design-system/components/data-table";
 import { PupilName } from "../design-system/components/pupil-name";
 
 /**
- * Every pupil in the workspace, searchable.
+ * The class name is carried ON the row rather than looked up in a cell, so
+ * that Classe sorts and so that the accent-insensitive search still reaches
+ * it — "eloise" finds Éloïse, "3°B" finds everyone in 3°B.
+ *
+ * `classLabel` and not `className`: a data field called `className` inside a
+ * React component is a reader's trap, and this codebase has renamed for less
+ * (`SchoolClass` over `class`, `Desk` over `Table`).
+ */
+type StudentRow = Student & { classLabel: string };
+
+const helper = createColumnHelper<StudentRow>();
+
+/**
+ * Every pupil in the workspace, searchable and filterable by class.
  *
  * Its own destination because looking a child up — before a parents' evening,
  * or when a colleague asks — used to mean remembering which class they are in
- * and drilling through it. The search is accent-insensitive, so "eloise"
- * finds Éloïse.
+ * and drilling through it. Both filters live in the URL so that going into a
+ * pupil and coming back does not throw away what the teacher typed.
  */
-export function StudentsPage({ q: _q, classe: _classe }: { q?: string; classe?: string }) {
-  // Tasks 7 and 8 wire up _q and _classe.
+export function StudentsPage({ q, classe }: { q?: string; classe?: string }) {
   const { t } = useTranslation();
   const db = useDb();
-  const [query, setQuery] = useState("");
 
   const data = useLiveQuery(async () => {
     const [students, classes] = await Promise.all([
@@ -29,47 +42,101 @@ export function StudentsPage({ q: _q, classe: _classe }: { q?: string; classe?: 
     return { students, classes };
   }, [db]);
 
+  const rows = useMemo<StudentRow[]>(() => {
+    if (!data) return [];
+    const names = new Map(data.classes.map((c) => [c.id, c.name]));
+    return data.students.map((student) => ({
+      ...student,
+      classLabel: names.get(student.classId) ?? "",
+    }));
+  }, [data]);
+
+  const columns = useMemo(
+    () => [
+      helper.accessor("lastName", {
+        header: () => t("student.lastName"),
+        size: 40,
+        // Through PupilName like every other surname in the app. The accessor
+        // still returns the raw stored value, so sorting and the search read
+        // what the teacher typed rather than the capitals CSS renders.
+        cell: (info) => (
+          <Link
+            to={Router.Student({ studentId: info.row.original.id })}
+            className="font-medium hover:underline"
+          >
+            <PupilName student={info.row.original} format="surname" />
+          </Link>
+        ),
+      }),
+      helper.accessor("firstName", { header: () => t("student.firstName"), size: 35 }),
+      helper.accessor("classLabel", {
+        header: () => t("students.columnClass"),
+        size: 25,
+        cell: (info) => <span className="text-text-muted">{info.getValue()}</span>,
+      }),
+    ],
+    [t],
+  );
+
   if (!data) return <p className="text-text-muted">{t("common.loading")}</p>;
 
-  const className = (id: string) => data.classes.find((c) => c.id === id)?.name ?? "";
-  const matches = data.students.filter((student) =>
-    fuzzyMatchAny([student.firstName, student.lastName, className(student.classId)], query),
-  );
+  // Held as a class ID, never an index, and a class that no longer exists
+  // reads as "Toutes" rather than as an empty list — the same rule
+  // `resolveGroupSelection` applies to the group filter.
+  const selectedClassId = classe && data.classes.some((c) => c.id === classe) ? classe : null;
+
+  const visibleRows = selectedClassId
+    ? rows.filter((row) => row.classId === selectedClassId)
+    : rows;
 
   return (
     <div className="flex flex-col gap-3">
       <h2 className="font-semibold text-lg">{t("nav.students")}</h2>
 
-      <input
-        type="search"
-        className="field max-w-sm"
-        placeholder={t("students.searchPlaceholder")}
-        aria-label={t("students.searchPlaceholder")}
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
+      <DataTable
+        columns={columns as ColumnDef<StudentRow, unknown>[]}
+        data={visibleRows}
+        getRowId={(student) => student.id}
+        globalSearchFields={["lastName", "firstName", "classLabel"]}
+        searchPlaceholder={t("students.searchPlaceholder")}
+        globalFilter={q ?? ""}
+        onGlobalFilterChange={(value) =>
+          Router.replace("Students", {
+            q: value || undefined,
+            classe: selectedClassId ?? undefined,
+          })
+        }
+        onRowClick={(student) => Router.push("Student", { studentId: student.id })}
+        emptyMessage={t("students.none")}
+        // Keeps today's echo of the query. It is how a teacher notices they
+        // typed "brenard" rather than "bernard"; the generic "Aucun résultat"
+        // would not. The class filter needs no mention — the select visibly
+        // shows what it is set to.
+        noResultsMessage={t("students.noMatch", { query: q ?? "" })}
+        toolbar={
+          // A control with one option does nothing.
+          data.classes.length > 1 ? (
+            <select
+              className="field"
+              aria-label={t("students.classFilterLabel")}
+              value={selectedClassId ?? ""}
+              onChange={(e) =>
+                Router.replace("Students", {
+                  q: q || undefined,
+                  classe: e.target.value || undefined,
+                })
+              }
+            >
+              <option value="">{t("students.allClasses")}</option>
+              {data.classes.map((schoolClass) => (
+                <option key={schoolClass.id} value={schoolClass.id}>
+                  {schoolClass.name}
+                </option>
+              ))}
+            </select>
+          ) : undefined
+        }
       />
-
-      {data.students.length === 0 ? (
-        <p className="text-text-muted">{t("students.none")}</p>
-      ) : matches.length === 0 ? (
-        <p className="text-text-muted">{t("students.noMatch", { query })}</p>
-      ) : (
-        <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {matches.map((student) => (
-            <li key={student.id}>
-              <Link
-                to={Router.Student({ studentId: student.id })}
-                className="block rounded border border-border p-3 hover:bg-bg-hover"
-              >
-                <span className="font-medium">
-                  <PupilName student={student} />
-                </span>
-                <span className="ml-2 text-sm text-text-muted">{className(student.classId)}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }
