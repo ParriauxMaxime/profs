@@ -114,14 +114,20 @@ export function StudentCard({
 
   return (
     <div className="paper flex flex-col gap-4 rounded-md border border-border p-4">
+      {/* Wrapping, at every level: the card lives in a 320px column (`lg:w-80`
+          on the class page) and this row carries an avatar, a photo control, a
+          name and Fermer. Without it they shrink past their contents and draw
+          over each other — the surname landed on top of the photo button.
+          `min-w-0` on the name column is what lets the surname wrap instead of
+          setting the column's floor to its own width. */}
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           <PhotoInput
             value={student.photo}
             onChange={(photo) => void setStudentPhoto(db, student.id, photo ?? null)}
           />
-          <div className="flex flex-col">
-            <span className="font-semibold text-lg">
+          <div className="flex min-w-0 flex-col">
+            <span className="break-words font-semibold text-lg">
               <PupilName student={student} />
             </span>
             <Link to={Router.Student({ studentId: student.id })} className="text-accent text-sm">
@@ -129,7 +135,10 @@ export function StudentCard({
             </Link>
           </div>
         </div>
-        <button type="button" className="btn" onClick={onClose}>
+        {/* `shrink-0`, and the row itself does NOT wrap: Fermer stays where a
+            teacher reaches for it — top right of the card — while everything
+            to its left wraps within what is left of the column. */}
+        <button type="button" className="btn shrink-0" onClick={onClose}>
           {t("common.close")}
         </button>
       </div>
@@ -167,7 +176,16 @@ export function StudentCard({
                     key={value}
                     type="button"
                     aria-pressed={selected}
-                    className={`min-h-11 min-w-11 flex-1 rounded-md border px-3 py-2 font-medium text-sm ${
+                    // `min-w-28`, not `min-w-11`: `flex-1` is `flex: 1 1 0%`
+                    // and a min-width REPLACES the `min-width: auto` that
+                    // stops a flex item shrinking below its content, so the
+                    // 44px tap floor also let four buttons squeeze to ~72px
+                    // in a 320px panel while "Encouragement" — one unbroken
+                    // token, unwrappable — ran straight out of its button.
+                    // A label-sized minimum makes flex-wrap do its job: two
+                    // per row, each then grown by flex-1. `break-words` is
+                    // the backstop for a longer label in another locale.
+                    className={`min-h-11 min-w-28 flex-1 break-words rounded-md border px-3 py-2 font-medium text-sm ${
                       selected
                         ? "border-accent bg-accent text-white"
                         : "border-border bg-bg text-text"
@@ -188,7 +206,9 @@ export function StudentCard({
                 <button
                   key={type}
                   type="button"
-                  className="min-h-11 min-w-11 flex-1 rounded-md border border-border px-3 py-2 font-medium text-sm text-white"
+                  // Same minimum as the attendance row above, for the same
+                  // reason — these are the labels that actually overflowed.
+                  className="min-h-11 min-w-28 flex-1 break-words rounded-md border border-border px-3 py-2 font-medium text-sm text-white"
                   style={{ background: BEHAVIOUR_COLORS[type], color: BEHAVIOUR_TEXT_COLORS[type] }}
                   onClick={() => void addBehaviour(type)}
                 >

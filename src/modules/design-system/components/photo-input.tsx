@@ -53,7 +53,9 @@ export function PhotoInput({
   };
 
   return (
-    <div className="flex items-center gap-3">
+    // Wraps: its one caller is the pupil card, in a 320px column, where the
+    // avatar and a full-width "Ajouter une photo" do not fit on one line.
+    <div className="flex flex-wrap items-center gap-3">
       {preview ? (
         <img
           src={preview}
