@@ -26,7 +26,6 @@
     "menu": "Menu",
     "openMenu": "Ouvrir le menu",
     "closeMenu": "Fermer",
-    "diary": "Journal",
     "rooms": "Salles"
   },
   "common": {
@@ -414,10 +413,7 @@
     "editLesson": "Modifier : {{lesson}}"
   },
   "diary": {
-    "title": "Journal",
     "view": "Affichage",
-    "allClasses": "Toutes les classes",
-    "filterByClass": "Filtrer par classe",
     "searchPlaceholder": "Rechercher dans le journal",
     "today": "Aujourd'hui",
     "previous": "Précédent",
@@ -429,7 +425,6 @@
     "hasEntry": "Contient une note",
     "empty": "Rien d'écrit sur cette période. Choisissez un jour et notez ce que vous avez fait.",
     "noMatch": "Aucune note ne correspond.",
-    "needsClass": "Créez d'abord une classe :",
     "viewLabel": {
       "agenda": "Agenda",
       "week": "Semaine",

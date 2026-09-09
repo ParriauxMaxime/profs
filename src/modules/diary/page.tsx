@@ -1,14 +1,12 @@
-import type { SchoolClass, Session } from "@db";
+import type { Session } from "@db";
 import { useDb } from "@db/provider";
 import { sessionsInRange, startOfDay } from "@db/sessions";
 import { monthGrid, nextDay, previousDay, startOfIsoWeek, weekDays } from "@domain/calendar";
 import { minutesToHm } from "@domain/schedule";
 import { fuzzyMatchAny } from "@domain/search";
-import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Router } from "../../router";
 import { ToggleGroup, ToggleOption } from "../design-system/components/primitives";
 import { SeanceNote } from "./components/seance-note";
 
@@ -16,7 +14,7 @@ const VIEWS = ["agenda", "week", "month"] as const;
 type View = (typeof VIEWS)[number];
 
 /**
- * The journal, read through a calendar.
+ * One class's journal, read through a calendar.
  *
  * Deliberately not called a cahier de textes: that record is legally mandated
  * in France and must be consultable by pupils, parents and the chef
@@ -30,21 +28,16 @@ type View = (typeof VIEWS)[number];
  * and a class never opened that day carries none — the archive shows only
  * lessons that actually happened, never a prediction from the timetable.
  *
- * With the class filter off and the week mode on, this is what was scoped as
- * the 4c planner. A second calendar rendering the same tables would have been
- * one more thing to keep in sync.
+ * `classId` is required, and the cross-class view it used to offer behind a
+ * selector is gone with the `/diary` destination: a teacher looks back at 3°B,
+ * from 3°B. Reading every class at once answered a question nobody was asking
+ * and cost a whole drawer entry to reach.
  */
-export function DiaryPage({ classId: pinnedClassId }: { classId?: string } = {}) {
+export function DiaryPage({ classId }: { classId: string }) {
   const { t, i18n } = useTranslation();
   const db = useDb();
 
   const [view, setView] = useState<View>("agenda");
-  // Held as a class id, never an index into the list.
-  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
-  // A pinned class wins over the selector, and hides it: that is the class
-  // hub's Journal tab, which is this page over one class rather than a second
-  // calendar built on the same tables.
-  const classId = pinnedClassId ?? selectedClassId;
   const [query, setQuery] = useState("");
   // The day the visible window is anchored on. Local midnight, always.
   const [anchor, setAnchor] = useState(() => startOfDay(Date.now()));
@@ -61,11 +54,7 @@ export function DiaryPage({ classId: pinnedClassId }: { classId?: string } = {})
 
   if (!data) return <p className="text-text-muted">{t("common.loading")}</p>;
 
-  const visibleClasses =
-    classId === null ? data.classes : data.classes.filter((c) => c.id === classId);
-  const visibleClassIds = new Set(visibleClasses.map((c) => c.id));
-
-  const sessions = data.sessions.filter((s) => visibleClassIds.has(s.classId));
+  const sessions = data.sessions.filter((s) => s.classId === classId);
 
   const className = (id: string) => data.classes.find((c) => c.id === id)?.name ?? "";
 
@@ -80,11 +69,8 @@ export function DiaryPage({ classId: pinnedClassId }: { classId?: string } = {})
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        {/* Pinned inside the class hub, the tab is already labelled "Journal"
-            — a second heading two lines below it says nothing. */}
-        {pinnedClassId === undefined && (
-          <h2 className="font-semibold text-lg">{t("diary.title")}</h2>
-        )}
+        {/* No heading: the link that reaches this page is already labelled
+            Journal, and a second one two lines below it says nothing. */}
         <ToggleGroup label={t("diary.view")}>
           {VIEWS.map((option) => (
             <ToggleOption key={option} selected={view === option} onSelect={() => setView(option)}>
@@ -95,22 +81,6 @@ export function DiaryPage({ classId: pinnedClassId }: { classId?: string } = {})
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {pinnedClassId === undefined && (
-          <select
-            className="field w-auto"
-            aria-label={t("diary.filterByClass")}
-            value={selectedClassId ?? ""}
-            onChange={(e) => setSelectedClassId(e.target.value === "" ? null : e.target.value)}
-          >
-            <option value="">{t("diary.allClasses")}</option>
-            {data.classes.map((schoolClass: SchoolClass) => (
-              <option key={schoolClass.id} value={schoolClass.id}>
-                {schoolClass.name}
-              </option>
-            ))}
-          </select>
-        )}
-
         <input
           type="search"
           className="field max-w-xs"
@@ -144,15 +114,6 @@ export function DiaryPage({ classId: pinnedClassId }: { classId?: string } = {})
 
         <span className="text-sm text-text-muted">{windowLabel(view, anchor, i18n.language)}</span>
       </div>
-
-      {data.classes.length === 0 && (
-        <p className="text-text-muted">
-          {t("diary.needsClass")}{" "}
-          <Link to={Router.Classes()} className="underline">
-            {t("nav.classes")}
-          </Link>
-        </p>
-      )}
 
       {view === "agenda" && (
         <AgendaView

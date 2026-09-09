@@ -232,7 +232,7 @@ The canvas reports where the pointer IS, unsnapped; the editor resolves the
 square, because which square you get depends on the furniture and on which
 table is in hand — neither of which `RoomCanvas` knows.
 
-**Salles is a seventh drawer destination.** That looks like a violation of the
+**Salles is a drawer destination.** That looks like a violation of the
 rule keeping workspace management out of the drawer and is not: that rule is
 about *configuration*. Once furniture belongs to the établissement rather than
 to a class, a salle is *content*, like Élèves.
@@ -272,7 +272,7 @@ A teacher thinks in 3°B, not in carnets and rosters, so a class is **one page**
 
 **`/gradebooks` — the flat list — was removed deliberately.** It had existed because reaching a grid meant going through a class; the judgement is that this treated a symptom, since the hop was expensive only while the class page was a dead end. A class carrying the register, the journal and the carnets is a destination, not a detour. Marking starts at Classes → the class → Carnets. Do not "fix" this back by accident: `docs/superpowers/specs/2026-09-02-profs-phase6-class-hub.md` carries the argument, and reversing it is cheap if it proves wrong.
 
-The class's Journal is `DiaryPage` with a `classId` prop that pins the class and hides the selector — not a second calendar over the same tables.
+The class's Journal is `DiaryPage`, which takes the `classId` it reads and has no class selector — the archive of one class, reached from that class. There is no cross-class journal: `/diary` and its drawer entry were removed, on the judgement that a teacher looks back at 3°B from 3°B, and that reading every class's séances at once answered a question nobody was asking. `SeanceNote` stays where it is, since the class page writes the day's note inline through it.
 
 ### The schedule predicts; it never pre-creates
 
@@ -324,7 +324,7 @@ The backup format is **11**. A version-10 file is refused whole rather than impo
 
 ### Navigation
 
-There is no top bar. `AdminLayout` renders one floating hamburger at the top left (44px, safe-area inset) and `AppDrawer`, which holds every destination: Aujourd'hui, Classes, Élèves, Emploi du temps, Journal, Réglages. Carnets is absent — a carnet is reached through its class.
+There is no top bar. `AdminLayout` renders one floating hamburger at the top left (44px, safe-area inset) and `AppDrawer`, which holds every destination: Aujourd'hui, Classes, Élèves, Emploi du temps, Salles, Réglages. Carnets and Journal are absent — each is reached through its class.
 
 The drawer is not a `<dialog>`, since blocking dialogs are banned here, so it implements the discipline by hand: Escape closes, focus moves in on open and returns to the button on close, Tab is trapped, the backdrop closes on click, body scroll is locked, and the panel carries `inert` when closed so a translated-off drawer never sits silently in the tab order. Anything added to it keeps all of that.
 
@@ -551,7 +551,7 @@ Destructive actions go through `ConfirmButton`, which opens a dialog. `confirmLa
 - A gradebook cannot be renamed after creation, and periods cannot be reordered.
 - `src/modules/classes/page.tsx` imports `ClassForm` from the class module, crossing the boundary described above. An accepted exception, since both screens create classes.
 - The timetable is weekly with A/B alternation only. French secondary runs weekly, and an n-day rotation would cost every teacher editor complexity for a case this audience rarely has.
-- The journal is one free-text box per séance — no objectives, homework or competency fields. Structure was considered and rejected: the writing happens mid-lesson or at 21h, and search compensates. `/diary` groups the séances into days, since a teacher records in lessons and looks back in days; the cross-class view is that page with the class filter off.
+- The journal is one free-text box per séance — no objectives, homework or competency fields. Structure was considered and rejected: the writing happens mid-lesson or at 21h, and search compensates. A class's Journal groups its séances into days, since a teacher records in lessons and looks back in days.
 - Attachments do not exist and are not a small addition: they are the resources manager, parked with its storage-budget question unanswered, and the journal is the back door they would arrive through.
 - The CLASS seating plan has no drag and drop, deliberately: a keyboard equivalent is needed regardless, so pick-up-then-place stays the gesture there. The salle editor does drag, on pointer events — the old "automation cannot drive it" half of this ruling was true only of HTML5 drag, and a synthesised pointer sequence drives the new one fine.
 - Changing the layout of an existing salle means moving its tables by hand. Re-stamping a shape went with the Disposition panel, and with it `applyShape`, the one piece of code that could destroy the furniture while pouring each class's pupils back in reading order.

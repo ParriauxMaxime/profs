@@ -13,7 +13,6 @@ export const Router = createRouter(
     Classes: "/classes?:q&:sort&:dir",
     Students: "/students?:q&:classe&:sort&:dir",
     Schedule: "/schedule",
-    Diary: "/diary",
     // A salle belongs to the établissement, not to a class, so it is a
     // destination of its own rather than a panel inside one.
     Rooms: "/salles",

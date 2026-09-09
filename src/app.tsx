@@ -27,7 +27,6 @@ export function App() {
     "Classes",
     "Students",
     "Schedule",
-    "Diary",
     "Rooms",
     "Room",
     "Class",
@@ -65,7 +64,6 @@ type AppRoute = NonNullable<
       | "Classes"
       | "Students"
       | "Schedule"
-      | "Diary"
       | "Rooms"
       | "Room"
       | "Class"
@@ -103,8 +101,6 @@ function Routes({ route }: { route: AppRoute }) {
       );
     case "Schedule":
       return <SchedulePage />;
-    case "Diary":
-      return <DiaryPage />;
     case "Rooms":
       return <RoomsPage />;
     case "Room":
@@ -119,8 +115,8 @@ function Routes({ route }: { route: AppRoute }) {
     case "ClassStudents":
       return <ClassStudentsPage classId={route.params.classId} />;
     case "ClassDiary":
-      // DiaryPage already accepts a classId that pins it to one class and
-      // hides the class selector — no wrapper needed.
+      // The journal is one class's archive and nothing else: DiaryPage takes
+      // the class it reads, so there is no wrapper and no selector.
       return <DiaryPage classId={route.params.classId} />;
     case "ClassPlanLegacy":
     case "ClassStudentsLegacy":
