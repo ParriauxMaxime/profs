@@ -469,6 +469,8 @@
     "deskCount_one": "{{count}} place",
     "deskCount_other": "{{count}} places",
     "usedBy": "Utilisée par {{classes}}",
+    "usedByMore_one": "Utilisée par {{classes}} et {{count}} autre",
+    "usedByMore_other": "Utilisée par {{classes}} et {{count}} autres",
     "usedByNobody": "Utilisée par aucune classe",
     "confirmDelete": "Supprimer « {{name}} » ?",
     "confirmDeleteBody": "Ses tables partent avec elle.",

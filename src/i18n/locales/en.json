@@ -469,6 +469,8 @@
     "deskCount_one": "{{count}} seat",
     "deskCount_other": "{{count}} seats",
     "usedBy": "Used by {{classes}}",
+    "usedByMore_one": "Used by {{classes}} and {{count}} other",
+    "usedByMore_other": "Used by {{classes}} and {{count}} others",
     "usedByNobody": "Used by no class",
     "confirmDelete": "Delete “{{name}}”?",
     "confirmDeleteBody": "Its tables go with it.",
