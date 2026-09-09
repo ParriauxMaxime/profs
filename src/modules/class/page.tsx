@@ -80,7 +80,7 @@ export function ClassPage({
   // No `date` in the URL is "wherever the teacher is", so the slot is the
   // day's first. With one, the URL names a time — and `resolveSlot` falls back
   // to the day's first when a lesson has since moved off that hour.
-  const wanted = wantedDay === null ? null : { startsAt: at === undefined ? null : Number(at) };
+  const wanted = wantedDay === null || at === undefined ? null : { startsAt: Number(at) };
 
   const schoolClass = useLiveQuery(
     // An explicit null distinguishes "no such class" from "still loading":
@@ -141,9 +141,6 @@ export function ClassPage({
   // Broken out of `slot` so the callbacks below depend on values rather than
   // on an object rebuilt every render.
   const slotStartsAt = slot?.startsAt ?? null;
-  // Task 4 makes this a real value once `Slot` carries an end; until then it
-  // is always null, which `ensureSeance` treats as "let `createSession` pick
-  // the default end".
   const slotEndsAt = slot?.endsAt ?? null;
   const slotSessionId = slot?.sessionId ?? null;
   const slotSubjectId = dayEntries.find((e) => e.id === slot?.entryId)?.subjectId;
@@ -171,7 +168,7 @@ export function ClassPage({
     const session = await getOrCreateSessionAt(db, classId, {
       date: seanceDay,
       startsAt,
-      ...(slotEndsAt === null || slotEndsAt === undefined ? {} : { endsAt: slotEndsAt }),
+      ...(slotEndsAt === null ? {} : { endsAt: slotEndsAt }),
       ...(slotSubjectId === undefined ? {} : { subjectId: slotSubjectId }),
     });
     return session.id;
@@ -193,7 +190,7 @@ export function ClassPage({
       Router.push("Class", {
         classId,
         date: String(target.date),
-        ...(target.startsAt === null ? {} : { at: String(target.startsAt) }),
+        at: String(target.startsAt),
       });
     },
     [classId],

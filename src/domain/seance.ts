@@ -54,8 +54,10 @@ export function backfillSeanceTimes(row: {
  */
 export interface Slot {
   date: number;
-  /** Minutes from midnight, or null for an unscheduled séance. */
-  startsAt: number | null;
+  /** Minutes from midnight. Every slot has one — see `Session.startsAt`. */
+  startsAt: number;
+  /** Minutes from midnight. What gives a block its height on the week grid. */
+  endsAt: number;
   /** The séance, once something has been recorded against it. */
   sessionId: string | null;
   /** The timetable entry that predicted it, if any. */
@@ -65,13 +67,15 @@ export interface Slot {
 interface SessionLike {
   id: string;
   classId: string;
-  startsAt?: number;
+  startsAt: number;
+  endsAt: number;
 }
 
 interface EntryLike {
   id: string;
   classId: string;
   startMinute: number;
+  endMinute: number;
 }
 
 /**
@@ -86,8 +90,6 @@ interface EntryLike {
  *
  * Timed séances are paired first, so a séance that knows its hour cannot have
  * its lesson taken by one that only knows its class.
- *
- * An untimed séance sorts last: it has nothing to sort by.
  */
 export function slotsForDay(
   sessions: readonly SessionLike[],
@@ -98,7 +100,6 @@ export function slotsForDay(
   const pairedEntry = new Map<string, EntryLike>();
 
   for (const session of sessions) {
-    if (session.startsAt === undefined) continue;
     const entry = entries.find(
       (e) =>
         e.classId === session.classId && e.startMinute === session.startsAt && !claimed.has(e.id),
@@ -108,27 +109,15 @@ export function slotsForDay(
     pairedEntry.set(session.id, entry);
   }
 
-  // A séance with no time at all is a séance recorded before séances carried
-  // one, and it belongs to the lesson the timetable predicted — showing it as
-  // a second, unscheduled row would render one lesson twice on the upgrade
-  // day. It pairs only when it is its class's ONLY séance of the day: an
-  // unscheduled séance is deliberately created BESIDE another one, and
-  // absorbing that into a lesson the teacher has not started would leave the
-  // strip with no unscheduled slot to open.
-  for (const session of sessions) {
-    if (session.startsAt !== undefined) continue;
-    if (sessions.some((s) => s.id !== session.id && s.classId === session.classId)) continue;
-    const entry = entries.find((e) => e.classId === session.classId && !claimed.has(e.id));
-    if (!entry) continue;
-    claimed.add(entry.id);
-    pairedEntry.set(session.id, entry);
-  }
-
   const slots: Slot[] = sessions.map((session) => {
     const entry = pairedEntry.get(session.id);
     return {
       date,
-      startsAt: session.startsAt ?? entry?.startMinute ?? null,
+      // The séance's own times win over the entry's: the entry says what was
+      // intended, the séance says what happened, and a lesson that ran long
+      // must draw as long as it ran.
+      startsAt: session.startsAt,
+      endsAt: session.endsAt,
       sessionId: session.id,
       entryId: entry?.id ?? null,
     };
@@ -136,15 +125,16 @@ export function slotsForDay(
 
   for (const entry of entries) {
     if (claimed.has(entry.id)) continue;
-    slots.push({ date, startsAt: entry.startMinute, sessionId: null, entryId: entry.id });
+    slots.push({
+      date,
+      startsAt: entry.startMinute,
+      endsAt: entry.endMinute,
+      sessionId: null,
+      entryId: entry.id,
+    });
   }
 
-  return slots.sort((a, b) => {
-    if (a.startsAt === b.startsAt) return 0;
-    if (a.startsAt === null) return 1;
-    if (b.startsAt === null) return -1;
-    return a.startsAt - b.startsAt;
-  });
+  return slots.sort((a, b) => a.startsAt - b.startsAt);
 }
 
 /**
@@ -156,7 +146,7 @@ export function slotsForDay(
  */
 export function resolveSlot(
   slots: readonly Slot[],
-  wanted: { startsAt: number | null } | null,
+  wanted: { startsAt: number } | null,
 ): Slot | null {
   if (slots.length === 0) return null;
   if (wanted === null) return slots[0];

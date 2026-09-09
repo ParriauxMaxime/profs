@@ -60,7 +60,6 @@ export function SeanceStrip({
   const dayFormat = new Intl.DateTimeFormat(i18n.language, { dateStyle: "long" });
 
   const label = (slot: Slot): string => {
-    if (slot.startsAt === null) return t("seance.unscheduled");
     const { hours, minutes } = minutesToHm(slot.startsAt);
     // Both forms of the hour, because padding it is a LANGUAGE decision and
     // belongs in the locale file: French writes 8h00 and English 08:00. The
@@ -107,7 +106,7 @@ export function SeanceStrip({
             <button
               // Anchored to the slot's day and time, never to its position in
               // the strip: the list reorders as séances are created.
-              key={`${slot.date}-${slot.startsAt ?? "x"}`}
+              key={`${slot.date}-${slot.startsAt}`}
               type="button"
               aria-current={isCurrent ? "true" : undefined}
               // No height override: these are tapped mid-lesson, so they keep

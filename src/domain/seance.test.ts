@@ -12,26 +12,27 @@ import {
 
 const DAY = 1_757_289_600_000; // an arbitrary startOfDay
 
-const session = (id: string, startsAt?: number, classId = "c1") => ({
+const session = (id: string, startsAt: number, classId = "c1", endsAt = startsAt + 55) => ({
   id,
   classId,
-  date: DAY,
-  createdAt: 1,
-  ...(startsAt === undefined ? {} : { startsAt }),
+  startsAt,
+  endsAt,
 });
-const entry = (id: string, startMinute: number, classId = "c1") => ({
+const entry = (id: string, startMinute: number, classId = "c1", endMinute = startMinute + 55) => ({
   id,
   classId,
   weekday: 1,
   startMinute,
-  endMinute: startMinute + 55,
+  endMinute,
   weekCycle: "all" as const,
 });
 
 describe("slotsForDay", () => {
   it("pairs a séance with the lesson it was taught at", () => {
     const slots = slotsForDay([session("s1", 600)], [entry("e1", 600)], DAY);
-    expect(slots).toEqual([{ date: DAY, startsAt: 600, sessionId: "s1", entryId: "e1" }]);
+    expect(slots).toEqual([
+      { date: DAY, startsAt: 600, endsAt: 655, sessionId: "s1", entryId: "e1" },
+    ]);
   });
 
   /**
@@ -40,17 +41,27 @@ describe("slotsForDay", () => {
    */
   it("keeps a scheduled lesson that has no séance", () => {
     const slots = slotsForDay([], [entry("e1", 600)], DAY);
-    expect(slots).toEqual([{ date: DAY, startsAt: 600, sessionId: null, entryId: "e1" }]);
+    expect(slots).toEqual([
+      { date: DAY, startsAt: 600, endsAt: 655, sessionId: null, entryId: "e1" },
+    ]);
   });
 
-  it("keeps a séance no lesson predicted", () => {
-    const slots = slotsForDay([session("s1")], [], DAY);
-    expect(slots).toEqual([{ date: DAY, startsAt: null, sessionId: "s1", entryId: null }]);
+  it("gives a slot the entry's end when the timetable predicted it", () => {
+    const slots = slotsForDay(
+      [],
+      [{ id: "e1", classId: "c1", startMinute: 600, endMinute: 655 }],
+      DAY,
+    );
+    expect(slots).toEqual([
+      { date: DAY, startsAt: 600, endsAt: 655, sessionId: null, entryId: "e1" },
+    ]);
   });
 
-  it("orders by time, untimed last", () => {
-    const slots = slotsForDay([session("s1"), session("s2", 840)], [entry("e1", 600)], DAY);
-    expect(slots.map((s) => s.startsAt)).toEqual([600, 840, null]);
+  it("gives an unpaired séance its own stored end, not a guess", () => {
+    const slots = slotsForDay([{ id: "s1", classId: "c1", startsAt: 840, endsAt: 950 }], [], DAY);
+    expect(slots).toEqual([
+      { date: DAY, startsAt: 840, endsAt: 950, sessionId: "s1", entryId: null },
+    ]);
   });
 
   /**
@@ -66,7 +77,40 @@ describe("slotsForDay", () => {
       DAY,
     );
     expect(slots.find((s) => s.sessionId === "s1")?.entryId).toBe("e1");
-    expect(slots).toContainEqual({ date: DAY, startsAt: 600, sessionId: null, entryId: "e2" });
+    expect(slots).toContainEqual({
+      date: DAY,
+      startsAt: 600,
+      endsAt: 655,
+      sessionId: null,
+      entryId: "e2",
+    });
+  });
+
+  it("still pairs a séance only with a lesson of its own class", () => {
+    // Two classes at one minute is legal, and Aujourd'hui reads every class at
+    // once — so time alone would let one class's séance claim another's lesson.
+    const slots = slotsForDay(
+      [{ id: "s1", classId: "c2", startsAt: 600, endsAt: 655 }],
+      [
+        { id: "e1", classId: "c1", startMinute: 600, endMinute: 655 },
+        { id: "e2", classId: "c2", startMinute: 600, endMinute: 655 },
+      ],
+      DAY,
+    );
+    expect(slots.find((s) => s.sessionId === "s1")?.entryId).toBe("e2");
+    expect(slots).toHaveLength(2);
+  });
+
+  it("takes the séance's end over the entry's when a paired lesson ran long", () => {
+    // The séance records what happened; the entry records what was intended.
+    const slots = slotsForDay(
+      [{ id: "s1", classId: "c1", startsAt: 600, endsAt: 720 }],
+      [{ id: "e1", classId: "c1", startMinute: 600, endMinute: 655 }],
+      DAY,
+    );
+    expect(slots).toEqual([
+      { date: DAY, startsAt: 600, endsAt: 720, sessionId: "s1", entryId: "e1" },
+    ]);
   });
 
   it("pairs each class's séance with its own lesson when both are at the same minute", () => {
@@ -80,36 +124,6 @@ describe("slotsForDay", () => {
     expect(slots.find((s) => s.sessionId === "s2")?.entryId).toBe("e2");
   });
 
-  /**
-   * A séance recorded before séances carried a time. It belongs to the lesson
-   * the timetable predicted; a second row would render one lesson twice.
-   */
-  it("pairs an untimed séance with its own class's lesson", () => {
-    const slots = slotsForDay([session("s1")], [entry("e1", 600)], DAY);
-    expect(slots).toEqual([{ date: DAY, startsAt: 600, sessionId: "s1", entryId: "e1" }]);
-  });
-
-  it("does not pair an untimed séance with another class's lesson", () => {
-    const slots = slotsForDay([session("s1", undefined, "c1")], [entry("e1", 600, "c2")], DAY);
-    expect(slots).toEqual([
-      { date: DAY, startsAt: 600, sessionId: null, entryId: "e1" },
-      { date: DAY, startsAt: null, sessionId: "s1", entryId: null },
-    ]);
-  });
-
-  /**
-   * The unscheduled séance the strip's "Commencer une séance" makes is created
-   * BESIDE another one. Absorbing it into a lesson nobody started would leave
-   * the strip with no unscheduled slot to open.
-   */
-  it("leaves a deliberate unscheduled séance unpaired when the class already has one", () => {
-    const slots = slotsForDay([session("s1", 600), session("s2")], [entry("e1", 600)], DAY);
-    expect(slots).toEqual([
-      { date: DAY, startsAt: 600, sessionId: "s1", entryId: "e1" },
-      { date: DAY, startsAt: null, sessionId: "s2", entryId: null },
-    ]);
-  });
-
   it("does not pair two séances with one lesson", () => {
     const slots = slotsForDay([session("s1", 600), session("s2", 600)], [entry("e1", 600)], DAY);
     expect(slots).toHaveLength(2);
@@ -119,8 +133,8 @@ describe("slotsForDay", () => {
 
 describe("resolveSlot", () => {
   const slots: Slot[] = [
-    { date: DAY, startsAt: 600, sessionId: "s1", entryId: "e1" },
-    { date: DAY, startsAt: 840, sessionId: null, entryId: "e2" },
+    { date: DAY, startsAt: 600, endsAt: 655, sessionId: "s1", entryId: "e1" },
+    { date: DAY, startsAt: 840, endsAt: 895, sessionId: null, entryId: "e2" },
   ];
 
   it("finds the slot at the time asked for", () => {
@@ -137,11 +151,6 @@ describe("resolveSlot", () => {
 
   it("takes the day's first slot when no time is asked for", () => {
     expect(resolveSlot(slots, null)?.startsAt).toBe(600);
-  });
-
-  it("finds an untimed slot when one is asked for", () => {
-    const withUntimed = [...slots, { date: DAY, startsAt: null, sessionId: "s3", entryId: null }];
-    expect(resolveSlot(withUntimed, { startsAt: null })?.sessionId).toBe("s3");
   });
 
   it("gives nothing for a day with nothing on it", () => {
