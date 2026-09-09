@@ -489,5 +489,10 @@
     "confirmDeleteBody": "Its attendance and behaviour go with it.",
     "day": "Day",
     "today": "today"
+  },
+  "classes": {
+    "searchPlaceholder": "Filter by name",
+    "columnName": "Name",
+    "columnHeadcount": "Pupils"
   }
 }

@@ -489,5 +489,10 @@
     "confirmDeleteBody": "Sa présence et son comportement partent avec elle.",
     "day": "Jour",
     "today": "aujourd'hui"
+  },
+  "classes": {
+    "searchPlaceholder": "Filtrer par nom",
+    "columnName": "Nom",
+    "columnHeadcount": "Élèves"
   }
 }
