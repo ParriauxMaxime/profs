@@ -351,4 +351,45 @@ describe("schema v16 — a séance gets a start and an end", () => {
 
     fresh.close();
   });
+
+  it("keeps BOTH séances of a collision reachable, not just present", async () => {
+    // Two séances of the same class on the same day, created within the same
+    // hour — precisely what `startSeance`'s old untimed branch produced
+    // routinely, since it fired mid-lesson at the scheduled hour. Backfilling
+    // each row in isolation would floor both to 10:00, and `resolveSlot`
+    // always returns the first match, stranding the second — present in the
+    // database, invisible everywhere the teacher looks.
+    const name = `repro-collision-${crypto.randomUUID()}`;
+    const dateOnly = new Date(2026, 8, 9).getTime();
+    const createdEarly = new Date(2026, 8, 9, 10, 5, 0).getTime();
+    const createdLate = new Date(2026, 8, 9, 10, 40, 0).getTime();
+
+    const old = openV15(name);
+    await old.open();
+    await old.table("sessions").add({
+      id: "s-early",
+      classId: "c1",
+      date: dateOnly,
+      createdAt: createdEarly,
+    });
+    await old.table("sessions").add({
+      id: "s-late",
+      classId: "c1",
+      date: dateOnly,
+      createdAt: createdLate,
+    });
+    old.close();
+
+    const fresh = openWorkspaceDb(name);
+    await fresh.open();
+
+    const early = await fresh.sessions.get("s-early");
+    const late = await fresh.sessions.get("s-late");
+    expect(early?.startsAt).toBe(10 * 60);
+    // Nudged a minute forward rather than lost to the same hour as its
+    // sibling — this is the assertion F1's bug would fail.
+    expect(late?.startsAt).not.toBe(early?.startsAt);
+
+    fresh.close();
+  });
 });

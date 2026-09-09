@@ -79,9 +79,6 @@ export async function setSessionNote(
 
 /**
  * A class's séances on one day, earliest first.
- *
- * An unscheduled séance has no time and sorts last: it has nothing to sort
- * by, and a teacher reads a day as a clock.
  */
 export async function sessionsForDay(
   db: AppDatabase,
@@ -91,8 +88,6 @@ export async function sessionsForDay(
   const day = await db.sessions.where({ classId, date: startOfDay(date) }).toArray();
   return day.sort((a, b) => {
     if (a.startsAt === b.startsAt) return a.createdAt - b.createdAt;
-    if (a.startsAt === undefined) return 1;
-    if (b.startsAt === undefined) return -1;
     return a.startsAt - b.startsAt;
   });
 }
@@ -110,11 +105,7 @@ export async function sessionsInRange(
     .where("date")
     .between(startOfDay(from), startOfDay(to), true, true)
     .toArray();
-  return rows.sort(
-    (a, b) =>
-      b.date - a.date ||
-      (a.startsAt ?? Number.MAX_SAFE_INTEGER) - (b.startsAt ?? Number.MAX_SAFE_INTEGER),
-  );
+  return rows.sort((a, b) => b.date - a.date || a.startsAt - b.startsAt);
 }
 
 /**

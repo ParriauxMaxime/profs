@@ -201,6 +201,21 @@ export function ClassPage({
   );
 
   /**
+   * The séance on screen just had its START corrected. `at` names a minute,
+   * not a row, so leaving it pointed at the old one would make `resolveSlot`
+   * find nothing there and silently fall back to the day's first lesson — the
+   * teacher edits a time and lands on a different séance without warning.
+   * `replace`, not `push`: this corrects the current entry rather than
+   * navigating to a new one.
+   */
+  const retimeCurrentSlot = useCallback(
+    (startsAt: number): void => {
+      Router.replace("Class", { classId, date, at: String(startsAt) });
+    },
+    [classId, date],
+  );
+
+  /**
    * "Commencer une séance": make this slot real, or — when it already is —
    * start a NEW séance at the CURRENT clock hour.
    *
@@ -347,6 +362,7 @@ export function ClassPage({
         onSelectDay={selectDay}
         onSelect={selectSlot}
         onStart={() => void startSeance()}
+        onTimesSaved={retimeCurrentSlot}
       />
 
       {hasRoom ? (

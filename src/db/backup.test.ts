@@ -192,6 +192,33 @@ describe("workspace backup", () => {
 
     expect(parsed.sessions[0].startsAt).toBe(14 * 60);
     expect(parsed.sessions[0].endsAt).toBe(14 * 60 + 55);
+    // The repair upgrades the shape to v12 in full — a v11 file's séances are
+    // now timed and collision-free — so the returned version says 12, not the
+    // 11 the file arrived as.
+    expect(parsed.version).toBe(12);
+    db.close();
+  });
+
+  it("gives two colliding v11 séances of one class on one day different, reachable starts", async () => {
+    // The exact hazard F1 fixed: `startSeance`'s old untimed branch fired
+    // mid-lesson, at the scheduled hour, so two séances of one class on one
+    // day routinely floor to the same `startsAt` once backfilled alone.
+    const db = openWorkspaceDb(`backup-v11-collision-${crypto.randomUUID()}`);
+    const day = startOfDay(new Date(2026, 8, 9).getTime());
+    const createdEarly = new Date(2026, 8, 9, 10, 5, 0).getTime();
+    const createdLate = new Date(2026, 8, 9, 10, 40, 0).getTime();
+    const file = {
+      ...(await exportWorkspace(db)),
+      version: 11,
+      sessions: [
+        { id: "s-early", classId: "c1", date: day, createdAt: createdEarly },
+        { id: "s-late", classId: "c1", date: day, createdAt: createdLate },
+      ],
+    };
+
+    const parsed = parseBackup(file);
+    const starts = parsed.sessions.map((s) => s.startsAt);
+    expect(new Set(starts).size).toBe(2);
     db.close();
   });
 

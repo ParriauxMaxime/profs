@@ -1,6 +1,6 @@
 import { classesOverCapacity, MAX_STUDENTS_PER_CLASS } from "@domain/class-size";
 import { gradeValueSchema } from "@domain/gradebook/grade";
-import { backfillSeanceTimes } from "@domain/seance";
+import { repairSeanceCollisions } from "@domain/seance";
 import { z } from "zod";
 import type { AppDatabase } from ".";
 import type {
@@ -274,16 +274,27 @@ export function parseBackup(backup: unknown): WorkspaceBackup {
 
   // A v11 file's séances carry no times. The same function the v16 upgrade
   // uses repairs them — one implementation, two callers — so a v11 export
-  // imports as a v12 workspace with every séance timed. Applied unconditionally
-  // rather than behind a version check: a v12 file's séances are already
-  // timed, and `backfillSeanceTimes` returns those unchanged, so the branch
-  // would only be a second thing to keep right.
-  const sessions = data.sessions.map((session) => ({
+  // imports as a v12 workspace with every séance timed and no two séances of
+  // one class on one day sharing a start (`repairSeanceCollisions`). Applied
+  // unconditionally rather than behind a version check: a v12 file's séances
+  // are already timed and already collision-free, and the repair returns
+  // those unchanged, so a version branch would only be a second thing to keep
+  // right.
+  // Zipped by INDEX, not by an id lookup: `repairSeanceCollisions` returns
+  // exactly one repaired entry per input row, in the same order, so this
+  // avoids asserting a lookup can never miss.
+  const repairedTimes = repairSeanceCollisions(data.sessions);
+  const sessions = data.sessions.map((session, i) => ({
     ...session,
-    ...backfillSeanceTimes(session),
+    ...repairedTimes[i],
   }));
 
-  return { ...data, sessions };
+  // Honest about what comes out, not just what went in: by this point a v11
+  // file has been fully repaired to v12 shape — every séance timed and
+  // collision-free — so the returned `version` says so rather than echoing
+  // the file's own, which `WorkspaceBackup["version"]` no longer allows to be
+  // anything else.
+  return { ...data, sessions, version: 12 };
 }
 
 /** Destructive: clears every table, then writes the backup's rows. */

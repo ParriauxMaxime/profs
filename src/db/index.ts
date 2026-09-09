@@ -1,4 +1,4 @@
-import { backfillSeanceTimes } from "@domain/seance";
+import { repairSeanceCollisions } from "@domain/seance";
 import Dexie, { type EntityTable, type Table } from "dexie";
 import type {
   Assignment,
@@ -290,13 +290,20 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
    * No `.stores()`: no index changes, so the schema is inherited.
    */
   db.version(16).upgrade(async (tx) => {
+    // Repaired as a WHOLE collection, never row by row: `backfillSeanceTimes`
+    // alone cannot see that two untimed séances of one class on one day floor
+    // to the same hour, and the first `resolveSlot` match would strand the
+    // second forever. See `repairSeanceCollisions` for the invariant.
+    const sessions = await tx.table("sessions").toArray();
+    const repaired = new Map(repairSeanceCollisions(sessions).map((r) => [r.id, r]));
     await tx
       .table("sessions")
       .toCollection()
       .modify((session) => {
-        const { startsAt, endsAt } = backfillSeanceTimes(session);
-        session.startsAt = startsAt;
-        session.endsAt = endsAt;
+        const times = repaired.get(session.id);
+        if (!times) return;
+        session.startsAt = times.startsAt;
+        session.endsAt = times.endsAt;
       });
   });
   return db;

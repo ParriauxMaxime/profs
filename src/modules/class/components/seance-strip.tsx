@@ -40,10 +40,18 @@ function SeanceTimeEditor({
   db,
   sessionId,
   current,
+  onSaved,
 }: {
   db: AppDatabase;
   sessionId: string;
   current: Slot;
+  /**
+   * Called with the new start once the write succeeds, so the URL's `at` can
+   * be corrected to keep naming THIS séance. Without it, editing the start
+   * leaves `at` naming the old minute, `resolveSlot` finds no slot there, and
+   * the page silently falls back to the day's first lesson.
+   */
+  onSaved: (startsAt: number) => void;
 }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
@@ -93,6 +101,7 @@ function SeanceTimeEditor({
           setDraftStart(toTimeValue(startMinutes));
           setDraftEnd(toTimeValue(endMinutes));
           setEditing(false);
+          onSaved(startMinutes);
         }}
       >
         {t("common.save")}
@@ -135,6 +144,7 @@ export function SeanceStrip({
   onSelectDay,
   onSelect,
   onStart,
+  onTimesSaved,
 }: {
   /** Days offering a lesson, oldest first, always including the one on screen. */
   days: number[];
@@ -152,6 +162,12 @@ export function SeanceStrip({
   onSelectDay: (day: number) => void;
   onSelect: (slot: Slot) => void;
   onStart: () => void;
+  /**
+   * The current séance's start was just corrected. The URL's `at` names a
+   * minute, not a row, so it must be re-pointed at the new one or `resolveSlot`
+   * stops finding this séance and silently falls back to the day's first.
+   */
+  onTimesSaved: (startsAt: number) => void;
 }) {
   const { t, i18n } = useTranslation();
   const db = useDb();
@@ -240,6 +256,7 @@ export function SeanceStrip({
           db={db}
           sessionId={currentSessionId}
           current={current}
+          onSaved={onTimesSaved}
         />
       ) : null}
 

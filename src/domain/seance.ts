@@ -22,18 +22,18 @@ export function hourOfDay(ms: number): number {
 }
 
 /**
- * A séance's times, repaired from whatever an older row does carry.
- *
- * Pure, and in the domain, because it has two callers in two layers — the
- * `db.version(16)` upgrade and `parseBackup` — and a repair rule kept in two
- * places is a repair rule that eventually disagrees with itself. This is the
- * argument that made `entriesForDay` one function.
+ * ONE séance's times, repaired from whatever an older row does carry.
  *
  * `createdAt` is the right source for a missing start because of how a séance
  * comes into being: all four things that create one — an attendance mark, a
  * behaviour event, note text, "Commencer une séance" — are acts performed
  * during the lesson, so the hour a séance was created in is the hour it was
  * taught in. Where it guesses wrong, the séance strip's editor corrects it.
+ *
+ * This is the per-row half of the repair. It cannot see siblings, so it
+ * cannot know whether the hour it invents collides with another séance of
+ * the same class on the same day — that is `repairSeanceCollisions`, below,
+ * which both real callers actually use.
  */
 export function backfillSeanceTimes(row: {
   startsAt?: number;
@@ -42,6 +42,96 @@ export function backfillSeanceTimes(row: {
 }): { startsAt: number; endsAt: number } {
   const startsAt = row.startsAt ?? hourOfDay(row.createdAt);
   return { startsAt, endsAt: row.endsAt ?? startsAt + DEFAULT_SEANCE_MINUTES };
+}
+
+/** What `repairSeanceCollisions` needs from a séance row. */
+interface SeanceTimeRow {
+  id: string;
+  classId: string;
+  date: number;
+  createdAt: number;
+  startsAt?: number;
+  endsAt?: number;
+}
+
+/**
+ * A whole collection's séance times, repaired so that no two séances of one
+ * class on one day ever share a `startsAt`.
+ *
+ * Pure, and in the domain, because it has two callers in two layers — the
+ * `db.version(16)` upgrade and `parseBackup` — and a repair rule kept in two
+ * places is a repair rule that eventually disagrees with itself. This is the
+ * argument that made `entriesForDay` one function.
+ *
+ * `backfillSeanceTimes` alone cannot prevent the collision this exists to
+ * fix: it repairs one row at a time, so two untimed séances of the same
+ * class created in the same hour both floor to the identical `startsAt`.
+ * `slotsForDay` then builds two slots with one time, and `resolveSlot` —
+ * which matches by `startsAt` alone — always returns the first. The second
+ * séance becomes unreachable from the strip, the register and the note,
+ * present only in the export, though its attendance and behaviour rows are
+ * never lost.
+ *
+ * The rules:
+ * - Grouped by `(classId, date)`: rows in different classes, or on different
+ *   days, never collide with one another.
+ * - A row that already carries a stored `startsAt` keeps it EXACTLY. A
+ *   repair moves only a time it invented, never one already recorded.
+ * - Among the rows with no stored start, the earliest CREATED keeps the exact
+ *   hour `backfillSeanceTimes` would give it alone; any later one that would
+ *   collide — with a stored start or with another derived one — is nudged
+ *   forward a minute at a time until it lands on a free one. A minute is
+ *   deliberately preferred over the next hour: it stays close to the truth,
+ *   it is visible in the strip, and the teacher can correct it there.
+ * - `endsAt` follows the same rule one level down: a stored one survives
+ *   untouched, a derived one is recomputed from whatever `startsAt` its row
+ *   ends up with.
+ */
+export function repairSeanceCollisions(
+  rows: readonly SeanceTimeRow[],
+): { id: string; startsAt: number; endsAt: number }[] {
+  const groups = new Map<string, SeanceTimeRow[]>();
+  for (const row of rows) {
+    const key = `${row.classId}/${row.date}`;
+    const group = groups.get(key);
+    if (group) group.push(row);
+    else groups.set(key, [row]);
+  }
+
+  const repaired = new Map<string, { startsAt: number; endsAt: number }>();
+
+  for (const group of groups.values()) {
+    const taken = new Set<number>();
+
+    // Stored starts are fixed points: reserved before anything derived is
+    // placed, and never themselves moved.
+    for (const row of group) {
+      if (row.startsAt === undefined) continue;
+      const times = backfillSeanceTimes(row);
+      repaired.set(row.id, times);
+      taken.add(times.startsAt);
+    }
+
+    // Derived rows, earliest created first, so the earliest-created keeps
+    // its exact hour and a later collision is the one that moves.
+    const derived = [...group]
+      .filter((row) => row.startsAt === undefined)
+      .sort((a, b) => a.createdAt - b.createdAt);
+
+    for (const row of derived) {
+      let startsAt = hourOfDay(row.createdAt);
+      while (taken.has(startsAt)) startsAt += 1;
+      taken.add(startsAt);
+      repaired.set(row.id, { startsAt, endsAt: row.endsAt ?? startsAt + DEFAULT_SEANCE_MINUTES });
+    }
+  }
+
+  return rows.map((row) => {
+    const times = repaired.get(row.id);
+    /* istanbul ignore next -- every row belongs to exactly one group above */
+    if (!times) throw new Error("repairSeanceCollisions: row not repaired");
+    return { id: row.id, ...times };
+  });
 }
 
 /**
@@ -87,9 +177,6 @@ interface EntryLike {
  * one class's séance claim another's lesson, and Aujourd'hui, which reads
  * every class at once, would name the wrong class on the row and lose the
  * lesson that was actually started.
- *
- * Timed séances are paired first, so a séance that knows its hour cannot have
- * its lesson taken by one that only knows its class.
  */
 export function slotsForDay(
   sessions: readonly SessionLike[],

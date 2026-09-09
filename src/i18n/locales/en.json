@@ -346,7 +346,6 @@
   },
   "today": {
     "title": "Today",
-    "underway": "under way",
     "noSchedule": "No lessons on your timetable. Start by declaring it:",
     "nothingToday": "Nothing scheduled today.",
     "nothingThisWeek": "Nothing scheduled this week.",
@@ -423,7 +422,6 @@
     "searchPlaceholder": "Search the journal",
     "entryLabel": "Lesson note",
     "seanceAt": "{{time}}",
-    "unscheduled": "Unscheduled lesson",
     "noNote": "No note",
     "hasEntry": "Has a note",
     "empty": "Nothing written for this period. Pick a day and note what you did.",

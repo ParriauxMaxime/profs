@@ -346,7 +346,6 @@
   },
   "today": {
     "title": "Aujourd'hui",
-    "underway": "en cours",
     "noSchedule": "Aucun cours dans votre emploi du temps. Commencez par le déclarer :",
     "nothingToday": "Rien de prévu aujourd'hui.",
     "nothingThisWeek": "Rien de prévu cette semaine.",
@@ -423,7 +422,6 @@
     "searchPlaceholder": "Rechercher dans le journal",
     "entryLabel": "Note de la séance",
     "seanceAt": "{{time}}",
-    "unscheduled": "Séance non planifiée",
     "noNote": "Aucune note",
     "hasEntry": "Contient une note",
     "empty": "Rien d'écrit sur cette période. Choisissez un jour et notez ce que vous avez fait.",

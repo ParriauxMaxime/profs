@@ -4,6 +4,7 @@ import {
   backfillSeanceTimes,
   DEFAULT_SEANCE_MINUTES,
   hourOfDay,
+  repairSeanceCollisions,
   resolveSlot,
   type Slot,
   slotsForDay,
@@ -281,5 +282,118 @@ describe("backfillSeanceTimes", () => {
     const { startsAt, endsAt } = backfillSeanceTimes({ createdAt });
     expect(startsAt).toBe(23 * 60);
     expect(endsAt).toBeLessThanOrEqual(24 * 60);
+  });
+});
+
+describe("repairSeanceCollisions", () => {
+  // Two mid-lesson acts an hour apart in wall-clock reality, but both fall
+  // inside 10h–11h, so both floor to the same derived start — the exact
+  // hazard `startSeance`'s old untimed branch produced routinely.
+  const tenOhFive = new Date(2026, 8, 9, 10, 5, 0).getTime();
+  const tenOhForty = new Date(2026, 8, 9, 10, 40, 0).getTime();
+
+  const row = (
+    id: string,
+    overrides: Partial<{
+      classId: string;
+      date: number;
+      createdAt: number;
+      startsAt: number;
+      endsAt: number;
+    }> = {},
+  ) => ({
+    id,
+    classId: "c1",
+    date: DAY,
+    createdAt: tenOhFive,
+    ...overrides,
+  });
+
+  it("gives two untimed séances of one class created in the same hour different starts", () => {
+    const result = repairSeanceCollisions([
+      row("first", { createdAt: tenOhFive }),
+      row("second", { createdAt: tenOhForty }),
+    ]);
+    const first = result.find((r) => r.id === "first");
+    const second = result.find((r) => r.id === "second");
+    // Earliest created keeps the exact hour.
+    expect(first).toEqual({ id: "first", startsAt: 10 * 60, endsAt: 10 * 60 + 55 });
+    // The later one is nudged a minute forward rather than a whole hour.
+    expect(second).toEqual({ id: "second", startsAt: 10 * 60 + 1, endsAt: 10 * 60 + 1 + 55 });
+  });
+
+  it("never moves a row that already has a stored start, even when a derived row wants that minute", () => {
+    const result = repairSeanceCollisions([
+      // Stored exactly on the hour a derived row would also floor to.
+      row("stored", { startsAt: 10 * 60, endsAt: 10 * 60 + 55, createdAt: tenOhForty }),
+      row("derived", { createdAt: tenOhFive }),
+    ]);
+    const stored = result.find((r) => r.id === "stored");
+    const derived = result.find((r) => r.id === "derived");
+    expect(stored).toEqual({ id: "stored", startsAt: 10 * 60, endsAt: 10 * 60 + 55 });
+    // The derived row is the one that yields, since a repair may only move a
+    // time it invented.
+    expect(derived?.startsAt).not.toBe(10 * 60);
+  });
+
+  it("does not let two different classes at the same hour interfere", () => {
+    const result = repairSeanceCollisions([
+      row("c1-a", { classId: "c1", createdAt: tenOhFive }),
+      row("c2-a", { classId: "c2", createdAt: tenOhFive }),
+    ]);
+    // Same day, same created hour, different classes: neither has to move.
+    expect(result.find((r) => r.id === "c1-a")?.startsAt).toBe(10 * 60);
+    expect(result.find((r) => r.id === "c2-a")?.startsAt).toBe(10 * 60);
+  });
+
+  it("does not let the same class on different days interfere", () => {
+    const result = repairSeanceCollisions([
+      row("day1", { date: DAY, createdAt: tenOhFive }),
+      row("day2", { date: nextDay(DAY), createdAt: tenOhFive }),
+    ]);
+    expect(result.find((r) => r.id === "day1")?.startsAt).toBe(10 * 60);
+    expect(result.find((r) => r.id === "day2")?.startsAt).toBe(10 * 60);
+  });
+
+  it("preserves a stored endsAt, and derives one for a derived start", () => {
+    const result = repairSeanceCollisions([
+      row("stored", { startsAt: 8 * 60, endsAt: 8 * 60 + 90, createdAt: tenOhFive }),
+      row("derived", { createdAt: tenOhFive }),
+    ]);
+    expect(result.find((r) => r.id === "stored")).toEqual({
+      id: "stored",
+      startsAt: 8 * 60,
+      endsAt: 8 * 60 + 90,
+    });
+    const derived = result.find((r) => r.id === "derived");
+    expect(derived?.endsAt).toBe((derived?.startsAt ?? 0) + DEFAULT_SEANCE_MINUTES);
+  });
+
+  // The point of the whole fix: fed through the real pairing and resolution,
+  // both séances must be reachable — not merely have different `startsAt`
+  // values in isolation.
+  it("makes both séances of a collision reachable through slotsForDay and resolveSlot", () => {
+    // Repaired by INDEX, not by an id lookup that would need a non-null
+    // assertion: `repairSeanceCollisions` returns one entry per input row, in
+    // the same order.
+    const repairedTimes = repairSeanceCollisions([
+      row("s-first", { createdAt: tenOhFive }),
+      row("s-second", { createdAt: tenOhForty }),
+    ]);
+    const sessions = [
+      { classId: "c1", ...repairedTimes[0] },
+      { classId: "c1", ...repairedTimes[1] },
+    ];
+
+    const slots = slotsForDay(sessions, [], DAY);
+    expect(slots).toHaveLength(2);
+
+    const first = slots.find((s) => s.sessionId === "s-first");
+    const second = slots.find((s) => s.sessionId === "s-second");
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+
+    expect(resolveSlot(slots, { startsAt: first?.startsAt ?? -1 })?.sessionId).toBe("s-first");
+    expect(resolveSlot(slots, { startsAt: second?.startsAt ?? -1 })?.sessionId).toBe("s-second");
   });
 });

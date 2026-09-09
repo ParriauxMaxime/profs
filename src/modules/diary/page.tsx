@@ -246,9 +246,7 @@ function AgendaView({
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span className="font-medium">{className(session.classId)}</span>
                 <span className="text-sm text-text-muted">
-                  {session.startsAt === undefined
-                    ? t("diary.unscheduled")
-                    : t("diary.seanceAt", { time: formatSeanceTime(session.startsAt, locale) })}
+                  {t("diary.seanceAt", { time: formatSeanceTime(session.startsAt, locale) })}
                 </span>
               </div>
               <SeanceNote
