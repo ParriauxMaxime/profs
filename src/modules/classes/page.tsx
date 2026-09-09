@@ -23,7 +23,10 @@ export function ClassesPage({ q }: { q?: string }) {
   const [addingClass, setAddingClass] = useState(false);
 
   const data = useLiveQuery(async () => {
-    const [classes, students] = await Promise.all([db.classes.toArray(), db.students.toArray()]);
+    const [classes, students] = await Promise.all([
+      db.classes.orderBy("name").toArray(),
+      db.students.toArray(),
+    ]);
     return { classes, students };
   }, [db]);
 

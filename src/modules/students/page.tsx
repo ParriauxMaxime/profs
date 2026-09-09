@@ -37,7 +37,7 @@ export function StudentsPage({ q, classe }: { q?: string; classe?: string }) {
   const data = useLiveQuery(async () => {
     const [students, classes] = await Promise.all([
       db.students.orderBy("lastName").toArray(),
-      db.classes.toArray(),
+      db.classes.orderBy("name").toArray(),
     ]);
     return { students, classes };
   }, [db]);
@@ -107,7 +107,10 @@ export function StudentsPage({ q, classe }: { q?: string; classe?: string }) {
           })
         }
         onRowClick={(student) => Router.push("Student", { studentId: student.id })}
-        emptyMessage={t("students.none")}
+        // The class filter runs before DataTable ever sees the rows, so an
+        // empty result for a chosen class is not "no pupils at all" — pick
+        // the message that matches which one actually happened.
+        emptyMessage={selectedClassId ? t("students.noneInClass") : t("students.none")}
         // Keeps today's echo of the query. It is how a teacher notices they
         // typed "brenard" rather than "bernard"; the generic "Aucun résultat"
         // would not. The class filter needs no mention — the select visibly
