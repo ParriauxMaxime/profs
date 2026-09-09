@@ -10,6 +10,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { useLayoutEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -57,6 +58,32 @@ interface DataTableProps<T> {
    * renders something stateful.
    */
   getRowId?: (row: T) => string;
+  /**
+   * A page's own filters, rendered beside the search input.
+   *
+   * The search input belongs to DataTable; a page-specific control like a
+   * class picker does not. The slot puts them on one line without DataTable
+   * knowing what the control is.
+   */
+  toolbar?: ReactNode;
+  /**
+   * Navigation on a row click, as a MOUSE CONVENIENCE ONLY.
+   *
+   * A <tr> takes no focus and Enter does not fire on it, so this is never the
+   * only way to reach a row's destination: the first cell must hold a real
+   * <Link>. Events originating inside an <a> or a <button> are ignored, so the
+   * link does not fire twice and a row's controls keep working.
+   */
+  onRowClick?: (row: T) => void;
+  /**
+   * The search value, when the page owns it — a list page mirrors it into the
+   * URL so Back restores what the teacher typed. Omit BOTH this and
+   * `onGlobalFilterChange` to let DataTable hold the value itself.
+   */
+  globalFilter?: string;
+  onGlobalFilterChange?: (value: string) => void;
+  /** Replaces the generic "Aucun résultat" when a filter empties the list. */
+  noResultsMessage?: ReactNode;
 }
 
 export function DataTable<T>({
@@ -66,18 +93,36 @@ export function DataTable<T>({
   globalSearchFields,
   searchPlaceholder,
   getRowId,
+  toolbar,
+  onRowClick,
+  globalFilter,
+  onGlobalFilterChange,
+  noResultsMessage,
 }: DataTableProps<T>) {
   const { t } = useTranslation();
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [globalFilter, setGlobalFilter] = useState("");
+
+  // Controlled when the caller passes a value, uncontrolled otherwise. This
+  // fails visibly rather than silently: pass the value without the handler and
+  // the input freezes on the first keystroke, which is noticed immediately.
+  const [uncontrolledFilter, setUncontrolledFilter] = useState("");
+  const isFilterControlled = globalFilter !== undefined;
+  const filterValue = isFilterControlled ? globalFilter : uncontrolledFilter;
+
+  const setFilterValue = (value: string) => {
+    if (!isFilterControlled) setUncontrolledFilter(value);
+    onGlobalFilterChange?.(value);
+  };
 
   const table = useReactTable({
     data,
     columns,
     getRowId: getRowId && ((row) => getRowId(row)),
-    state: { sorting, globalFilter },
+    state: { sorting, globalFilter: filterValue },
     onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
+    onGlobalFilterChange: (updater) => {
+      setFilterValue(typeof updater === "function" ? updater(filterValue) : (updater as string));
+    },
     globalFilterFn: (row, _columnId, filterValue) => {
       if (!globalSearchFields || !filterValue) return true;
       const values = globalSearchFields.flatMap((f) => {
@@ -151,23 +196,37 @@ export function DataTable<T>({
 
   const rowCount = rows.length;
 
+  // A click that started on a link, a button or a form control belongs to that
+  // control. Without this the first cell's <Link> and the row would both fire,
+  // and a row carrying a delete button could not be used at all.
+  const rowClickHandler = (row: T) => (event: ReactMouseEvent<HTMLTableRowElement>) => {
+    if (!onRowClick) return;
+    if ((event.target as HTMLElement).closest("a, button, input, select, textarea, label")) return;
+    onRowClick(row);
+  };
+
   return (
     <div className="flex flex-col gap-3">
-      {globalSearchFields && (
-        <input
-          type="search"
-          placeholder={searchPlaceholder ?? t("common.search")}
-          value={globalFilter}
-          onChange={(e) => setGlobalFilter(e.target.value)}
-          aria-label={searchPlaceholder ?? t("common.search")}
-          className="field"
-        />
+      {(globalSearchFields || toolbar) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {globalSearchFields && (
+            <input
+              type="search"
+              placeholder={searchPlaceholder ?? t("common.search")}
+              value={filterValue}
+              onChange={(e) => setFilterValue(e.target.value)}
+              aria-label={searchPlaceholder ?? t("common.search")}
+              className="field max-w-sm flex-1"
+            />
+          )}
+          {toolbar}
+        </div>
       )}
 
-      {data.length === 0 && !globalFilter ? (
+      {data.length === 0 && !filterValue ? (
         <p className="text-text-muted">{emptyMessage ?? t("common.noData")}</p>
       ) : rowCount === 0 ? (
-        <p className="text-text-muted">{t("common.noResults")}</p>
+        <p className="text-text-muted">{noResultsMessage ?? t("common.noResults")}</p>
       ) : (
         <table
           ref={setTableEl}
@@ -249,7 +308,13 @@ export function DataTable<T>({
                   data-index={virtualRow.index}
                   ref={virtualizer.measureElement}
                   aria-rowindex={virtualRow.index + 2}
-                  className="border-b border-border/50 transition-colors hover:bg-bg-hover"
+                  onClick={rowClickHandler(row.original)}
+                  className={[
+                    "border-b border-border/50 transition-colors hover:bg-bg-hover",
+                    onRowClick ? "cursor-pointer" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td
