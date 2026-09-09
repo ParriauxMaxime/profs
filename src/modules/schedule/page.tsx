@@ -7,10 +7,10 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
+import { type GridColumn, type GridLesson, TimeGrid } from "../design-system/components/time-grid";
 import { useRoomNames } from "../rooms/use-room-names";
 import { useMediaQuery } from "../shared/use-media-query";
 import { EntryForm } from "./components/entry-form";
-import { type GridLesson, TimeGrid } from "./components/time-grid";
 
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 
@@ -62,7 +62,7 @@ export function SchedulePage() {
   // name are two live queries away from a row, and the grid draws.
   const lessons: GridLesson[] = data.entries.map((entry) => ({
     id: entry.id,
-    weekday: entry.weekday,
+    column: String(entry.weekday),
     startMinute: entry.startMinute,
     endMinute: entry.endMinute,
     title: className(entry.classId),
@@ -73,7 +73,7 @@ export function SchedulePage() {
 
   // Weekend columns only earn their space when they hold something.
   const days: number[] = WEEKDAYS.filter(
-    (day) => day <= 5 || lessons.some((lesson) => lesson.weekday === day),
+    (day) => day <= 5 || lessons.some((lesson) => lesson.column === String(day)),
   );
 
   // Today when today is drawn, else the first day of the week. Re-derived
@@ -86,6 +86,12 @@ export function SchedulePage() {
       : days.includes(today)
         ? today
         : (days[0] ?? 1);
+
+  const columns: GridColumn[] = days.map((day) => ({
+    key: String(day),
+    label: t(`schedule.day.${day}`),
+    today: day === today,
+  }));
 
   const editingEntry =
     editing === null || editing === "new"
@@ -172,7 +178,7 @@ export function SchedulePage() {
       )}
 
       <TimeGrid
-        days={wide ? days : [shownDay]}
+        columns={wide ? columns : columns.filter((c) => c.key === String(shownDay))}
         lessons={lessons}
         selectedId={editingEntry?.id ?? null}
         onSelect={setEditing}

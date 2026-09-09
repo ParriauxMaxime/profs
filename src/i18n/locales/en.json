@@ -350,7 +350,8 @@
     "unscheduled": "Not on the timetable",
     "noSchedule": "No lessons on your timetable. Start by declaring it:",
     "nothingToday": "Nothing scheduled today.",
-    "needsTermStart": "Lessons in week A or B need a start-of-year date:"
+    "needsTermStart": "Lessons in week A or B need a start-of-year date:",
+    "recorded": "Lesson recorded"
   },
   "students": {
     "searchPlaceholder": "Search for a student",

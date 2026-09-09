@@ -350,7 +350,8 @@
     "unscheduled": "Hors emploi du temps",
     "noSchedule": "Aucun cours dans votre emploi du temps. Commencez par le déclarer :",
     "nothingToday": "Rien de prévu aujourd'hui.",
-    "needsTermStart": "Les cours en semaine A ou B ont besoin d'une date de début d'année :"
+    "needsTermStart": "Les cours en semaine A ou B ont besoin d'une date de début d'année :",
+    "recorded": "Séance enregistrée"
   },
   "students": {
     "searchPlaceholder": "Rechercher un élève",
