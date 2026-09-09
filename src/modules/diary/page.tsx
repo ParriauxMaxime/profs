@@ -7,6 +7,7 @@ import { fuzzyMatchAny } from "@domain/search";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { CalendarNav } from "../design-system/components/calendar-nav";
 import { ToggleGroup, ToggleOption } from "../design-system/components/primitives";
 import { SeanceNote } from "./components/seance-note";
 
@@ -90,29 +91,12 @@ export function DiaryPage({ classId }: { classId: string }) {
           onChange={(e) => setQuery(e.target.value)}
         />
 
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            className="btn"
-            aria-label={t("diary.previous")}
-            onClick={() => setAnchor(shift(view, anchor, -1))}
-          >
-            ‹
-          </button>
-          <button type="button" className="btn" onClick={() => setAnchor(startOfDay(Date.now()))}>
-            {t("diary.today")}
-          </button>
-          <button
-            type="button"
-            className="btn"
-            aria-label={t("diary.next")}
-            onClick={() => setAnchor(shift(view, anchor, 1))}
-          >
-            ›
-          </button>
-        </div>
-
-        <span className="text-sm text-text-muted">{windowLabel(view, anchor, i18n.language)}</span>
+        <CalendarNav
+          label={windowLabel(view, anchor, i18n.language)}
+          onPrevious={() => setAnchor(shift(view, anchor, -1))}
+          onNext={() => setAnchor(shift(view, anchor, 1))}
+          onToday={() => setAnchor(startOfDay(Date.now()))}
+        />
       </div>
 
       {view === "agenda" && (

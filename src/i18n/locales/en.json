@@ -412,12 +412,14 @@
     "pickDay": "Day shown",
     "editLesson": "Edit: {{lesson}}"
   },
+  "calendar": {
+    "previous": "Previous",
+    "next": "Next",
+    "today": "Today"
+  },
   "diary": {
     "view": "View",
     "searchPlaceholder": "Search the journal",
-    "today": "Today",
-    "previous": "Previous",
-    "next": "Next",
     "entryLabel": "Lesson note",
     "seanceAt": "{{time}}",
     "unscheduled": "Unscheduled lesson",

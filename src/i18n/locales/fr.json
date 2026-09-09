@@ -412,12 +412,14 @@
     "pickDay": "Jour affiché",
     "editLesson": "Modifier : {{lesson}}"
   },
+  "calendar": {
+    "previous": "Précédent",
+    "next": "Suivant",
+    "today": "Aujourd'hui"
+  },
   "diary": {
     "view": "Affichage",
     "searchPlaceholder": "Rechercher dans le journal",
-    "today": "Aujourd'hui",
-    "previous": "Précédent",
-    "next": "Suivant",
     "entryLabel": "Note de la séance",
     "seanceAt": "{{time}}",
     "unscheduled": "Séance non planifiée",
