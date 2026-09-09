@@ -17,6 +17,11 @@ today*.
 
 So `/` becomes the same hour grid, drawn on **real dates** around today.
 
+Drawing hours turns out to need something of the data model, and the second
+half of this spec is that: a séance stops being allowed to have no time. The
+grid is what forced the question, but the answer is an improvement on its own
+— an optional `startsAt` was a hole every reader of a séance had to cover.
+
 That is the whole difference between this screen and `/schedule`, and it is
 worth saying precisely, because the two will look alike. `/schedule` draws the
 **intention**: weekday columns, A/B cycle badges, no dates, and an editor
@@ -85,6 +90,90 @@ front door must never open on `NaN`. This is the resolve-or-ignore rule
 `?classe` already follows for a deleted class and `sortingFromParams` follows
 for a column that no longer exists.
 
+## The Ruling: Every Séance Has a Start and an End
+
+`Session.startsAt` is optional today, and the absence means "a séance recorded
+before séances carried a time, or one opened outside the timetable". That
+absence has to be handled by everything that reads a séance, and on an hour
+grid it has no answer at all: a lesson with no time has no position.
+
+The first draft of this design answered it with a strip under the grid, holding
+the séances that could not be placed. That is a second surface, with its own
+empty state, existing only to hold the consequences of an optional field.
+
+So the field stops being optional. **A séance has a start and an end**, both
+minutes from midnight, and both stored:
+
+```ts
+startsAt: number;   // was startsAt?: number
+endsAt:   number;   // new
+```
+
+Where they come from, at creation:
+
+- **From the lesson**, when the slot has a schedule entry — its `startMinute`
+  and `endMinute`, copied.
+- **From the clock** otherwise — `Date.now()` floored to the hour, and
+  `+ DEFAULT_SEANCE_MINUTES` (55, the ordinary French lesson).
+
+Copied, not referenced. `Session.startsAt` has never been a foreign key into
+the timetable, and that stays true of `endsAt`: a lesson moved to another hour
+next term leaves every past séance holding the hour it actually happened at.
+
+**The end is editable, on the class page's séance strip**, beside the delete
+that already lives there. That is where a séance is an object rather than a
+context, and correcting one is something a teacher does after the fact — a
+lesson that ran long is noticed when it has run long, not when it starts. The
+same control edits the start, so a séance the backfill below guessed at can be
+put right.
+
+### The backfill, and why the standing rule yields
+
+`CLAUDE.md` says schema changes are disposable: bump the version, write no
+upgrade function, let a stale workspace be wiped in Réglages. Its sanctioned
+move for a store whose SHAPE changed is to drop it and redeclare it in the
+next version.
+
+That move is wrong here, and the reason is worth stating so it is not
+"corrected" later. `attendance` and `behaviourEvents` are both keyed to
+`sessions.id`. Dropping the store destroys every séance and leaves a term of
+attendance and behaviour as rows nothing reads, nothing counts, and every
+export carries — the invisible-orphan failure `src/db/cascade.ts` exists to
+prevent, produced deliberately by the rule meant to keep the schema simple.
+
+So `db.version(16)` carries **the first `upgrade()` callback in this
+codebase**:
+
+```ts
+startsAt ??= floorToHour(createdAt)
+endsAt   ??= startsAt + DEFAULT_SEANCE_MINUTES
+```
+
+`createdAt` is the right source because of how a séance comes into being. All
+four triggers — an attendance mark, a behaviour event, note text, *Commencer
+une séance* — are acts performed during the lesson, so the hour a séance was
+created in IS the hour it was taught in. It needs no schedule read, no term
+anchor and no parity resolution inside a Dexie transaction, and the rows it
+repairs are rare by construction. Where it guesses wrong, the strip's editor
+is the correction.
+
+The rule this bends is not abandoned: it stands for every change that adds a
+table or a field. What it does not cover — as it already admits for a changed
+primary key — is a field becoming required underneath rows that carry
+dependents.
+
+### The backup
+
+The format goes to **12**. A version-11 file holds séances with no `startsAt`,
+which the new type forbids.
+
+It is **accepted rather than refused**, unlike the version-10 file that is
+rejected whole: nothing in it is lost, because the same backfill repairs it.
+`parseBackup` runs the backfill function the upgrade uses — one implementation,
+two callers — so a v11 export imports as a v12 workspace with every séance
+timed. A v10 file stays refused; its journal store no longer exists, and that
+is a loss no backfill can undo.
+
 ## Data
 
 One `useLiveQuery`, over four reads:
@@ -115,6 +204,12 @@ that make this correct:
   pairing by time. `/` reads every class at once, which is exactly the case
   where time alone would let one class's séance claim another's lesson — two
   classes at one minute is legal here.
+
+It also gets **simpler**. Its branch for a séance carrying no time — and that
+branch's careful qualifier, that such a séance pairs with its class's lesson
+only when it is that class's only séance of the day — has nothing left to
+match once every séance has a start. `Slot.startsAt` becomes a `number`, and
+`Slot` gains the `endsAt` the grid needs to give a block its height.
 
 This screen is therefore Today's data loading run over seven days instead of
 one. That it needs no new domain function is the evidence the merge was
@@ -223,19 +318,18 @@ a fact about the 12th rather than about Saturdays.
 
 **Blocks link to the lesson**, `Router.Class({ classId, date, at })` — the
 target Today's cards already use, so the class page needs no change. `at` is
-the slot's start minute, or absent for a séance that carries no time.
+the slot's start minute, which every slot now has.
 
-**A séance with no `startsAt`** — one recorded before séances carried a time,
-or a cover lesson opened outside the timetable — has no position on an hour
-grid. Those go in a short strip **under** the grid, labelled as outside the
-timetable, carrying the same link. Dropping them silently is the one outcome
-ruled out: the séance exists, it holds attendance and behaviour, and a screen
-that shows the week must not hide a lesson because it cannot place it.
+**Every séance places.** There is no strip under the grid and no unplaceable
+case, because a séance carries a start and an end of its own. A séance with no
+matching schedule entry draws its own stored times rather than a render-time
+guess, which is the difference between a rectangle the teacher chose and one
+the component invented.
 
-**A timed séance with no matching entry** has a start and no end, since
-`Session` records when a lesson was and never how long it ran. It draws 55
-minutes — the ordinary French lesson — rather than gaining a stored duration
-field for the sake of a rectangle.
+**The class page's séance strip gains a time editor**, which is where the new
+`endsAt` is set. It belongs to that screen rather than to this one: `/` stays a
+signpost, and a control that edited a séance from the front door would be the
+working-surface design rejected above, arriving through a side door.
 
 **Empty states survive, and stay directions rather than decoration.** No
 entries at all → the line pointing at `/schedule`. Entries, but nothing in the
@@ -262,6 +356,23 @@ collapses onto this function, removing the third copy.
 `startOfIsoWeek` (defined in `src/domain/schedule.ts`, re-exported from
 `calendar.ts`) and `weekDays` already exist and are used as they are.
 
+Two more, in `src/domain/seance.ts`, both required by the ruling above:
+
+```ts
+/** The ordinary French lesson. */
+export const DEFAULT_SEANCE_MINUTES = 55;
+
+/** A séance's times, repaired from what a legacy row does carry. */
+export function backfillSeanceTimes(
+  row: { startsAt?: number; endsAt?: number; createdAt: number },
+): { startsAt: number; endsAt: number };
+```
+
+`backfillSeanceTimes` is pure and lives in the domain precisely because it has
+two callers in two layers — the Dexie `upgrade()` and `parseBackup` — and a
+repair rule kept in two places is a repair rule that eventually disagrees with
+itself. It is the same argument that made `entriesForDay` one function.
+
 Nothing else moves into the domain. The weekend-column rule stays in the page,
 where `/schedule` already keeps its own copy of the same judgement; promoting
 it would be a shared abstraction over two call sites that agree by coincidence
@@ -274,6 +385,23 @@ an autumn DST boundary lands on the right calendar day, a step across a year
 end lands in the right year, `n = 0` is identity, and negative `n` mirrors
 positive. The DST cases are the reason the function exists, so they are the
 tests that matter.
+
+`backfillSeanceTimes` is TDD too: a row with neither time gets its hour from
+`createdAt` and a 55-minute end; a row with a start and no end keeps its start;
+a row with both is returned unchanged; and a `createdAt` at 10:37 floors to
+10:00 rather than rounding.
+
+**The schema regression test is not optional here.** `CLAUDE.md` names this
+seam as the suite's blind spot — nothing else runs new code against an old row —
+and asks for one test per store whose shape moved. So `src/db/index.test.ts`
+builds a v15 database with `fake-indexeddb` holding a séance with no
+`startsAt`, plus an attendance row and a behaviour event keyed to it, opens it
+with current code, and asserts three things: the séance now has a start and an
+end, its attendance row still resolves to it, and its behaviour event does too.
+The last two are the whole reason the store was not dropped.
+
+`backup.test.ts` gains a v11 fixture that imports and comes back timed, and
+keeps asserting that a v10 file is refused.
 
 The grid and the page have no component tests, per the standing posture — UI is
 verified by reading and by driving a real browser against `yarn dev` on port
@@ -289,6 +417,9 @@ verified by reading and by driving a real browser against `yarn dev` on port
 6. `/?date=nonsense` opens on today.
 7. `/schedule` still edits: its blocks still open the form, its day picker
    still works, its A/B badges still draw.
+8. The class page's séance strip shows a range and edits both ends; a séance
+   whose end moves changes height on `/` without a reload, through the same
+   `useLiveQuery` every other write goes through.
 
 The validation gate — `yarn format && yarn lint && yarn typecheck && yarn test`
 — must be green, as always.
@@ -299,6 +430,16 @@ The validation gate — `yarn format && yarn lint && yarn typecheck && yarn test
   `src/modules/schedule/components/time-grid.tsx`, generalised)
 - Add: `src/modules/design-system/components/calendar-nav.tsx`
 - Modify: `src/domain/calendar.ts`, `src/domain/calendar.test.ts`
+- Modify: `src/domain/seance.ts`, `src/domain/seance.test.ts` (`Slot.startsAt`
+  becomes required, `Slot.endsAt` added, `DEFAULT_SEANCE_MINUTES`,
+  `backfillSeanceTimes`)
+- Modify: `src/db/types.ts` (`Session.startsAt` required, `Session.endsAt`)
+- Modify: `src/db/index.ts` (`db.version(16)` with the first `upgrade()`)
+- Modify: `src/db/index.test.ts` (the v15 regression test above)
+- Modify: `src/db/sessions.ts` (`getOrCreateSessionAt` takes both times)
+- Modify: `src/db/backup.ts`, `src/db/backup.test.ts` (format 12; v11 accepted
+  through the backfill)
+- Modify: `src/modules/class/page.tsx` (the séance strip's time editor)
 - Modify: `src/modules/today/page.tsx` (rewritten)
 - Modify: `src/modules/schedule/page.tsx` (builds `columns` and `column`)
 - Modify: `src/modules/diary/page.tsx` (uses `CalendarNav` and `addDays`)
@@ -309,6 +450,8 @@ The validation gate — `yarn format && yarn lint && yarn typecheck && yarn test
 ## Out of Scope
 
 - Editing a schedule entry from `/`. It stays a signpost; `/schedule` edits.
+- Editing a séance's times from `/`. The strip on the class page owns that,
+  for the reason given above.
 - Writing a note from `/`. Rejected above, and the reasoning should be
   reopened deliberately if ever revisited rather than arrived at by accident.
 - Wiring `ScheduleEntry.room` to `Room.id` so a block could open onto the right
