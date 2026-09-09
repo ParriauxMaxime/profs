@@ -119,17 +119,19 @@ export function hmToMinutes(hours: number, minutes: number): number {
   return hours * 60 + minutes;
 }
 
+/** One time for display. The caller passes the app locale, never the browser's. */
+export function formatTime(minute: number, locale: string): string {
+  const { hours, minutes } = minutesToHm(minute);
+  return new Intl.DateTimeFormat(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(2000, 0, 1, hours, minutes));
+}
+
 /** A time range for display. The caller passes the app locale, never the browser's. */
 export function formatTimeRange(startMinute: number, endMinute: number, locale: string): string {
-  const fmt = (m: number): string => {
-    const { hours, minutes } = minutesToHm(m);
-    return new Intl.DateTimeFormat(locale, {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date(2000, 0, 1, hours, minutes));
-  };
-  return `${fmt(startMinute)} – ${fmt(endMinute)}`;
+  return `${formatTime(startMinute, locale)} – ${formatTime(endMinute, locale)}`;
 }
 
 /**

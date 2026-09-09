@@ -366,7 +366,6 @@
     "title": "Emploi du temps",
     "addEntry": "Ajouter un cours",
     "empty": "Aucun cours déclaré. Ajoutez-en un pour que la page Aujourd'hui sache quoi afficher.",
-    "dayEmpty": "—",
     "class": "Classe",
     "subject": "Matière",
     "noSubject": "Aucune matière",
@@ -399,7 +398,22 @@
       "A": "Semaine A",
       "B": "Semaine B"
     },
-    "noRoom": "Aucune salle"
+    "noRoom": "Aucune salle",
+    "cycleShort": {
+      "A": "A",
+      "B": "B"
+    },
+    "dayShort": {
+      "1": "Lun",
+      "2": "Mar",
+      "3": "Mer",
+      "4": "Jeu",
+      "5": "Ven",
+      "6": "Sam",
+      "7": "Dim"
+    },
+    "pickDay": "Jour affiché",
+    "editLesson": "Modifier : {{lesson}}"
   },
   "diary": {
     "title": "Journal",

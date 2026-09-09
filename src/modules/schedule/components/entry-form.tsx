@@ -6,6 +6,7 @@ import { hmToMinutes, minutesToHm, overlaps, WEEK_CYCLES, type WeekCycle } from 
 import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ConfirmButton } from "../../design-system/components/confirm-button";
 import { useEscape } from "../../shared/use-escape";
 
 /** `HH:MM` for an `<input type="time">`. */
@@ -39,6 +40,7 @@ export function EntryForm({
   subjects,
   gradebooks,
   siblings,
+  onDelete,
   onDone,
 }: {
   entry: ScheduleEntry | null;
@@ -47,6 +49,12 @@ export function EntryForm({
   gradebooks: Gradebook[];
   /** Every other entry, for the overlap warning. */
   siblings: ScheduleEntry[];
+  /**
+   * Removes the lesson. Absent while creating one, since there is nothing to
+   * remove — this is also the only delete path now: a block in the hour grid
+   * is a 44px target with no room for a second control inside it.
+   */
+  onDelete?: () => Promise<void>;
   onDone: () => void;
 }) {
   const { t } = useTranslation();
@@ -258,13 +266,24 @@ export function EntryForm({
         </p>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button type="submit" className="btn btn-primary">
           {t("common.save")}
         </button>
         <button type="button" className="btn" onClick={onDone}>
           {t("common.cancel")}
         </button>
+        {onDelete && (
+          <div className="ms-auto">
+            <ConfirmButton
+              variant="link"
+              label={t("common.delete")}
+              confirmLabel={t("schedule.confirmDelete")}
+              body={t("schedule.confirmDeleteBody")}
+              onConfirm={onDelete}
+            />
+          </div>
+        )}
       </div>
     </form>
   );

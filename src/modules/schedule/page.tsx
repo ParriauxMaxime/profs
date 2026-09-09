@@ -1,34 +1,47 @@
-import type { ScheduleEntry } from "@db";
 import { deleteScheduleEntry } from "@db/cascade";
 import { useDb } from "@db/provider";
-import { formatTimeRange } from "@domain/schedule";
+import { isoWeekday } from "@domain/schedule";
 import { readTermStart } from "@domain/term";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
-import { ConfirmButton } from "../design-system/components/confirm-button";
 import { useRoomNames } from "../rooms/use-room-names";
+import { useMediaQuery } from "../shared/use-media-query";
 import { EntryForm } from "./components/entry-form";
+import { type GridLesson, TimeGrid } from "./components/time-grid";
 
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 
 /**
- * The weekly timetable, declared once.
+ * The weekly timetable, drawn as hours.
  *
- * Seven day columns on a wide screen, a stacked list below it. Saturday and
- * Sunday are shown only when something is on them — a French secondary
- * timetable rarely uses them, and two permanently empty columns squeeze the
- * five that matter.
+ * The stack of cards this replaced could say what was on Monday and nothing
+ * else: every lesson was the same size, so a free morning and a solid one
+ * looked alike, and a teacher checking whether Thursday was survivable had to
+ * read times off nine cards and do the arithmetic. Hours of fixed height make
+ * that shape visible without reading anything.
+ *
+ * Saturday and Sunday earn a column only when something is on them, as before
+ * — a French secondary timetable rarely uses them, and two permanently empty
+ * columns squeeze the five that matter.
+ *
+ * Below `lg` the same grid draws ONE day, chosen with the picker above it.
+ * Five columns on a phone are five columns of nothing legible, and a
+ * horizontally scrolling week hides the very shape the grid exists to show.
  */
 export function SchedulePage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const db = useDb();
   const roomNames = useRoomNames();
   // Held as an entry id or the string "new", never an index into the list.
   const [editing, setEditing] = useState<string | null>(null);
+  // A weekday, which IS its own identity — unlike a position in a list, it
+  // cannot come to mean a different day when the entries change.
+  const [pickedDay, setPickedDay] = useState<number | null>(null);
   const termStart = readTermStart();
+  const wide = useMediaQuery("(min-width: 1024px)");
 
   const data = useLiveQuery(async () => {
     const [entries, classes, subjects, gradebooks] = await Promise.all([
@@ -46,13 +59,34 @@ export function SchedulePage() {
   const subjectColor = (id: string | undefined) =>
     id === undefined ? undefined : data.subjects.find((s) => s.id === id)?.color;
 
-  const forDay = (weekday: number): ScheduleEntry[] =>
-    data.entries
-      .filter((entry) => entry.weekday === weekday)
-      .sort((a, b) => a.startMinute - b.startMinute);
+  // Resolved to text here rather than in the grid: a class name and a salle
+  // name are two live queries away from a row, and the grid draws.
+  const lessons: GridLesson[] = data.entries.map((entry) => ({
+    id: entry.id,
+    weekday: entry.weekday,
+    startMinute: entry.startMinute,
+    endMinute: entry.endMinute,
+    title: className(entry.classId),
+    ...(roomNames.get(entry.roomId ?? "") ? { room: roomNames.get(entry.roomId ?? "") } : {}),
+    ...(entry.weekCycle !== "all" ? { cycle: t(`schedule.cycleShort.${entry.weekCycle}`) } : {}),
+    ...(subjectColor(entry.subjectId) ? { color: subjectColor(entry.subjectId) } : {}),
+  }));
 
   // Weekend columns only earn their space when they hold something.
-  const days = WEEKDAYS.filter((day) => day <= 5 || forDay(day).length > 0);
+  const days: number[] = WEEKDAYS.filter(
+    (day) => day <= 5 || lessons.some((lesson) => lesson.weekday === day),
+  );
+
+  // Today when today is drawn, else the first day of the week. Re-derived
+  // rather than stored, so a weekend column disappearing cannot strand the
+  // picker on a day that is no longer there.
+  const today = isoWeekday(Date.now());
+  const shownDay =
+    pickedDay !== null && days.includes(pickedDay)
+      ? pickedDay
+      : days.includes(today)
+        ? today
+        : (days[0] ?? 1);
 
   const editingEntry =
     editing === null || editing === "new"
@@ -103,69 +137,48 @@ export function SchedulePage() {
           subjects={data.subjects}
           gradebooks={data.gradebooks}
           siblings={data.entries}
+          onDelete={
+            editingEntry === null
+              ? undefined
+              : async () => {
+                  await deleteScheduleEntry(db, editingEntry.id);
+                  setEditing(null);
+                }
+          }
           onDone={() => setEditing(null)}
         />
       )}
 
-      {data.entries.length === 0 && data.classes.length > 0 ? (
+      {data.entries.length === 0 && data.classes.length > 0 && (
         <p className="text-text-muted">{t("schedule.empty")}</p>
-      ) : (
-        <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">
-          {days.map((day) => (
-            <section key={day} className="flex flex-col gap-2">
-              <h3 className="font-medium text-sm text-text-muted">{t(`schedule.day.${day}`)}</h3>
-              {forDay(day).length === 0 ? (
-                <p className="text-sm text-text-faint">{t("schedule.dayEmpty")}</p>
-              ) : (
-                <ul className="flex flex-col gap-2">
-                  {forDay(day).map((entry) => (
-                    <li
-                      key={entry.id}
-                      className="paper flex flex-col gap-1 rounded border border-border p-2"
-                      style={{
-                        borderLeft: `4px solid ${subjectColor(entry.subjectId) ?? "transparent"}`,
-                      }}
-                    >
-                      <span className="font-medium text-sm">
-                        {formatTimeRange(entry.startMinute, entry.endMinute, i18n.language)}
-                      </span>
-                      <span className="text-sm">{className(entry.classId)}</span>
-                      <span className="flex flex-wrap items-center gap-1 text-text-muted text-xs">
-                        {entry.weekCycle !== "all" && (
-                          <span className="rounded bg-bg-hover px-1">
-                            {t(`schedule.cycleLabel.${entry.weekCycle}`)}
-                          </span>
-                        )}
-                        {roomNames.get(entry.roomId ?? "")}
-                      </span>
-                      <div className="flex flex-wrap gap-1">
-                        <button
-                          type="button"
-                          className="btn btn-sm"
-                          onClick={() => setEditing(entry.id)}
-                        >
-                          {t("common.edit")}
-                        </button>
-                        <ConfirmButton
-                          // Keyed by entry id: without this, the armed delete
-                          // would retarget onto whoever now sits at that
-                          // position if the list reorders underneath it.
-                          key={entry.id}
-                          variant="link"
-                          label={t("common.delete")}
-                          confirmLabel={t("schedule.confirmDelete")}
-                          body={t("schedule.confirmDeleteBody")}
-                          onConfirm={() => deleteScheduleEntry(db, entry.id)}
-                        />
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          ))}
-        </div>
       )}
+
+      {/* The picker is the phone's day columns, collapsed to a row of
+          buttons. On a wide screen every day is drawn, so it would be a
+          control that changes nothing. */}
+      {!wide && (
+        <fieldset className="flex flex-wrap gap-1">
+          <legend className="sr-only">{t("schedule.pickDay")}</legend>
+          {days.map((day) => (
+            <button
+              key={day}
+              type="button"
+              className={`btn btn-sm ${day === shownDay ? "btn-primary" : ""}`}
+              aria-pressed={day === shownDay}
+              onClick={() => setPickedDay(day)}
+            >
+              {t(`schedule.dayShort.${day}`)}
+            </button>
+          ))}
+        </fieldset>
+      )}
+
+      <TimeGrid
+        days={wide ? days : [shownDay]}
+        lessons={lessons}
+        selectedId={editingEntry?.id ?? null}
+        onSelect={setEditing}
+      />
     </div>
   );
 }
