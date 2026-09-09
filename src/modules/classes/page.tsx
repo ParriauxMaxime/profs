@@ -89,16 +89,19 @@ export function ClassesPage({ q, sort, dir }: { q?: string; sort?: string; dir?:
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold text-lg">{t("dashboard.classes")}</h2>
-        <button type="button" className="btn btn-primary" onClick={() => setAddingClass(true)}>
-          {t("dashboard.addClass")}
-        </button>
-      </div>
-
-      {addingClass && <ClassForm key="new" onDone={() => setAddingClass(false)} />}
-
       <DataTable
+        header={
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-semibold text-lg">{t("dashboard.classes")}</h2>
+            <button type="button" className="btn btn-primary" onClick={() => setAddingClass(true)}>
+              {t("dashboard.addClass")}
+            </button>
+          </div>
+        }
+        // Not in `header`: the form is a bordered two-field card, and pinning
+        // it would cover the table it is adding to. It stays directly under
+        // the heading whose button opened it, and scrolls away like any form.
+        beforeTable={addingClass && <ClassForm key="new" onDone={() => setAddingClass(false)} />}
         columns={columns as ColumnDef<ClassRow, unknown>[]}
         data={rows}
         getRowId={(schoolClass) => schoolClass.id}

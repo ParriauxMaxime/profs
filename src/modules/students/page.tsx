@@ -125,9 +125,11 @@ export function StudentsPage({
 
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="font-semibold text-lg">{t("nav.students")}</h2>
-
       <DataTable
+        // The heading is pinned WITH the search and the columns rather than
+        // above them: 360 pupils is the one list long enough that scrolling
+        // loses which list you are in.
+        header={<h2 className="font-semibold text-lg">{t("nav.students")}</h2>}
         columns={columns as ColumnDef<StudentRow, unknown>[]}
         data={visibleRows}
         getRowId={(student) => student.id}

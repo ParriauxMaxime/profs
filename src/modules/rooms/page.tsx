@@ -2,8 +2,10 @@ import { plansForRoom } from "@db/plans";
 import { useDb } from "@db/provider";
 import { desksForRoom, listRooms } from "@db/rooms";
 import type { RoomShape } from "@domain/room";
+import { summariseOccupants } from "@domain/room-occupants";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
+import type { TFunction } from "i18next";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
@@ -30,6 +32,22 @@ interface RoomCard {
  * it belongs on the room's own page beside the tables it destroys, one
  * navigation away from a mis-tap on a list.
  */
+/**
+ * The "utilisée par" line: three classes named, the rest counted.
+ *
+ * Three branches rather than one interpolated string, because "et 13 autres"
+ * has to agree in number and i18next resolves that from a `count` — which
+ * means the no-remainder case must NOT pass one, or a salle used by exactly
+ * three classes would read "et 0 autres".
+ */
+function renderOccupants(t: TFunction, classNames: string[]): string {
+  const { named, rest } = summariseOccupants(classNames);
+  if (named.length === 0) return t("rooms.usedByNobody");
+  const classes = named.join(", ");
+  if (rest === 0) return t("rooms.usedBy", { classes });
+  return t("rooms.usedByMore", { classes, count: rest });
+}
+
 export function RoomsPage() {
   const { t } = useTranslation();
   const db = useDb();
@@ -83,11 +101,7 @@ export function RoomsPage() {
               <div className="text-sm text-text-muted">
                 {t("rooms.deskCount", { count: room.shape.positions.length })}
               </div>
-              <div className="text-text-faint text-xs">
-                {room.classNames.length === 0
-                  ? t("rooms.usedByNobody")
-                  : t("rooms.usedBy", { classes: room.classNames.join(", ") })}
-              </div>
+              <div className="text-text-faint text-xs">{renderOccupants(t, room.classNames)}</div>
             </div>
           </Link>
         ))}

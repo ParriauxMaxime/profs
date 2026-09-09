@@ -6,6 +6,26 @@ in your browser, on your device, offline.
 `profs` is a local-only alternative to iDoceo. There is no server, no account,
 and no subscription.
 
+## Installer
+
+**<https://parriauxmaxime.github.io/profs/>**
+
+Open that on the device you teach with, then add it to your home screen — the
+app offers to do it for you the first time it can. Installed, it launches full
+screen from the home screen and starts with no network at all, which is the
+point: a classroom is exactly where the wifi is not.
+
+- **Android / Chrome, Edge** — tap **Installer** on the front page, or the
+  browser's own *Installer l'application*.
+- **iPhone / iPad, Safari** — **Partager**, then **Sur l'écran d'accueil**.
+  Safari offers no install button to any site; this is the only path, and it
+  must be Safari rather than Chrome on iOS.
+- **Desktop** — the install icon at the right of the address bar.
+
+Installing changes nothing about where the data lives. It is the same app on
+the same device, and it still makes no network request of any kind; see
+[PRIVACY.md](PRIVACY.md).
+
 ## Features (v1)
 
 - **A seeded demo school** — on first run, v1 creates one workspace

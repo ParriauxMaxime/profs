@@ -70,6 +70,30 @@ interface DataTableProps<T> {
    */
   toolbar?: ReactNode;
   /**
+   * The page's own heading, pinned with the search row and the column row.
+   *
+   * A list page's header is one block — what the list IS, how it is filtered,
+   * and what the columns mean — and scrolling 360 pupils used to take the
+   * first two away and leave the third. It lives here rather than in the page
+   * because a sticky stack has to be ONE element: two separately-sticky
+   * siblings each need to know the other's height, and the height of a
+   * wrapping toolbar is not a constant anyone can write down.
+   *
+   * Optional, and the block only sticks when something is in it: the class
+   * roster passes none, and keeps today's sticky-thead-only behaviour.
+   */
+  header?: ReactNode;
+  /**
+   * What sits between the pinned header and the table, still scrolling.
+   *
+   * `/classes` opens its creation form here. It cannot go in `header` — a
+   * bordered two-field form is far too tall to pin over the table — and it
+   * cannot stay in the page either, since the heading it belongs under has
+   * moved in here, and rendering it above DataTable would put the form above
+   * the title.
+   */
+  beforeTable?: ReactNode;
+  /**
    * Navigation on a row click, as a MOUSE CONVENIENCE ONLY.
    *
    * A <tr> takes no focus and Enter does not fire on it, so this is never the
@@ -105,6 +129,8 @@ export function DataTable<T>({
   searchPlaceholder,
   getRowId,
   toolbar,
+  header,
+  beforeTable,
   onRowClick,
   globalFilter,
   onGlobalFilterChange,
@@ -181,6 +207,37 @@ export function DataTable<T>({
   const [tableEl, setTableEl] = useState<HTMLTableElement | null>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
 
+  // How tall the pinned block currently is, so the column row can come to rest
+  // directly under it rather than at STICKY_TOP, where the two would overlap.
+  //
+  // Measured, never assumed: the block holds a heading, a search input and
+  // whatever control the page passed, in a `flex-wrap` row — so its height is
+  // one line on a desktop and three on a phone, and it changes again when the
+  // class filter appears or a long heading wraps. A written-down constant
+  // would be wrong at exactly the width this app is used at.
+  //
+  // A callback ref for the same reason `tableEl` is one: the block does not
+  // render at all when a page passes no header, no search and no toolbar.
+  // Pinning is opt-in: a page pins its header by handing it over.
+  const pinned = header !== undefined;
+  const [headerEl, setHeaderEl] = useState<HTMLDivElement | null>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    if (!headerEl) {
+      setHeaderHeight(0);
+      return;
+    }
+
+    const measure = () => setHeaderHeight(headerEl.getBoundingClientRect().height);
+    measure();
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(headerEl);
+
+    return () => observer.disconnect();
+  }, [headerEl]);
+
   useLayoutEffect(() => {
     if (!tableEl) return;
 
@@ -240,21 +297,57 @@ export function DataTable<T>({
 
   return (
     <div className="flex flex-col gap-3">
-      {(globalSearchFields || toolbar) && (
-        <div className="flex flex-wrap items-center gap-2">
-          {globalSearchFields && (
-            <input
-              type="search"
-              placeholder={searchPlaceholder ?? t("common.search")}
-              value={filterValue}
-              onChange={(e) => setFilterValue(e.target.value)}
-              aria-label={searchPlaceholder ?? t("common.search")}
-              className="field max-w-sm flex-1"
+      {(header || globalSearchFields || toolbar) && (
+        // Pinned only when the page handed over its heading. A page that did
+        // not — the class roster — keeps its own header in its own layout,
+        // above a group filter, two buttons and a form, and pinning just the
+        // search there would tear a lone box out of that stack. It also could
+        // not paint the band below: the block is not at the top of the page,
+        // so the strip above it is the page's own content, not empty margin.
+        //
+        // No `relative`: `sticky` already positions the block, and setting
+        // both leaves which one wins to stylesheet order rather than to the
+        // order the classes are written in.
+        <div
+          ref={pinned ? setHeaderEl : undefined}
+          className={pinned ? "sticky z-20 flex flex-col gap-3 bg-bg pb-2" : "flex flex-col gap-3"}
+          style={pinned ? { top: STICKY_TOP } : undefined}
+        >
+          {pinned && (
+            // The band ABOVE the block, painted the same colour. STICKY_TOP
+            // deliberately leaves that strip clear so the block never lands
+            // under the floating drawer button — but the strip is still page,
+            // and rows scrolled through it: a pupil slid across the screen
+            // above the heading naming the list. Absolutely positioned, so it
+            // paints without joining the layout the measurement depends on,
+            // and overlapping by a pixel, since a cover that stops exactly at
+            // the block's edge leaves a one-pixel seam for a row to show in.
+            <div
+              aria-hidden="true"
+              className="absolute inset-x-0 top-px bg-bg"
+              style={{ height: STICKY_TOP, transform: "translateY(-100%)" }}
             />
           )}
-          {toolbar}
+          {header}
+          {(globalSearchFields || toolbar) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {globalSearchFields && (
+                <input
+                  type="search"
+                  placeholder={searchPlaceholder ?? t("common.search")}
+                  value={filterValue}
+                  onChange={(e) => setFilterValue(e.target.value)}
+                  aria-label={searchPlaceholder ?? t("common.search")}
+                  className="field max-w-sm flex-1"
+                />
+              )}
+              {toolbar}
+            </div>
+          )}
         </div>
       )}
+
+      {beforeTable}
 
       {data.length === 0 && !filterValue ? (
         <p className="text-text-muted">{emptyMessage ?? t("common.noData")}</p>
@@ -287,7 +380,7 @@ export function DataTable<T>({
                     ]
                       .filter(Boolean)
                       .join(" ")}
-                    style={{ top: STICKY_TOP }}
+                    style={{ top: `calc(${STICKY_TOP} + ${headerHeight}px)` }}
                     aria-sort={
                       header.column.getCanSort()
                         ? header.column.getIsSorted() === "asc"

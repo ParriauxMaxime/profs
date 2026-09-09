@@ -1,0 +1,28 @@
+<!--
+  The maskable variant, and the reason it is a separate file.
+
+  Android crops an adaptive icon to whatever shape the launcher uses — circle,
+  squircle, teardrop — and only the central circle of 80% diameter is
+  guaranteed to survive. The manifest used to declare `"purpose": "any
+  maskable"` on `icon.svg`, which is rounded-cornered and sized for a square:
+  measured against that circle its furthest bar corner, (152, 44), sits at
+  radius 76.4 of the 76.8 available. It fits by four tenths of a pixel, which
+  is not a safe zone, it is a coincidence — and the rounded corners of the
+  square were being cropped away regardless.
+
+  So here the background bleeds to the edge and the mark is scaled to 0.85,
+  putting that same corner at radius 65 and leaving the margin a maskable icon
+  is supposed to have. The trade is a smaller mark in the launcher, which is
+  what every maskable icon pays.
+
+  The mark is already centred on (96, 96) — x 40–152, y 44–148 — so the
+  transform only scales about the centre.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <rect width="192" height="192" fill="#2563eb" />
+  <g transform="translate(96 96) scale(0.85) translate(-96 -96)">
+    <rect x="40" y="44" width="112" height="20" rx="6" fill="#ffffff" />
+    <rect x="40" y="86" width="112" height="20" rx="6" fill="#ffffff" opacity="0.75" />
+    <rect x="40" y="128" width="68" height="20" rx="6" fill="#ffffff" opacity="0.5" />
+  </g>
+</svg>

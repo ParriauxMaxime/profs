@@ -469,6 +469,8 @@
     "deskCount_one": "{{count}} seat",
     "deskCount_other": "{{count}} seats",
     "usedBy": "Used by {{classes}}",
+    "usedByMore_one": "Used by {{classes}} and {{count}} other",
+    "usedByMore_other": "Used by {{classes}} and {{count}} others",
     "usedByNobody": "Used by no class",
     "confirmDelete": "Delete “{{name}}”?",
     "confirmDeleteBody": "Its tables go with it.",
@@ -505,5 +507,12 @@
     "searchPlaceholder": "Filter by name",
     "columnName": "Name",
     "columnHeadcount": "Pupils"
+  },
+  "install": {
+    "title": "Install profs on this device",
+    "body": "Once installed it opens full screen from your home screen and works with no network. Your data stays on the device, exactly as it does now.",
+    "iosSteps": "In Safari: tap Share, then “Add to Home Screen”.",
+    "action": "Install",
+    "dismiss": "Not now"
   }
 }
