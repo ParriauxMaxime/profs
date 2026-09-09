@@ -217,15 +217,14 @@ export function DataTable<T>({
             {/* Spacers rather than `transform: translateY` on each row: a
                 positioned <tr> leaves the table's layout, stops participating
                 in column sizing, and the header then aligns with nothing.
-                aria-hidden sits on the <td>, not the <tr>: biome flags
-                aria-hidden on a table row as landing on a focusable element. */}
+                aria-hidden sits on the <tr> itself — hiding only the <td>
+                leaves the row in the accessibility tree as a phantom entry
+                with no aria-rowindex, which breaks the aria-rowcount contract
+                the virtualized rows carry. */}
             {paddingTop > 0 && (
-              <tr>
-                <td
-                  aria-hidden="true"
-                  colSpan={visibleColumns.length}
-                  style={{ height: paddingTop }}
-                />
+              // biome-ignore lint/a11y/noAriaHiddenOnFocusable: a spacer <tr> has no tabindex and no interactive role, so it is not focusable; hiding the ROW is what keeps it out of the aria-rowindex sequence, and hiding only its <td> leaves a phantom row in the count.
+              <tr aria-hidden="true">
+                <td colSpan={visibleColumns.length} style={{ height: paddingTop }} />
               </tr>
             )}
 
@@ -254,12 +253,9 @@ export function DataTable<T>({
             })}
 
             {paddingBottom > 0 && (
-              <tr>
-                <td
-                  aria-hidden="true"
-                  colSpan={visibleColumns.length}
-                  style={{ height: paddingBottom }}
-                />
+              // biome-ignore lint/a11y/noAriaHiddenOnFocusable: a spacer <tr> has no tabindex and no interactive role, so it is not focusable; hiding the ROW is what keeps it out of the aria-rowindex sequence, and hiding only its <td> leaves a phantom row in the count.
+              <tr aria-hidden="true">
+                <td colSpan={visibleColumns.length} style={{ height: paddingBottom }} />
               </tr>
             )}
           </tbody>
