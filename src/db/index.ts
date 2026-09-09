@@ -252,5 +252,22 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
    * `.stores()` declares indexes, not fields.
    */
   db.version(14).stores({ diaryEntries: null });
+  /**
+   * A lesson names a class and a matiere; it no longer names a carnet.
+   *
+   * `gradebookId` was a field the form wrote and NOTHING read — Today and the
+   * hour grid both colour by `subjectId`, and the grid a lesson opens onto was
+   * never built. What a `Gradebook` already knows is `(classId, subjectId)`,
+   * which the entry states twice over, so the picker asked the teacher to
+   * re-declare an association the two fields above it had already made.
+   *
+   * Only the INDEX needs a version — `.stores()` declares indexes, not fields
+   * — and the store is redeclared whole because Dexie replaces rather than
+   * patches. No upgrade callback: an existing row keeps an unread
+   * `gradebookId` property, inert the way v13's leftover free-text `room` is.
+   */
+  db.version(15).stores({
+    scheduleEntries: "id, classId, weekday, roomId",
+  });
   return db;
 }

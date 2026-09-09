@@ -86,15 +86,7 @@ export async function deleteStudent(db: AppDatabase, studentId: string): Promise
 export async function deleteGradebook(db: AppDatabase, gradebookId: string): Promise<void> {
   await db.transaction(
     "rw",
-    [
-      db.gradebooks,
-      db.periods,
-      db.columns,
-      db.grades,
-      db.rubricAssessments,
-      db.rubricScores,
-      db.scheduleEntries,
-    ],
+    [db.gradebooks, db.periods, db.columns, db.grades, db.rubricAssessments, db.rubricScores],
     async () => {
       await db.grades.where("gradebookId").equals(gradebookId).delete();
       await db.columns.where("gradebookId").equals(gradebookId).delete();
@@ -107,14 +99,9 @@ export async function deleteGradebook(db: AppDatabase, gradebookId: string): Pro
         await db.rubricScores.where("assessmentId").anyOf(assessmentIds).delete();
         await db.rubricAssessments.bulkDelete(assessmentIds);
       }
-      // A schedule entry is NOT deleted with its gradebook — it is unlinked.
-      // The lesson still happens; it just no longer opens onto a grid.
-      // Deleting a gradebook must never delete part of a teacher's timetable.
-      const linked = await db.scheduleEntries.where("gradebookId").equals(gradebookId).toArray();
-      for (const entry of linked) {
-        const { gradebookId: _unlinked, ...rest } = entry;
-        await db.scheduleEntries.put({ ...rest, updatedAt: Date.now() });
-      }
+      // The timetable is deliberately absent from this transaction. A lesson
+      // names a class and a matiere, so no entry points at the carnet being
+      // removed and there is nothing here to unlink.
       await db.gradebooks.delete(gradebookId);
     },
   );

@@ -44,13 +44,12 @@ export function SchedulePage() {
   const wide = useMediaQuery("(min-width: 1024px)");
 
   const data = useLiveQuery(async () => {
-    const [entries, classes, subjects, gradebooks] = await Promise.all([
+    const [entries, classes, subjects] = await Promise.all([
       db.scheduleEntries.toArray(),
       db.classes.toArray(),
       db.subjects.toArray(),
-      db.gradebooks.toArray(),
     ]);
-    return { entries, classes, subjects, gradebooks };
+    return { entries, classes, subjects };
   }, [db]);
 
   if (!data) return <p className="text-text-muted">{t("common.loading")}</p>;
@@ -135,7 +134,6 @@ export function SchedulePage() {
           entry={editingEntry}
           classes={data.classes}
           subjects={data.subjects}
-          gradebooks={data.gradebooks}
           siblings={data.entries}
           onDelete={
             editingEntry === null

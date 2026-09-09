@@ -276,15 +276,16 @@ export interface GroupMember {
  * apart is what stops every holiday and cancellation leaving an empty lesson
  * in a pupil's timeline.
  *
- * `gradebookId` is optional: a lesson usually maps to one, and Today can then
- * offer the grid directly, but a class with no gradebook yet must still be
- * schedulable.
+ * It names a class and a matiere, never a carnet. A `Gradebook` is itself
+ * `(classId, subjectId, name)`, so a `gradebookId` here would restate the two
+ * fields below it — and would have to choose between a class's carnets when it
+ * holds two of one matiere ("Ecrit" and "Oral"), a choice that belongs where
+ * the marking happens rather than in a timetable filled once a year.
  */
 export interface ScheduleEntry {
   id: string;
   classId: string;
   subjectId?: string;
-  gradebookId?: string;
   /** ISO weekday, 1 = Monday through 7 = Sunday. */
   weekday: number;
   /** Minutes from midnight. A time is arithmetic, so it is stored as such. */

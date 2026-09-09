@@ -238,3 +238,48 @@ describe("schema v14 — the day-keyed journal entry is dropped", () => {
     fresh.close();
   });
 });
+
+describe("schema v15 — a lesson no longer names a carnet", () => {
+  /** The schema as it stood at v13, with `gradebookId` still indexed. */
+  function openV13(name: string) {
+    const db = new Dexie(`profs-${name}`);
+    db.version(13).stores({
+      classes: "id, name",
+      scheduleEntries: "id, classId, weekday, gradebookId, roomId",
+    });
+    return db;
+  }
+
+  it("opens a v13 database whose entries still carry a gradebookId", async () => {
+    const name = `repro-entry-carnet-${crypto.randomUUID()}`;
+    const old = openV13(name);
+    await old.open();
+    await old.table("scheduleEntries").add({
+      id: "e1",
+      classId: "c1",
+      subjectId: "sub1",
+      gradebookId: "g1",
+      weekday: 1,
+      startMinute: 600,
+      endMinute: 660,
+      weekCycle: "all",
+      createdAt: 0,
+      updatedAt: 0,
+    });
+    old.close();
+
+    const fresh = openWorkspaceDb(name);
+    await fresh.open();
+    // The lesson survives whole. Its dead `gradebookId` is a leftover
+    // property, inert exactly as v13's leftover free-text `room` was: nothing
+    // reads it, and no arithmetic is fed by its absence.
+    expect(await fresh.scheduleEntries.get("e1")).toMatchObject({
+      classId: "c1",
+      subjectId: "sub1",
+      weekday: 1,
+      startMinute: 600,
+    });
+    expect(fresh.scheduleEntries.schema.indexes.map((i) => i.name)).not.toContain("gradebookId");
+    fresh.close();
+  });
+});

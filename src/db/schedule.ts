@@ -14,7 +14,6 @@ export interface ScheduleEntryInput {
   id?: string;
   classId: string;
   subjectId?: string;
-  gradebookId?: string;
   weekday: number;
   startMinute: number;
   endMinute: number;
@@ -56,7 +55,6 @@ export async function saveScheduleEntry(
     // Absent rather than an empty value: an optional field that is stored as
     // `undefined` explicitly still rides along in every export.
     ...(input.subjectId ? { subjectId: input.subjectId } : {}),
-    ...(input.gradebookId ? { gradebookId: input.gradebookId } : {}),
     weekday: input.weekday,
     startMinute: input.startMinute,
     endMinute: input.endMinute,

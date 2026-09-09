@@ -34,7 +34,6 @@ describe("saveScheduleEntry", () => {
 
     expect(entry).not.toHaveProperty("roomId");
     expect(entry).not.toHaveProperty("subjectId");
-    expect(entry).not.toHaveProperty("gradebookId");
     db.close();
   });
 

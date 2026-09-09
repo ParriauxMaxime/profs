@@ -585,7 +585,6 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
   ];
 
   const classByName = new Map(classes.map((c) => [c.name, c]));
-  const gradebookByClass = new Map(gradebooks.map((g) => [g.classId, g]));
   const scheduleEntries: ScheduleEntry[] = scheduleShape.map((entry) => {
     const schoolClass = classByName.get(entry.className);
     if (!schoolClass) throw new Error(`timetable names an unknown class: ${entry.className}`);
@@ -593,7 +592,6 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       id: id(),
       classId: schoolClass.id,
       subjectId: subject.id,
-      gradebookId: gradebookByClass.get(schoolClass.id)?.id,
       weekday: entry.weekday,
       startMinute: entry.start,
       endMinute: entry.start + (entry.minutes ?? 55),

@@ -1000,7 +1000,7 @@ describe("schedule entries", () => {
       {
         id: "e1",
         classId: "c1",
-        gradebookId: "g1",
+        subjectId: "sub1",
         weekday: 1,
         startMinute: 600,
         endMinute: 660,
@@ -1011,7 +1011,7 @@ describe("schedule entries", () => {
       {
         id: "e2",
         classId: "c1",
-        gradebookId: "g2",
+        subjectId: "sub1",
         weekday: 2,
         startMinute: 480,
         endMinute: 540,
@@ -1049,21 +1049,15 @@ describe("schedule entries", () => {
     db.close();
   });
 
-  it("deleteGradebook UNLINKS its entries rather than deleting them", async () => {
-    // The subtle cascade of this phase. A lesson still happens after its
-    // gradebook is deleted; it just no longer opens onto a grid. Deleting a
-    // gradebook must never delete part of a teacher's timetable.
+  it("deleteGradebook does not touch the timetable at all", async () => {
+    // A lesson names a class and a matiere; the carnet is found from those,
+    // never stored on the entry. So deleting one leaves the week untouched —
+    // there is nothing to unlink, which is the point of removing the field.
     const db = await seedSchedule("gradebook");
+    const before = await db.scheduleEntries.toArray();
     await deleteGradebook(db, "g1");
 
-    const e1 = await db.scheduleEntries.get("e1");
-    expect(e1).toBeDefined();
-    expect(e1).not.toHaveProperty("gradebookId");
-    expect(e1?.weekday).toBe(1);
-    expect(e1?.startMinute).toBe(600);
-
-    // An entry pointing at a DIFFERENT gradebook is untouched.
-    expect((await db.scheduleEntries.get("e2"))?.gradebookId).toBe("g2");
+    expect(await db.scheduleEntries.toArray()).toEqual(before);
     db.close();
   });
 

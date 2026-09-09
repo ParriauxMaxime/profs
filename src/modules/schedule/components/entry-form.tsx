@@ -1,4 +1,4 @@
-import type { Gradebook, ScheduleEntry, SchoolClass, Subject } from "@db";
+import type { ScheduleEntry, SchoolClass, Subject } from "@db";
 import { useDb } from "@db/provider";
 import { listRooms } from "@db/rooms";
 import { saveScheduleEntry } from "@db/schedule";
@@ -38,7 +38,6 @@ export function EntryForm({
   entry,
   classes,
   subjects,
-  gradebooks,
   siblings,
   onDelete,
   onDone,
@@ -46,7 +45,6 @@ export function EntryForm({
   entry: ScheduleEntry | null;
   classes: SchoolClass[];
   subjects: Subject[];
-  gradebooks: Gradebook[];
   /** Every other entry, for the overlap warning. */
   siblings: ScheduleEntry[];
   /**
@@ -65,7 +63,6 @@ export function EntryForm({
 
   const [classId, setClassId] = useState(entry?.classId ?? classes[0]?.id ?? "");
   const [subjectId, setSubjectId] = useState(entry?.subjectId ?? "");
-  const [gradebookId, setGradebookId] = useState(entry?.gradebookId ?? "");
   const [weekday, setWeekday] = useState(entry?.weekday ?? 1);
   const [start, setStart] = useState(toTimeValue(entry?.startMinute ?? 8 * 60));
   const [end, setEnd] = useState(toTimeValue(entry?.endMinute ?? 9 * 60));
@@ -77,10 +74,6 @@ export function EntryForm({
 
   const startMinute = fromTimeValue(start);
   const endMinute = fromTimeValue(end);
-
-  // Only gradebooks of the chosen class can be attached — offering another
-  // class's grid would let a lesson open onto the wrong pupils.
-  const classGradebooks = gradebooks.filter((g) => g.classId === classId);
 
   // Computed on every render rather than on submit: a teacher deserves to see
   // the clash while they are still choosing the time, not after saving.
@@ -103,7 +96,6 @@ export function EntryForm({
       ...(entry ? { id: entry.id } : {}),
       classId,
       ...(subjectId ? { subjectId } : {}),
-      ...(gradebookId ? { gradebookId } : {}),
       weekday,
       startMinute,
       endMinute,
@@ -137,11 +129,7 @@ export function EntryForm({
             // biome-ignore lint/a11y/noAutofocus: the form opens on demand.
             autoFocus
             value={classId}
-            onChange={(e) => {
-              setClassId(e.target.value);
-              // The attached gradebook belonged to the old class.
-              setGradebookId("");
-            }}
+            onChange={(e) => setClassId(e.target.value)}
           >
             {classes.map((schoolClass) => (
               <option key={schoolClass.id} value={schoolClass.id}>
@@ -162,22 +150,6 @@ export function EntryForm({
             {subjects.map((subject) => (
               <option key={subject.id} value={subject.id}>
                 {subject.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col gap-1">
-          {t("schedule.gradebook")}
-          <select
-            className="field"
-            value={gradebookId}
-            onChange={(e) => setGradebookId(e.target.value)}
-          >
-            <option value="">{t("schedule.noGradebook")}</option>
-            {classGradebooks.map((gradebook) => (
-              <option key={gradebook.id} value={gradebook.id}>
-                {gradebook.name}
               </option>
             ))}
           </select>
