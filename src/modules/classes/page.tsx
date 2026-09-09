@@ -10,7 +10,8 @@ import { Router } from "../../router";
 // boundary is clean.
 import { ClassForm } from "../class/components/class-form";
 
-export function ClassesPage() {
+export function ClassesPage({ q: _q }: { q?: string }) {
+  // Task 7 wires up _q.
   const { t } = useTranslation();
   const db = useDb();
   const [addingClass, setAddingClass] = useState(false);

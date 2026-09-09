@@ -91,9 +91,9 @@ function Routes({ route }: { route: AppRoute }) {
     case "Home":
       return <TodayPage />;
     case "Classes":
-      return <ClassesPage />;
+      return <ClassesPage q={route.params.q} />;
     case "Students":
-      return <StudentsPage />;
+      return <StudentsPage q={route.params.q} classe={route.params.classe} />;
     case "Schedule":
       return <SchedulePage />;
     case "Diary":

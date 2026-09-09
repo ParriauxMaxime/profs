@@ -15,7 +15,8 @@ import { PupilName } from "../design-system/components/pupil-name";
  * and drilling through it. The search is accent-insensitive, so "eloise"
  * finds Éloïse.
  */
-export function StudentsPage() {
+export function StudentsPage({ q: _q, classe: _classe }: { q?: string; classe?: string }) {
+  // Tasks 7 and 8 wire up _q and _classe.
   const { t } = useTranslation();
   const db = useDb();
   const [query, setQuery] = useState("");
