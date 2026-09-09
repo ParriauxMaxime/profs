@@ -1,4 +1,5 @@
 import "fake-indexeddb/auto";
+import { startOfDay } from "@domain/term";
 import { openWorkspaceDb } from ".";
 import { BackupOverCapacityError, exportWorkspace, importWorkspace, parseBackup } from "./backup";
 import { seedIfEmpty } from "./seed";
@@ -106,7 +107,7 @@ describe("workspace backup", () => {
     // asserting nothing about the version at all.
     await expect(
       importWorkspace(db, {
-        version: 12,
+        version: 13,
         exportedAt: 0,
         classes: [],
         students: [],
@@ -173,6 +174,35 @@ describe("workspace backup", () => {
       }),
     ).toThrow();
     db.close();
+  });
+
+  it("accepts a version-11 file and gives its séances times", async () => {
+    // Nothing in a v11 file is lost — the same backfill repairs it — so it is
+    // accepted rather than refused. A v10 file is a different case: its
+    // journal store no longer exists, and that is a loss no backfill can undo.
+    const db = openWorkspaceDb(`backup-v11-${crypto.randomUUID()}`);
+    const createdAt = new Date(2026, 8, 9, 14, 20, 0).getTime();
+    const file = {
+      ...(await exportWorkspace(db)),
+      version: 11,
+      sessions: [{ id: "s1", classId: "c1", date: startOfDay(createdAt), createdAt }],
+    };
+
+    const parsed = parseBackup(file);
+
+    expect(parsed.sessions[0].startsAt).toBe(14 * 60);
+    expect(parsed.sessions[0].endsAt).toBe(14 * 60 + 55);
+    db.close();
+  });
+
+  it("exports at version 12", async () => {
+    const db = openWorkspaceDb(`backup-v12-${crypto.randomUUID()}`);
+    expect((await exportWorkspace(db)).version).toBe(12);
+    db.close();
+  });
+
+  it("still refuses a version-10 file", () => {
+    expect(() => parseBackup({ version: 10 })).toThrow();
   });
 
   it("rejects a version 5 backup rather than half-importing it", async () => {
@@ -263,7 +293,14 @@ describe("workspace backup", () => {
 
   it("exports the current version with every table", async () => {
     const db = openWorkspaceDb("backup-export-v4");
-    await db.sessions.add({ id: "s1", classId: "c1", date: 1, createdAt: 1 });
+    await db.sessions.add({
+      id: "s1",
+      classId: "c1",
+      date: 1,
+      startsAt: 540,
+      endsAt: 595,
+      createdAt: 1,
+    });
     await db.attendance.put({ sessionId: "s1", studentId: "p1", value: "late", updatedAt: 1 });
     await db.rubricTemplates.add({
       id: "t1",
@@ -282,7 +319,7 @@ describe("workspace backup", () => {
     });
     await db.groupMembers.put({ groupId: "g1", studentId: "p1" });
     const backup = await exportWorkspace(db);
-    expect(backup.version).toBe(11);
+    expect(backup.version).toBe(12);
     expect(backup.sessions).toHaveLength(1);
     expect(backup.attendance).toHaveLength(1);
     expect(backup.rubricTemplates).toHaveLength(1);
@@ -314,7 +351,14 @@ describe("workspace backup", () => {
 
   it("round-trips the classroom tables", async () => {
     const db = openWorkspaceDb("backup-round-trip-v2");
-    await db.sessions.add({ id: "s1", classId: "c1", date: 1, createdAt: 1 });
+    await db.sessions.add({
+      id: "s1",
+      classId: "c1",
+      date: 1,
+      startsAt: 540,
+      endsAt: 595,
+      createdAt: 1,
+    });
     await db.behaviourEvents.add({
       id: "e1",
       sessionId: "s1",
@@ -380,7 +424,14 @@ describe("workspace backup", () => {
   it("importing twice in a row replaces rather than accumulates, in every table", async () => {
     const db = openWorkspaceDb("backup-double-import");
     await seedIfEmpty(db, "backup-double-import");
-    await db.sessions.add({ id: "s1", classId: "c1", date: 1, createdAt: 1 });
+    await db.sessions.add({
+      id: "s1",
+      classId: "c1",
+      date: 1,
+      startsAt: 540,
+      endsAt: 595,
+      createdAt: 1,
+    });
     await db.attendance.put({ sessionId: "s1", studentId: "p1", value: "late", updatedAt: 1 });
     await db.behaviourEvents.add({
       id: "e1",
