@@ -191,11 +191,17 @@ export function TimeGrid({
               };
               const blockBody = (
                 <>
-                  <span className="block truncate font-medium text-sm">
-                    {entry.title}
+                  {/* The dot is a SIBLING of the title, not a child of it: the
+                      title alone carries `truncate`, so a long class name
+                      clips against its own boundary and never eats the dot
+                      along with it. `min-w-0` is required for the truncating
+                      child to shrink below its content size inside a flex
+                      row at all; `shrink-0` keeps the dot at its own size
+                      when the title is squeezed. */}
+                  <span className="flex items-center gap-1">
+                    <span className="min-w-0 truncate font-medium text-sm">{entry.title}</span>
                     {entry.recorded && (
-                      <span className="text-success" aria-hidden="true">
-                        {" "}
+                      <span className="shrink-0 text-success text-sm" aria-hidden="true">
                         ●
                       </span>
                     )}
