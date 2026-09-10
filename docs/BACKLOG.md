@@ -183,6 +183,17 @@ Two details worth keeping:
   behaviour log is a record of what was observed when, and hiding entries from
   it would be a different claim than summarising a window of them.
 
+**Reversed 2026-09-10.** The selector and `behaviour-range.ts` are gone. The
+pupil page was rebuilt around the conseil de classe, where the whole year IS the
+trimestre being read, and a control offering "les 30 derniers jours" beside a
+carnet's own period tabs put two incompatible clocks on one screen — the very
+thing this entry's ruling was about. The counts and the timeline now both cover
+everything. Nothing of the discipline is lost: `addDays` in
+`src/domain/calendar.ts` walks the calendar exactly as `rangeStart` did, for
+`weekParity`'s reason, and its test still walks a year through both clock
+changes. If a window is ever wanted again, it is `rangeStart` restored — not a
+period mapping, which remains impossible for the reason above.
+
 ## Source
 
 Feature requests from a practising teacher (relayed by Maxime, 2026-09-01),

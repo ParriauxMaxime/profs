@@ -274,6 +274,71 @@ A teacher thinks in 3°B, not in carnets and rosters, so a class is **one page**
 
 The class's Journal is `DiaryPage`, which takes the `classId` it reads and has no class selector — the archive of one class, reached from that class. There is no cross-class journal: `/diary` and its drawer entry were removed, on the judgement that a teacher looks back at 3°B from 3°B, and that reading every class's séances at once answered a question nobody was asking. `SeanceNote` stays where it is, since the class page writes the day's note inline through it.
 
+### The pupil page is a synthesis, and the séance is the row
+
+`/students/:studentId` is built for one moment: the **conseil de classe**. Every
+other surface is class-major (the grid, the roster) or séance-major (the card,
+the register); this is the transpose, and the app had no such screen. See
+`docs/superpowers/specs/2026-09-09-profs-student-synthesis-design.md`.
+
+**There is no trimestre selector, and there must not be one.** A mark filters by
+a `Period`, which carries no dates and belongs to a carnet; an absence filters
+by a date. No control governs both honestly. Each carnet section carries its
+OWN period tabs, opened on `lastMarkedPeriod` — the last period by order holding
+a marked column — and Présence and Comportement carry no range control at all.
+`behaviour-range.ts` was deleted with that second half; `docs/BACKLOG.md` #5
+records the reversal. Giving `Period` dates stays rejected for the reason it
+always was.
+
+**A consequence, recorded rather than hidden:** `CarnetsPanel` on the class page
+summarises the FIRST period by order, while this page opens on the last marked
+one, so the two show different class means for one carnet. Each is labelled with
+its period. Aligning them is a one-line change to `CarnetsPanel`.
+
+**Attendance is editable here, and that is not the second inline path the
+invariant forbids.** The forbidden thing is a register whose séance is implicit.
+Here the séance IS the row — its date and its hour are on screen — so an edit
+lands on the lesson the teacher is pointing at. **No séance is ever created from
+this page**: only lessons that already have a row can be marked, so a page
+opened in December to read about September cannot file a lesson. Behaviour stays
+**delete-only**, because an event belongs to the moment it was observed.
+
+**The figure is `assiduité`, never `présence`.** Its numerator counts présent,
+en retard AND excusé — only an unjustified absence pulls it down — so under the
+word *présence* a pupil absent half the term with a note from home would read
+near 100 %. Its denominator is séances **marked**, because a séance is created
+lazily and the app never knows lessons held. With nothing marked there is no
+percentage at all: 0 % and 100 % are both claims about lessons nobody
+registered.
+
+**`P A R E` is a translated key, never `value[0]`** — English *late* is L. The
+full word is the accessible name and the title, and the state is carried by a
+border as well as a fill. The initials break this app's plain-language-label
+convention knowingly: four French words at 44px do not fit a 375px row beside a
+date and an hour, and the alternatives each cost the thing the block is for,
+which is reading a month at a glance.
+
+**`PositionBar` is the first chart in the app.** Hand-written inline SVG,
+because a chart library from a CDN would break the no-network promise as surely
+as an analytics call. It prints the same figures in text beside it, and
+`positionOnScale` returns null under two values or for a spread with no width —
+a point drawn as a scale is a lie about a class.
+
+**The URL carries the LIST, not the pupil.** `/students/:studentId?q&classe&
+groupe&sort&dir` describes the list the `‹ ›` arrows walk, rebuilt by
+`studentSequence`; a page navigation cannot carry an array. Stepping uses
+`Router.push` — the opposite of `/`'s week stepper and for the opposite reason:
+walking a roster is a sequence of destinations. `compareStudents` is handed to
+both tables as their `sortingFn`, so the rows and the arrows cannot order the
+same pupils differently. This is why `/classes/:classId/eleves` finally carries
+`?groupe&sort&dir`: it was the one list page keeping its filter in React state.
+
+**`writeGrade` lives in `src/db/grades.ts`** and re-reads the row inside its
+transaction. It was a local function in the grid page and a hand-copied block in
+the fast-entry screen, and the copies had drifted — one re-read, one built its
+`put` from a render-time snapshot and dropped a note written since. Three
+surfaces write a mark now; one function does.
+
 ### The schedule predicts; it never pre-creates
 
 A `ScheduleEntry` is a recurring **intention** — "3°B Maths, Monday 10h, week A". A `Session` is a **slot**: a lesson scheduled, taught, or merely prepared. It used to mean *a lesson happened*, and moving the note onto it broke that deliberately — a teacher writes next Thursday's plan before Thursday exists, so writing a note has to be able to bring a séance into being.
@@ -604,6 +669,14 @@ The service worker's `SHELL` is the boot path and nothing else, because `addAll`
   `.btn` globally, an icon-only destructive action, or dropping a column on
   narrow screens would each fix it, and each is a design change outside this
   work.
+- The pupil page prints no report and copies nothing. `docs/BACKLOG.md`'s iDoceo
+  #5 (*Student reports*) stays parked: the page is read on screen and the
+  appréciation is typed where it legally lives, the same ruling the journal took
+  against being a cahier de textes.
+- Rubrics do not appear on the pupil page. Deferred to
+  `2026-09-09-profs-rubric-as-column-design.md`, which dissolves
+  `RubricAssessment` into a column; the carnet section already dispatches on
+  `column.type`, so a `rubric` column lands there as one more case.
 
 ## Reference
 

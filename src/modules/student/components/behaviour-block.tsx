@@ -62,6 +62,8 @@ export function BehaviourBlock({ student, sessions }: { student: Student; sessio
             const session = sessionById.get(event.sessionId);
             return (
               <li
+                // Keyed by event id: an armed delete must not survive onto a
+                // neighbour when the list reorders under it.
                 key={event.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded border border-border px-2 py-1 text-sm"
               >
@@ -77,9 +79,6 @@ export function BehaviourBlock({ student, sessions }: { student: Student; sessio
                   </span>
                 </span>
                 <ConfirmButton
-                  // Keyed by event id: an armed delete must not survive onto a
-                  // neighbour when the list reorders under it.
-                  key={event.id}
                   variant="link"
                   danger
                   label={t("common.delete")}
