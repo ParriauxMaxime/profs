@@ -126,12 +126,24 @@ export function PresenceBlock({ student, sessions }: { student: Student; session
                       return (
                         <li
                           key={session.id}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded border border-border px-2 py-1"
+                          // gap-1, not gap-2: the four buttons are 44px each
+                          // (never smaller — mid-lesson tap targets), so the
+                          // date is what has to give room. A two-digit day and
+                          // a two-digit hour ("sam. 28 nov. · 10h00") is the
+                          // widest this ever renders, and it fits one line at
+                          // 375px only with the gap this tight and the date at
+                          // text-xs — measured, not assumed; see
+                          // presence-block's own note in the task report.
+                          // `flex-wrap` stays as a fallback for a locale whose
+                          // date is longer still: it would rather drop the
+                          // date to its own line than clip it or force a
+                          // horizontal scrollbar.
+                          className="flex flex-wrap items-center justify-between gap-1 rounded border border-border px-2 py-1"
                         >
-                          <span className="text-sm tabular-nums">
+                          <span className="min-w-0 whitespace-nowrap text-text-muted text-xs tabular-nums">
                             {dayFormatter.format(session.date)} · {hour(session.startsAt)}
                           </span>
-                          <div className="flex gap-1">
+                          <div className="flex shrink-0 gap-1">
                             {ATTENDANCE_VALUES.map((value) => (
                               <ToggleOption
                                 key={value}
