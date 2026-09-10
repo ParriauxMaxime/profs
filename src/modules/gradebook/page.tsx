@@ -262,6 +262,19 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
                           {t("gradebook.coef", { weight: column.weight })}
                         </span>
                       </Link>
+                    ) : column.type === "rubric" ? (
+                      // Two doors, the same two a numeric column has: the
+                      // header opens the class matrix, the cell edits one
+                      // pupil. Learned once, used on both.
+                      <Link
+                        to={Router.Rubric({ gradebookId, columnId: column.id })}
+                        className="flex flex-col items-center hover:text-accent"
+                      >
+                        <span className="flex items-center gap-1">
+                          <ColumnTypeIcon type={column.type} />
+                          {column.label}
+                        </span>
+                      </Link>
                     ) : (
                       <span className="flex items-center gap-1">
                         <ColumnTypeIcon type={column.type} />
