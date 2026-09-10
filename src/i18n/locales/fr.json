@@ -314,6 +314,7 @@
     "templateName": "Nom du modèle",
     "noTemplates": "Aucun modèle",
     "criteria": "Critères",
+    "criteriaSource": "Critères",
     "addCriterion": "Ajouter un critère",
     "criterionLabel": "Intitulé",
     "moveUp": "Monter",

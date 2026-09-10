@@ -314,6 +314,7 @@
     "templateName": "Template name",
     "noTemplates": "No templates",
     "criteria": "Criteria",
+    "criteriaSource": "Criteria",
     "addCriterion": "Add a criterion",
     "criterionLabel": "Label",
     "moveUp": "Move up",

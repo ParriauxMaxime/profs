@@ -38,12 +38,13 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
   const data = useLiveQuery(async () => {
     const gradebook = await db.gradebooks.get(gradebookId);
     if (!gradebook) return null;
-    const [periods, columns, students, grades, groups] = await Promise.all([
+    const [periods, columns, students, grades, groups, templates] = await Promise.all([
       db.periods.where("gradebookId").equals(gradebookId).sortBy("order"),
       db.columns.where("gradebookId").equals(gradebookId).sortBy("order"),
       db.students.where("classId").equals(gradebook.classId).sortBy("lastName"),
       db.grades.where("gradebookId").equals(gradebookId).toArray(),
       db.studentGroups.where("classId").equals(gradebook.classId).sortBy("name"),
+      db.rubricTemplates.toArray(),
     ]);
     const memberships =
       groups.length > 0
@@ -57,7 +58,17 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
       rubricColumnIds.length > 0
         ? await db.criterionLevels.where("columnId").anyOf(rubricColumnIds).toArray()
         : [];
-    return { gradebook, periods, columns, students, grades, groups, memberships, levels };
+    return {
+      gradebook,
+      periods,
+      columns,
+      students,
+      grades,
+      groups,
+      memberships,
+      levels,
+      templates,
+    };
   }, [db, gradebookId]);
 
   if (data === undefined) return <p className="text-text-muted">{t("common.loading")}</p>;
@@ -220,6 +231,7 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
           gradebookId={gradebookId}
           periodId={activePeriodId}
           numericColumns={numericColumnsFor(activePeriodId)}
+          templates={data.templates}
           onDone={() => setAddingColumn(false)}
         />
       )}
@@ -233,6 +245,7 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
           periodId={editingColumn.periodId}
           column={editingColumn}
           numericColumns={numericColumnsFor(editingColumn.periodId, editingColumn.id)}
+          templates={data.templates}
           onDone={() => setEditingColumn(null)}
         />
       )}
