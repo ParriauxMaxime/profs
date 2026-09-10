@@ -333,14 +333,28 @@ for one word.
 
 **Grilles already graded**, in the database and in an exported file alike.
 
-**`db.version(16)`'s séance backfill**, which gave `startsAt`/`endsAt` to
-séances recorded before they carried times. A workspace old enough to need it
-is old enough that its untimed séances are a pre-release artefact, and `sessions`
-is carried forward rather than dropped, so the rows survive without the repair.
-`backfillSeanceTimes` and `repairSeanceCollisions` stay in `src/domain/seance.ts`
-and stay tested — but with the v16 callback gone and the single accepted backup
-format making the import-time repair inert, **neither has a caller**. Whether
-they survive is a question for the branch review, not for this design.
+**Not the séance backfill**, which is the one thing the collapse must keep. It
+was listed here as lost while the migration was still believed to discard an old
+workspace; at 17, `sessions` is carried FORWARD, so a séance recorded before
+séances carried times arrives with no `startsAt` — and both `startsAt` and
+`endsAt` are required on `Session`. A row that fails its own declaration is the
+zombie the standing rule drops stores to avoid, and here dropping is not
+available: `attendance` and `behaviourEvents` are keyed to `sessions.id`, so
+losing `sessions` strands a term of both. That is exactly the argument
+`db.version(16)` was written for, and it survives the collapse unchanged.
+
+So the single declaration carries one `.upgrade()`, which is still one version:
+
+```ts
+db.version(17).stores({ … }).upgrade(async (tx) => { …repairSeanceCollisions… });
+```
+
+It repairs the séances as a WHOLE collection, never row by row —
+`backfillSeanceTimes` alone cannot see that two untimed séances of one class on
+one day floor to the same hour, and the first `resolveSlot` match would strand
+the second forever. `repairSeanceCollisions` therefore keeps its one real
+caller. `backup.ts`'s call is still gone: with one backup format accepted, every
+imported séance already carries times.
 
 **The upgrade-seam regression tests** in `src/db/index.test.ts` — the v2
 per-class layout, the v9 saved room, the v13 day-keyed journal, the v15 entry.
@@ -414,12 +428,17 @@ cleanly" but "an old database offers a way out", and that is now the only thing
 standing between a version collapse and a bricked workspace.
 
 Schema (`src/db/index.test.ts`): the four upgrade-seam tests are deleted, and
-three replace them — build a v16 database with `fake-indexeddb`, open it with
-current code, and assert (a) the dropped stores are gone from
-`backendDB().objectStoreNames`, which is the assertion the downgrade trap makes
-necessary, (b) every surviving store keeps its rows and nothing rejects, and
-(c) a `VersionError` that does reach a caller still classifies as discardable.
-The table-list test and the wipe test stay, and both gain `criterionLevels`.
+five replace them, over one fixture that writes a row into every store the
+declaration drops — including `seats`, `seatingLayouts` and `diaryEntries`, so
+the deleted v12 and v14 seam tests keep a successor. Open it with current code
+and assert (a) every dropped store is gone from `backendDB().objectStoreNames`,
+which is the assertion the downgrade trap makes necessary — `db.tables` reads
+the same either way, (b) every surviving store keeps its rows and nothing
+rejects, (c) an untimed séance comes back timed with its attendance and
+behaviour intact, (d) two untimed séances of one class on one day come back
+with different starts, and (e) a `VersionError` that does reach a caller still
+classifies as discardable. The table-list test and the wipe test stay, and both
+gain `criterionLevels`.
 
 Backup (`src/db/backup.test.ts`): a format-11 file and a format-12 file are each
 refused whole; a format-13 round-trip carries rubric columns and their levels;

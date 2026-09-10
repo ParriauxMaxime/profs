@@ -30,18 +30,16 @@ export function hourOfDay(ms: number): number {
  * during the lesson, so the hour a séance was created in is the hour it was
  * taught in. Where it guesses wrong, the séance strip's editor corrects it.
  *
- * This is the per-row half of the repair. It cannot see siblings, so it
- * cannot know whether the hour it invents collides with another séance of
- * the same class on the same day — that is `repairSeanceCollisions`, below,
- * which is the form anything repairing a whole collection wants.
+ * This is the per-row half of the repair, and nothing outside this file calls
+ * it. It cannot see siblings, so it cannot know whether the hour it invents
+ * collides with another séance of the same class on the same day — that is
+ * `repairSeanceCollisions`, below, which wraps it and is what the one real
+ * caller uses: the schema's `db.version(17)` upgrade.
  *
- * Neither has a caller any more. Both had exactly two — the v16 upgrade
- * callback and the import path in `backup.ts` — and the schema collapse took
- * the first while the single accepted backup format took the second, since
- * every format-13 file's séances already carry times. They are kept and
- * tested; whether dead code survives is a question for the branch, not for
- * this comment. What the comment must not do is name callers that no longer
- * exist.
+ * It used to be two callers. `backup.ts` ran the same repair on import, for a
+ * format-11 file whose séances carried no times; with one backup format
+ * accepted and every format-13 séance already timed, that call was inert and
+ * is gone.
  */
 export function backfillSeanceTimes(row: {
   startsAt?: number;

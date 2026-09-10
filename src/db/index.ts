@@ -1,3 +1,4 @@
+import { repairSeanceCollisions } from "@domain/seance";
 import Dexie, { type EntityTable, type Table } from "dexie";
 import type {
   Assignment,
@@ -152,6 +153,41 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
     studentGroups: "id, classId",
     groupMembers: "[groupId+studentId], groupId, studentId",
     scheduleEntries: "id, classId, weekday, roomId",
+  });
+  /**
+   * The one upgrade callback, and it is the same exception `db.version(16)`
+   * made: a field became REQUIRED under rows that carry dependents.
+   *
+   * `Session.startsAt` and `endsAt` are not optional on the type, so a séance
+   * recorded before séances carried times is a row that fails its own
+   * declaration — the zombie the standing rule drops a store to avoid. Here
+   * the rule's usual move is unavailable rather than merely unattractive:
+   * `attendance` and `behaviourEvents` are keyed to `sessions.id`, so dropping
+   * `sessions` leaves a term of both as rows nothing reads, nothing counts,
+   * and every export carries. That argument survived the collapse untouched,
+   * so the repair survives with it.
+   *
+   * One `.stores()` and one `.upgrade()` is still one version. The rule for
+   * the next change is unchanged: bump to 18, and write no upgrade function —
+   * this is what "unless a field becomes required under rows with dependents"
+   * looks like when it happens, not a licence to write one by habit.
+   */
+  db.version(17).upgrade(async (tx) => {
+    // Repaired as a WHOLE collection, never row by row: `backfillSeanceTimes`
+    // alone cannot see that two untimed séances of one class on one day floor
+    // to the same hour, and the first `resolveSlot` match would strand the
+    // second forever. See `repairSeanceCollisions` for the invariant.
+    const sessions = await tx.table("sessions").toArray();
+    const repaired = new Map(repairSeanceCollisions(sessions).map((r) => [r.id, r]));
+    await tx
+      .table("sessions")
+      .toCollection()
+      .modify((session) => {
+        const times = repaired.get(session.id);
+        if (!times) return;
+        session.startsAt = times.startsAt;
+        session.endsAt = times.endsAt;
+      });
   });
   return db;
 }

@@ -64,16 +64,53 @@ describe("the schema", () => {
 });
 
 describe("a workspace built by the chain this declaration replaces", () => {
-  /** A v16 workspace holding a class and a grille scored under the old key. */
-  async function buildV16(workspaceId: string): Promise<void> {
+  /**
+   * A workspace at the old schema, holding a row in every store this
+   * declaration drops, plus whatever untimed séances a test asks for.
+   *
+   * Every dropped store is really WRITTEN to, not merely declared: a store the
+   * fixture never filled would be deleted whether or not the declaration says
+   * so, and the absence assertion below would prove nothing.
+   *
+   * `seats`, `seatingLayouts` and `diaryEntries` were dropped by versions 12
+   * and 14 of the chain, so a database that walked the whole chain would not
+   * carry them. This one declares them anyway, because it stands in for the
+   * deleted v12 and v14 seam tests: what is asserted is that the CURRENT
+   * declaration removes anything it does not name, whatever a database happens
+   * to hold.
+   *
+   * Each séance is given an attendance mark and a behaviour event keyed to it,
+   * because a séance with dependents is the case the upgrade exists for — a
+   * bare one could be dropped rather than repaired.
+   */
+  async function buildOldWorkspace(
+    workspaceId: string,
+    sessions: Array<{ id: string; classId: string; date: number; createdAt: number }> = [],
+  ): Promise<void> {
     const old = new Dexie(`profs-${workspaceId}`);
     old.version(16).stores({
       classes: "id, name",
+      sessions: "id, classId, date, [classId+date], subjectId",
+      attendance: "[sessionId+studentId], sessionId, studentId",
+      behaviourEvents: "id, sessionId, studentId, classId, createdAt",
       rubricAssessments: "id, gradebookId, periodId, date",
       rubricScores: "[assessmentId+criterionId+studentId], assessmentId, criterionId, studentId",
+      seats: "id, layoutId, studentId, &[layoutId+x+y]",
+      seatingLayouts: "id, classId",
+      diaryEntries: "[classId+date], classId, date",
     });
     await old.open();
     await old.table("classes").add({ id: "c1", name: "3°B", createdAt: 1, updatedAt: 1 });
+    await old.table("rubricAssessments").add({
+      id: "a1",
+      gradebookId: "g1",
+      periodId: "pe1",
+      name: "Oral",
+      date: 1,
+      criteria: [{ id: "cr1", label: "Clarté" }],
+      createdAt: 1,
+      updatedAt: 1,
+    });
     await old.table("rubricScores").add({
       assessmentId: "a1",
       criterionId: "cr1",
@@ -81,6 +118,27 @@ describe("a workspace built by the chain this declaration replaces", () => {
       level: 3,
       updatedAt: 1,
     });
+    await old.table("seatingLayouts").add({ id: "l1", classId: "c1", rows: 5, cols: 6 });
+    await old.table("seats").add({ id: "s1", layoutId: "l1", studentId: "p1", x: 0, y: 0 });
+    await old.table("diaryEntries").add({ classId: "c1", date: 0, text: "vieux" });
+    for (const session of sessions) {
+      // No `startsAt`, no `endsAt` — the shape a séance had before v16.
+      await old.table("sessions").add(session);
+      await old.table("attendance").add({
+        sessionId: session.id,
+        studentId: "p1",
+        value: "present",
+        updatedAt: session.createdAt,
+      });
+      await old.table("behaviourEvents").add({
+        id: crypto.randomUUID(),
+        sessionId: session.id,
+        studentId: "p1",
+        classId: session.classId,
+        type: "positive",
+        createdAt: session.createdAt,
+      });
+    }
     old.close();
   }
 
@@ -97,14 +155,22 @@ describe("a workspace built by the chain this declaration replaces", () => {
     // `db.tables`, so a pupil's levels would outlive "supprimer toutes les
     // données" — the erase `PRIVACY.md` calls permanent.
     const workspaceId = crypto.randomUUID();
-    await buildV16(workspaceId);
+    await buildOldWorkspace(workspaceId);
 
     const fresh = openWorkspaceDb(workspaceId);
     await fresh.open();
 
     const stores = Array.from(fresh.backendDB().objectStoreNames);
-    expect(stores).not.toContain("rubricScores");
-    expect(stores).not.toContain("rubricAssessments");
+    // Listed per store so a failure names which one survived.
+    for (const gone of [
+      "rubricAssessments",
+      "rubricScores",
+      "seats",
+      "seatingLayouts",
+      "diaryEntries",
+    ]) {
+      expect([gone, stores.includes(gone)]).toEqual([gone, false]);
+    }
     expect(stores).toContain("criterionLevels");
     fresh.close();
   });
@@ -114,7 +180,7 @@ describe("a workspace built by the chain this declaration replaces", () => {
     // lost because its STORE is dropped, not because the workspace is
     // discarded — nothing rejects, so `initWorkspace` never rejects either.
     const workspaceId = crypto.randomUUID();
-    await buildV16(workspaceId);
+    await buildOldWorkspace(workspaceId);
 
     const fresh = openWorkspaceDb(workspaceId);
     const error = await fresh.open().then(
@@ -125,6 +191,56 @@ describe("a workspace built by the chain this declaration replaces", () => {
     expect(error).toBeNull();
     expect(await fresh.classes.count()).toBe(1);
     expect(await fresh.criterionLevels.count()).toBe(0);
+    fresh.close();
+  });
+
+  it("gives an untimed séance a start and an end, and keeps what hangs off it", async () => {
+    // `sessions` is carried FORWARD rather than dropped, which is what makes
+    // this necessary: `Session.startsAt` and `endsAt` are required on the
+    // type, so a séance recorded before séances carried times is a row that
+    // fails its own declaration. Dropping the store instead would strand every
+    // attendance mark and behaviour event keyed to it — the reason
+    // `db.version(16)` wrote an upgrade rather than a `null`, unchanged by the
+    // collapse.
+    const workspaceId = crypto.randomUUID();
+    const sessionId = crypto.randomUUID();
+    // 10:37 local, so the repaired start must be 10:00 and not 11:00.
+    const createdAt = new Date(2026, 8, 9, 10, 37, 0).getTime();
+    await buildOldWorkspace(workspaceId, [
+      { id: sessionId, classId: "c1", date: new Date(2026, 8, 9).getTime(), createdAt },
+    ]);
+
+    const fresh = openWorkspaceDb(workspaceId);
+    await fresh.open();
+
+    const session = await fresh.sessions.get(sessionId);
+    expect(session?.startsAt).toBe(10 * 60);
+    expect(session?.endsAt).toBe(10 * 60 + 55);
+    // The two assertions the whole exception hangs on.
+    expect(await fresh.attendance.where("sessionId").equals(sessionId).count()).toBe(1);
+    expect(await fresh.behaviourEvents.where("sessionId").equals(sessionId).count()).toBe(1);
+    fresh.close();
+  });
+
+  it("keeps BOTH untimed séances of one class on one day reachable, not just present", async () => {
+    // Repaired as a whole collection, never row by row: backfilling each in
+    // isolation floors both to 10:00, and `resolveSlot` returns the first
+    // match — leaving the second in the database and invisible everywhere the
+    // teacher looks.
+    const workspaceId = crypto.randomUUID();
+    const day = new Date(2026, 8, 9).getTime();
+    await buildOldWorkspace(workspaceId, [
+      { id: "s-early", classId: "c1", date: day, createdAt: new Date(2026, 8, 9, 10, 5).getTime() },
+      { id: "s-late", classId: "c1", date: day, createdAt: new Date(2026, 8, 9, 10, 40).getTime() },
+    ]);
+
+    const fresh = openWorkspaceDb(workspaceId);
+    await fresh.open();
+
+    const early = await fresh.sessions.get("s-early");
+    const late = await fresh.sessions.get("s-late");
+    expect(early?.startsAt).toBe(10 * 60);
+    expect(late?.startsAt).not.toBe(early?.startsAt);
     fresh.close();
   });
 
