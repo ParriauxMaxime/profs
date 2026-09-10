@@ -128,11 +128,18 @@ export interface SeanceMonth<T> {
  * The month comes off a `Date`, never from arithmetic on the timestamp: this
  * codebase adds days by walking the calendar for `weekParity`'s reason, and a
  * month is a worse offender than a day.
+ *
+ * Two séances of one class on one day is legal here, and `date` alone cannot
+ * order them. Sorting on the date and stopping left that tie to the input
+ * order, which is `createdAt` — so a 14h lesson could list above the 10h one
+ * on a page whose whole claim is that the séance is the row.
  */
-export function groupSeancesByMonth<T extends { date: number }>(sessions: T[]): SeanceMonth<T>[] {
+export function groupSeancesByMonth<T extends { date: number; startsAt: number }>(
+  sessions: T[],
+): SeanceMonth<T>[] {
   const months = new Map<string, SeanceMonth<T>>();
 
-  for (const session of [...sessions].sort((a, b) => b.date - a.date)) {
+  for (const session of [...sessions].sort((a, b) => b.date - a.date || b.startsAt - a.startsAt)) {
     const day = new Date(session.date);
     const year = day.getFullYear();
     const month = day.getMonth();

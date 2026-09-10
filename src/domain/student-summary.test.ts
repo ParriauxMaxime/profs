@@ -128,12 +128,17 @@ describe("lastMarkedPeriod", () => {
 
 describe("groupSeancesByMonth", () => {
   const at = (y: number, m: number, d: number) => new Date(y, m, d).getTime();
+  /** A séance carries a start now, and two of them on one day are told apart by it. */
+  const seance = (y: number, m: number, d: number, startsAt = 600) => ({
+    date: at(y, m, d),
+    startsAt,
+  });
 
   it("groups by calendar month, newest month first", () => {
     const months = groupSeancesByMonth([
-      { date: at(2026, 11, 4) },
-      { date: at(2026, 10, 18) },
-      { date: at(2026, 11, 2) },
+      seance(2026, 11, 4),
+      seance(2026, 10, 18),
+      seance(2026, 11, 2),
     ]);
 
     expect(months.map((m) => m.key)).toEqual(["2026-11", "2026-10"]);
@@ -142,19 +147,34 @@ describe("groupSeancesByMonth", () => {
   });
 
   it("keeps the newest séance first inside a month", () => {
-    const months = groupSeancesByMonth([{ date: at(2026, 11, 2) }, { date: at(2026, 11, 4) }]);
+    const months = groupSeancesByMonth([seance(2026, 11, 2), seance(2026, 11, 4)]);
 
     expect(months[0].sessions.map((s) => s.date)).toEqual([at(2026, 11, 4), at(2026, 11, 2)]);
   });
 
+  // A class taught twice on one day is legal here, and the date alone cannot
+  // order those two. Left to the input order they came back in whatever order
+  // `sessionsForClass` created them, which is `createdAt` — so the 14h lesson
+  // could sit above the 10h one on a page whose whole claim is that the
+  // séance is the row.
+  it("puts the later hour first when two séances share a day", () => {
+    const months = groupSeancesByMonth([
+      seance(2026, 11, 4, 600),
+      seance(2026, 11, 4, 840),
+      seance(2026, 11, 4, 480),
+    ]);
+
+    expect(months[0].sessions.map((s) => s.startsAt)).toEqual([840, 600, 480]);
+  });
+
   it("carries the year and the month for the heading", () => {
-    const months = groupSeancesByMonth([{ date: at(2027, 0, 9) }]);
+    const months = groupSeancesByMonth([seance(2027, 0, 9)]);
 
     expect(months[0]).toMatchObject({ key: "2027-0", year: 2027, month: 0 });
   });
 
   it("separates the same month of two years", () => {
-    const months = groupSeancesByMonth([{ date: at(2027, 0, 9) }, { date: at(2026, 0, 9) }]);
+    const months = groupSeancesByMonth([seance(2027, 0, 9), seance(2026, 0, 9)]);
 
     expect(months.map((m) => m.key)).toEqual(["2027-0", "2026-0"]);
   });
@@ -166,9 +186,10 @@ describe("groupSeancesByMonth", () => {
 
 describe("defaultOpenMonth", () => {
   const at = (y: number, m: number, d: number) => new Date(y, m, d).getTime();
+  const seance = (y: number, m: number, d: number) => ({ date: at(y, m, d), startsAt: 600 });
 
   it("opens the month we are in", () => {
-    const months = groupSeancesByMonth([{ date: at(2026, 11, 4) }, { date: at(2026, 10, 18) }]);
+    const months = groupSeancesByMonth([seance(2026, 11, 4), seance(2026, 10, 18)]);
 
     expect(defaultOpenMonth(months, at(2026, 11, 20))).toBe("2026-11");
   });
@@ -177,7 +198,7 @@ describe("defaultOpenMonth", () => {
   // holds no séance — a holiday, or a class not taught since — the most
   // recent month that does is opened instead.
   it("opens the most recent month with a séance when this month has none", () => {
-    const months = groupSeancesByMonth([{ date: at(2026, 10, 18) }]);
+    const months = groupSeancesByMonth([seance(2026, 10, 18)]);
 
     expect(defaultOpenMonth(months, at(2026, 11, 20))).toBe("2026-10");
   });

@@ -41,7 +41,16 @@ export function PresenceBlock({ student, sessions }: { student: Student; session
   // fall back to the default), so collapsing the default-open month must not
   // silently re-open it.
   const [openKey, setOpenKey] = useState<string | null>(null);
-  const open = openKey ?? defaultOpenMonth(months, Date.now());
+  // A retained key that names no month in THIS list falls back to the default.
+  // Stepping to the next pupil is a `Router.push` on the same route, so this
+  // component is never remounted and the key survives — across classes it can
+  // survive onto a list that has no such month, and every month then drew
+  // collapsed, which is the empty screen `defaultOpenMonth` exists to prevent.
+  // "" is not a stale key: it is the teacher having closed the open month, and
+  // it must keep meaning closed rather than reopening the default.
+  const retained =
+    openKey !== null && (openKey === "" || months.some((month) => month.key === openKey));
+  const open = retained ? openKey : defaultOpenMonth(months, Date.now());
 
   if (records === undefined) return null;
 

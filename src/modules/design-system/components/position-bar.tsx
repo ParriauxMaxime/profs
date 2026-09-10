@@ -1,9 +1,17 @@
 /**
  * Where one average sits in the class's spread.
  *
- * The first chart in this app, and hand-written inline SVG because it has to
- * be: a chart library from a CDN would break the no-network promise as surely
- * as an analytics call.
+ * The first chart in this app, and drawn from ordinary elements: a chart
+ * library from a CDN would break the no-network promise as surely as an
+ * analytics call.
+ *
+ * It is deliberately NOT an SVG stretched to width. A `viewBox` with
+ * `preserveAspectRatio="none"` scales x by ~2.8 at 375px and y by 1, so a
+ * `<circle>` in it renders as a lozenge — and at either end of the scale half
+ * of it falls outside the box and is clipped. Percentage `left` on a plain
+ * element is immune to both: the marker is round at every width, and it
+ * overhangs into the gap beside the min and max labels rather than being cut
+ * in half at 0 and 1.
  *
  * It is never the only way to read the figures. `description` states the same
  * numbers in words and is what a screen reader gets; the bar is `aria-hidden`
@@ -23,35 +31,26 @@ export function PositionBar({
   maxLabel: string;
   description: string;
 }) {
-  const pct = (n: number): string => `${(n * 100).toFixed(2)}%`;
-
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2" aria-hidden="true">
         <span className="text-text-faint text-xs tabular-nums">{minLabel}</span>
-        <svg
-          className="h-3 flex-1"
-          viewBox="0 0 100 12"
-          preserveAspectRatio="none"
-          role="presentation"
-        >
-          <title>{description}</title>
-          <line x1="0" y1="6" x2="100" y2="6" className="stroke-border" strokeWidth="2" />
-          <line
-            x1={meanFraction * 100}
-            y1="1"
-            x2={meanFraction * 100}
-            y2="11"
-            className="stroke-text-muted"
-            strokeWidth="1.5"
-            vectorEffect="non-scaling-stroke"
+        <div className="relative h-3 flex-1">
+          <div className="-translate-y-1/2 absolute inset-x-0 top-1/2 h-0.5 rounded-full bg-border" />
+          {/* The class mean, full height so it reads as a scale mark rather
+              than as a second pupil. */}
+          <div
+            className="-translate-x-1/2 absolute inset-y-0 w-0.5 bg-text-muted"
+            style={{ left: `${meanFraction * 100}%` }}
           />
-          <circle cx={fraction * 100} cy="6" r="5" className="fill-accent" />
-        </svg>
+          <div
+            className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 h-3 w-3 rounded-full bg-accent"
+            style={{ left: `${fraction * 100}%` }}
+          />
+        </div>
         <span className="text-text-faint text-xs tabular-nums">{maxLabel}</span>
       </div>
       <span className="sr-only">{description}</span>
-      <span className="sr-only">{pct(fraction)}</span>
     </div>
   );
 }

@@ -11,7 +11,7 @@ import { evaluateCalculation } from "@domain/gradebook/calculation";
 import { formatDecimal } from "@domain/gradebook/decimal";
 import { lastMarkedPeriod, positionOnScale } from "@domain/student-summary";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { EditableCell } from "../../design-system/components/editable-cell";
 import { PositionBar } from "../../design-system/components/position-bar";
@@ -53,6 +53,13 @@ export function CarnetSection({
   // Held as a period id, never an index: the tabs re-render whenever a mark is
   // committed, and an index would follow a period that moved.
   const [periodId, setPeriodId] = useState<string | null>(null);
+  // The period to open when the teacher has chosen none, LATCHED rather than
+  // recomputed. `lastMarkedPeriod` reads the marks, so clearing the last mark
+  // in the open period changes its answer — and the section then switched to
+  // T1 on its own, taking the row just edited off screen under the teacher's
+  // finger. Re-resolved only when what it holds is no longer a period of this
+  // carnet.
+  const defaultPeriodId = useRef<string | null>(null);
 
   const data = useLiveQuery(async () => {
     const [periods, columns, grades, classmates] = await Promise.all([
@@ -68,10 +75,13 @@ export function CarnetSection({
 
   const { periods, columns, grades, classmates } = data;
   const gradedColumnIds = grades.filter((g) => g.value !== undefined).map((g) => g.columnId);
+  if (!periods.some((p) => p.id === defaultPeriodId.current)) {
+    defaultPeriodId.current = lastMarkedPeriod(periods, columns, gradedColumnIds);
+  }
   const activePeriodId =
     periodId !== null && periods.some((p) => p.id === periodId)
       ? periodId
-      : lastMarkedPeriod(periods, columns, gradedColumnIds);
+      : defaultPeriodId.current;
 
   const averageColumns: AverageColumn[] = columns.map((c) => ({
     id: c.id,
