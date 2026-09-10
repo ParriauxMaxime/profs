@@ -78,7 +78,15 @@
     "classAverage": "class {{value}}",
     "positionDescription": "{{value}} on a scale from {{min}} to {{max}}, class average {{mean}}",
     "coefficient": "weight {{value}}",
-    "noMark": "—"
+    "noMark": "—",
+    "assiduity": "Attendance",
+    "markedSeances_one": "{{count}} lesson recorded",
+    "markedSeances_other": "{{count}} lessons recorded",
+    "unjustified_one": "{{count}} unexcused absence",
+    "unjustified_other": "{{count}} unexcused absences",
+    "noSeances": "No lesson recorded for this class.",
+    "monthSeances_one": "{{count}} lesson",
+    "monthSeances_other": "{{count}} lessons"
   },
   "class": {
     "addStudent": "Add student",
@@ -265,7 +273,14 @@
     "late": "Late",
     "excused": "Excused",
     "title": "Attendance",
-    "needsSession": "Attendance and behaviour are recorded on the class's lesson."
+    "needsSession": "Attendance and behaviour are recorded on the class's lesson.",
+    "initial": {
+      "present": "P",
+      "absent": "A",
+      "late": "L",
+      "excused": "E"
+    },
+    "notMarked": "not recorded"
   },
   "plan": {
     "unseated": "Students without a seat",

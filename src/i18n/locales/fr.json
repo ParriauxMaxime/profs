@@ -78,7 +78,15 @@
     "classAverage": "classe {{value}}",
     "positionDescription": "{{value}} sur une échelle de {{min}} à {{max}}, moyenne de la classe {{mean}}",
     "coefficient": "coef {{value}}",
-    "noMark": "—"
+    "noMark": "—",
+    "assiduity": "Assiduité",
+    "markedSeances_one": "{{count}} séance marquée",
+    "markedSeances_other": "{{count}} séances marquées",
+    "unjustified_one": "{{count}} absence non justifiée",
+    "unjustified_other": "{{count}} absences non justifiées",
+    "noSeances": "Aucune séance enregistrée pour cette classe.",
+    "monthSeances_one": "{{count}} séance",
+    "monthSeances_other": "{{count}} séances"
   },
   "class": {
     "addStudent": "Ajouter un élève",
@@ -265,7 +273,14 @@
     "late": "En retard",
     "excused": "Excusé",
     "title": "Présence",
-    "needsSession": "La présence et le comportement se notent sur la séance de la classe."
+    "needsSession": "La présence et le comportement se notent sur la séance de la classe.",
+    "initial": {
+      "present": "P",
+      "absent": "A",
+      "late": "R",
+      "excused": "E"
+    },
+    "notMarked": "non marqué"
   },
   "plan": {
     "unseated": "Élèves sans place",
