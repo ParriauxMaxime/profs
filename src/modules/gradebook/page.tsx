@@ -21,6 +21,7 @@ import { ColumnTypeIcon } from "../design-system/components/column-type-icon";
 import { ConfirmButton } from "../design-system/components/confirm-button";
 import { EditableCell } from "../design-system/components/editable-cell";
 import { PupilName } from "../design-system/components/pupil-name";
+import { RubricCellButton } from "../rubric/cell";
 import { ColumnForm } from "./components/column-form";
 import { PeriodBar } from "./components/period-bar";
 
@@ -51,7 +52,12 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
             .anyOf(groups.map((g) => g.id))
             .toArray()
         : [];
-    return { gradebook, periods, columns, students, grades, groups, memberships };
+    const rubricColumnIds = columns.filter((c) => c.type === "rubric").map((c) => c.id);
+    const levels =
+      rubricColumnIds.length > 0
+        ? await db.criterionLevels.where("columnId").anyOf(rubricColumnIds).toArray()
+        : [];
+    return { gradebook, periods, columns, students, grades, groups, memberships, levels };
   }, [db, gradebookId]);
 
   if (data === undefined) return <p className="text-text-muted">{t("common.loading")}</p>;
@@ -303,7 +309,15 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
                   <PupilName student={student} />
                 </td>
                 {columns.map((column) =>
-                  column.type === "calculation" ? (
+                  column.type === "rubric" ? (
+                    <td key={column.id} className="px-3 py-2 text-center">
+                      <RubricCellButton
+                        column={column}
+                        levels={data.levels.filter((row) => row.columnId === column.id)}
+                        student={student}
+                      />
+                    </td>
+                  ) : column.type === "calculation" ? (
                     <td key={column.id} className="px-3 py-2 text-center">
                       <EditableCell
                         type="calculation"

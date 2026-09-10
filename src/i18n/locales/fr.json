@@ -347,7 +347,12 @@
     "notInAverage": "Ces niveaux ne comptent pas dans la moyenne du carnet.",
     "previousCriterion": "Critère précédent",
     "nextCriterion": "Critère suivant",
-    "editCriteria": "Modifier les critères"
+    "editCriteria": "Modifier les critères",
+    "cellEmpty": "Pas encore évalué",
+    "cellPartial": "{{scored}}/{{total}} critères",
+    "cellComplete": "Moyenne des niveaux : {{mean}}",
+    "openFor": "Évaluer {{name}}",
+    "closePanel": "Fermer"
   },
   "today": {
     "title": "Aujourd'hui",
