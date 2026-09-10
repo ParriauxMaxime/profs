@@ -1,7 +1,8 @@
-import type { AppDatabase, RubricScore, Student } from "@db";
-import { clearScore, setScore } from "@db/rubrics";
+import type { AppDatabase, CriterionLevel, Student } from "@db";
+import { clearLevel, setLevel } from "@db/criterion-levels";
 import {
   levelDistribution,
+  meanColor,
   RUBRIC_LEVEL_COLORS,
   RUBRIC_LEVELS,
   type RubricCriterion,
@@ -18,32 +19,26 @@ function cellKey(criterionId: string, studentId: string): string {
   return `${criterionId}|${studentId}`;
 }
 
-/** Nearest whole level for colouring a continuous mean. Clamped to 1–4. */
-function meanColor(mean: number): string {
-  const rounded = Math.min(4, Math.max(1, Math.round(mean))) as RubricLevel;
-  return RUBRIC_LEVEL_COLORS[rounded];
-}
-
 /**
  * The live scoring grid: phone-shape criterion-at-a-time entry below `md`,
  * the full pupil-by-criterion matrix at `md` and above, and the reporting
  * strip (means and distributions) beneath both.
  *
- * All writes go through `setScore`/`clearScore` in `@db/rubrics` — this
- * component holds no write logic of its own.
+ * All writes go through `setLevel`/`clearLevel` in `@db/criterion-levels` —
+ * this component holds no write logic of its own.
  */
 export function RubricGrid({
   db,
-  assessmentId,
+  columnId,
   criteria,
   students,
-  scores,
+  levels,
 }: {
   db: AppDatabase;
-  assessmentId: string;
+  columnId: string;
   criteria: RubricCriterion[];
   students: Student[];
-  scores: RubricScore[];
+  levels: CriterionLevel[];
 }) {
   const { t } = useTranslation();
   // Held as an id, never an index: if the criteria list changes underneath
@@ -55,8 +50,8 @@ export function RubricGrid({
   const activeCriterion = criteria.find((c) => c.id === selectedCriterionId) ?? criteria[0] ?? null;
   const activeIndex = activeCriterion ? criteria.findIndex((c) => c.id === activeCriterion.id) : -1;
 
-  const scoreMap = new Map<string, RubricLevel>(
-    scores.map((s) => [cellKey(s.criterionId, s.studentId), s.level]),
+  const levelMap = new Map<string, RubricLevel>(
+    levels.map((row) => [cellKey(row.criterionId, row.studentId), row.level]),
   );
 
   async function handleChange(
@@ -65,9 +60,9 @@ export function RubricGrid({
     next: RubricLevel | null,
   ): Promise<void> {
     if (next === null) {
-      await clearScore(db, assessmentId, criterionId, studentId);
+      await clearLevel(db, columnId, criterionId, studentId);
     } else {
-      await setScore(db, assessmentId, criterionId, studentId, next);
+      await setLevel(db, columnId, criterionId, studentId, next);
     }
   }
 
@@ -111,7 +106,7 @@ export function RubricGrid({
                 <PupilName student={student} />
               </span>
               <LevelButtons
-                value={scoreMap.get(cellKey(activeCriterion.id, student.id)) ?? null}
+                value={levelMap.get(cellKey(activeCriterion.id, student.id)) ?? null}
                 onChange={(next) => void handleChange(activeCriterion.id, student.id, next)}
               />
             </li>
@@ -142,7 +137,7 @@ export function RubricGrid({
                   <td key={criterion.id} className="px-2 py-2">
                     <LevelButtons
                       compact
-                      value={scoreMap.get(cellKey(criterion.id, student.id)) ?? null}
+                      value={levelMap.get(cellKey(criterion.id, student.id)) ?? null}
                       onChange={(next) => void handleChange(criterion.id, student.id, next)}
                     />
                   </td>
@@ -161,7 +156,7 @@ export function RubricGrid({
           <h3 className="font-medium text-sm">{t("rubric.mean")}</h3>
           <ul className="flex flex-wrap gap-2">
             {students.map((student) => {
-              const mean = studentMean(scores, student.id);
+              const mean = studentMean(levels, student.id);
               return (
                 <li key={student.id}>
                   <Chip color={mean === null ? undefined : meanColor(mean)}>
@@ -178,7 +173,7 @@ export function RubricGrid({
         <div className="flex flex-col gap-3">
           <h3 className="font-medium text-sm">{t("rubric.distribution")}</h3>
           {criteria.map((criterion) => {
-            const dist = levelDistribution(scores, criterion.id);
+            const dist = levelDistribution(levels, criterion.id);
             const total = RUBRIC_LEVELS.reduce((sum, level) => sum + dist[level], 0);
             return (
               <div key={criterion.id} className="flex flex-col gap-1">

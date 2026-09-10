@@ -25,6 +25,7 @@ import type {
   Assignment,
   AttendanceRecord,
   BehaviourEvent,
+  CriterionLevel,
   Desk,
   Grade,
   Gradebook,
@@ -32,8 +33,6 @@ import type {
   GroupMember,
   Period,
   Room,
-  RubricAssessment,
-  RubricScore,
   RubricTemplate,
   ScheduleEntry,
   SeatingPlan,
@@ -345,35 +344,41 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     updatedAt: now,
   };
 
-  const rubricAssessments: RubricAssessment[] = [];
-  const rubricScores: RubricScore[] = [];
+  const criterionLevels: CriterionLevel[] = [];
 
   for (const gradebook of gradebooks) {
-    const firstPeriod = periods.filter((p) => p.gradebookId === gradebook.id)[0];
-    const assessment: RubricAssessment = {
+    const gradebookPeriods = periods.filter((p) => p.gradebookId === gradebook.id);
+    const firstPeriod = gradebookPeriods.sort((a, b) => a.order - b.order)[0];
+    const existing = columns.filter((c) => c.gradebookId === gradebook.id);
+    const rubricColumn: GradeColumn = {
       id: id(),
       gradebookId: gradebook.id,
       periodId: firstPeriod.id,
-      name: "Projet musical",
-      date: now,
-      // Fresh ids, never the template's: a score written against one
-      // assessment must not be readable from another.
+      type: "rubric",
+      label: "Grille projet musical",
+      weight: 1,
+      max: 20,
+      order: existing.length,
+      // Inside the seeded history window, like every other column: a grille
+      // happened on a day.
+      date: now - 24 * 60 * 60 * 1000,
+      // Fresh ids, never the template's: a level written against one column
+      // must not be readable from another, and improving the template later
+      // must not reach a grille already graded.
       criteria: rubricTemplate.criteria.map((c) => ({ id: id(), label: c.label })),
-      createdAt: now,
-      updatedAt: now,
     };
-    rubricAssessments.push(assessment);
+    columns.push(rubricColumn);
 
     for (const student of students.filter((s) => s.classId === gradebook.classId)) {
       const apt = aptitude.get(student.id) ?? 0.5;
-      for (const criterion of assessment.criteria) {
+      for (const criterion of rubricColumn.criteria ?? []) {
         if (random() > 2 / 3) continue;
         const index = Math.min(
           RUBRIC_LEVELS.length - 1,
           Math.floor(apt * RUBRIC_LEVELS.length + (random() - 0.5)),
         );
-        rubricScores.push({
-          assessmentId: assessment.id,
+        criterionLevels.push({
+          columnId: rubricColumn.id,
           criterionId: criterion.id,
           studentId: student.id,
           level: RUBRIC_LEVELS[Math.max(0, index)],
@@ -637,8 +642,7 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       db.seatingPlans,
       db.assignments,
       db.rubricTemplates,
-      db.rubricAssessments,
-      db.rubricScores,
+      db.criterionLevels,
       db.studentGroups,
       db.groupMembers,
       db.scheduleEntries,
@@ -659,8 +663,7 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       await db.seatingPlans.bulkAdd(seatingPlans);
       await db.assignments.bulkPut(assignments);
       await db.rubricTemplates.add(rubricTemplate);
-      await db.rubricAssessments.bulkAdd(rubricAssessments);
-      await db.rubricScores.bulkPut(rubricScores);
+      await db.criterionLevels.bulkPut(criterionLevels);
       await db.studentGroups.bulkAdd(studentGroups);
       await db.groupMembers.bulkPut(groupMembers);
       await db.scheduleEntries.bulkAdd(scheduleEntries);

@@ -42,8 +42,10 @@ export const Router = createRouter(
     Student: "/students/:studentId",
     Gradebook: "/gradebooks/:gradebookId",
     Entry: "/gradebooks/:gradebookId/entry/:columnId",
-    Rubrics: "/gradebooks/:gradebookId/rubrics",
-    Rubric: "/gradebooks/:gradebookId/rubrics/:assessmentId",
+    // The class matrix for one rubric column — the header's door, mirroring
+    // Entry for a numeric column. The cell's door is the pupil's own critères,
+    // in the grid.
+    Rubric: "/gradebooks/:gradebookId/rubric/:columnId",
     Settings: "/settings",
     Design: "/design",
   },

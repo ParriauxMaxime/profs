@@ -4,11 +4,40 @@
 
 **Goal:** Turn a rubric assessment from a standalone screen into a `GradeColumn` of type `"rubric"` whose cell opens into its critères, so the carnet becomes the live assessment surface.
 
-**Architecture:** `RubricAssessment` stops being a row: a column carries the critères embedded (the `calculation` precedent) and a level keeps its own row, rekeyed `[columnId+criterionId+studentId]` in a store renamed `criterionLevels`. The Dexie version chain collapses to a single `db.version(1)`, which is only safe once `VersionError` classifies as recoverable. No level ever becomes a mark: `isNumericColumn("rubric")` is `false`, so `studentAverage` is untouched and nothing on a bulletin can move.
+**Architecture:** `RubricAssessment` stops being a row: a column carries the critères embedded (the `calculation` precedent) and a level keeps its own row, rekeyed `[columnId+criterionId+studentId]` in a store renamed `criterionLevels`. The Dexie version chain collapses to a single `db.version(17)`, the next integer above the chain it replaces, so every existing workspace upgrades forward with no `VersionError` — the removed stores are actually deleted rather than left as zombies outside `db.tables`. No level ever becomes a mark: `isNumericColumn("rubric")` is `false`, so `studentAverage` is untouched and nothing on a bulletin can move.
 
 **Tech Stack:** TypeScript, React 19, Dexie 4 (IndexedDB), Chicane router, TailwindCSS, Jest + fake-indexeddb, Biome, rspack.
 
 **Spec:** `docs/superpowers/specs/2026-09-09-profs-rubric-as-column-design.md`
+
+> **Superseded on this point (2026-09-10):** this plan was written on a false
+> premise about the schema collapse, corrected mid-branch in the spec above.
+> It reasoned that dropping the version number to `db.version(1)` would
+> provoke a `VersionError` on every existing workspace, landing it on
+> `RecoveryShell`'s discard panel — and treated that as the mechanism that
+> made the collapse safe, once `VersionError` classified as `corrupt`. That is
+> wrong: Dexie **catches** a downgrade `VersionError`, silently reopens with no
+> version at all, and patches the declared schema into whatever it finds. The
+> dropped stores are never deleted — they stay in IndexedDB, outside
+> `db.tables`, and therefore outside `wipeWorkspace` and the backup's clear
+> list, against `PRIVACY.md`'s promise that "supprimer toutes les données" is
+> permanent.
+>
+> What shipped is `db.version(17)` — the next integer **above** the old
+> chain's top of 16, not below it. At 17, Dexie runs an ordinary **forward**
+> upgrade: no `VersionError` at all, the removed stores are actually deleted,
+> and every surviving store carries its rows forward untouched. The
+> `VersionError` → `corrupt` reclassification in `src/domain/recovery.ts` still
+> shipped and is still correct, but it fixes an independent, pre-existing
+> latent bug (a stale service-worker shell reopening a database newer than its
+> own code) — it is not what makes this collapse safe, because the collapse
+> going forward never raises `VersionError` in the first place.
+>
+> Every `db.version(1)` reference below, and the paragraph asserting "every
+> existing workspace now fails to open with `VersionError` and lands on the
+> discard panel", are corrected in place to match what was actually built.
+> This plan is left otherwise as written — a historical record of the task
+> breakdown, not a re-derivation of the design.
 
 ## Global Constraints
 
@@ -43,7 +72,7 @@
 - `src/domain/gradebook/grade.ts` — `parseGradeValue` refuses `"rubric"`.
 - `src/domain/rubric.ts` — `CriterionLevelLike`, `RubricCell`, `rubricCell`.
 - `src/db/types.ts` — `GradeColumn.criteria`, `CriterionLevel` replaces `RubricScore`, `RubricAssessment` deleted.
-- `src/db/index.ts` — one `db.version(1)`, `criterionLevelKey`.
+- `src/db/index.ts` — one `db.version(17)`, `criterionLevelKey`.
 - `src/db/rubrics.ts` — reduced to template writes only.
 - `src/db/cascade.ts` — `deleteColumn` sweeps levels; assessment cascades deleted.
 - `src/db/backup.ts` — format 13, single literal, `criterionLevels`.
@@ -65,7 +94,7 @@
 
 ### Task 1: A database the code is too old for offers a way out
 
-`VersionError` classifies as `retry`, which offers only *Recharger* — a button that fails identically, forever. Task 2 makes every existing workspace raise it, so this lands first. It is also a live bug on its own: a stale service-worker shell after any schema bump hits the same wall.
+`VersionError` classifies as `retry`, which offers only *Recharger* — a button that fails identically, forever. It is a live bug on its own, independent of Task 2's schema collapse: a stale service-worker shell reopening a database newer than its own code hits the same wall. (Task 2's collapse to `db.version(17)` does **not** raise it — that was this plan's original, corrected premise; see the note near the top of this document. This task still lands first because the bug is real on its own terms.)
 
 **Files:**
 - Modify: `src/domain/recovery.ts:31` (the `RETRY_ERRORS` list and the comment above it)
@@ -398,7 +427,24 @@ export interface GradeColumn {
 }
 ```
 
-- [ ] **Step 7: Run the tests and watch them pass**
+- [ ] **Step 7: Keep the exhaustive places exhaustive**
+
+`ColumnTypeIcon`'s `GLYPHS` is a `Record<ColumnType, string>`, so adding a type to
+`COLUMN_TYPES` breaks `yarn typecheck` here and nowhere else. In
+`src/modules/design-system/components/column-type-icon.tsx`:
+
+```ts
+  calculation: "Σ",
+  rubric: "◧",
+```
+
+The type `<select>` in `ColumnForm` renders ``t(`gradebook.type.${type}`)`` over
+`COLUMN_TYPES`, so the label lands in the same task rather than five tasks later.
+In `src/i18n/locales/fr.json`, under `gradebook.type`: `"rubric": "Grille d'évaluation"`.
+In `en.json`, under the same key: `"rubric": "Rubric"`. Both files, or the parity
+test fails.
+
+- [ ] **Step 8: Run the tests and watch them pass**
 
 ```bash
 yarn test src/domain/rubric.test.ts src/domain/gradebook/column.test.ts src/domain/gradebook/grade.test.ts
@@ -406,11 +452,11 @@ yarn test src/domain/rubric.test.ts src/domain/gradebook/column.test.ts src/doma
 
 Expected: PASS. `yarn typecheck` will still fail — `src/modules/rubric/grid.tsx` and `src/db/rubrics.ts` name `RubricScoreLike`. Fix those two imports to `CriterionLevelLike` now; no other change.
 
-- [ ] **Step 8: Run the gate and commit**
+- [ ] **Step 9: Run the gate and commit**
 
 ```bash
 yarn format && yarn lint && yarn typecheck && yarn test
-git add src/domain src/db/types.ts src/modules/rubric/grid.tsx src/db/rubrics.ts
+git add src/domain src/db/types.ts src/modules/rubric/grid.tsx src/db/rubrics.ts src/modules/design-system/components/column-type-icon.tsx src/i18n
 git commit -m "feat(gradebook): a column may hold critères, and a cell knows when it is done
 
 ColumnType gains \"rubric\", carrying its critères embedded beside the
@@ -431,9 +477,9 @@ Deleting the UI and the writes first is what lets Task 4 drop the store without 
 
 **Files:**
 - Delete: `src/modules/rubric/components/assessment-form.tsx`
-- Modify: `src/modules/rubric/page.tsx` (delete `RubricsPage`; keep `RubricAssessmentPage` for now, untouched)
-- Modify: `src/router.ts` (delete the `Rubrics` route)
-- Modify: `src/app.tsx` (delete the `Rubrics` case, the name from both route unions, and the `RubricsPage` import)
+- Delete: `src/modules/rubric/page.tsx` (BOTH components — `RubricsPage` and `RubricAssessmentPage`; Task 6 writes the file fresh)
+- Modify: `src/router.ts` (delete BOTH the `Rubrics` and `Rubric` routes)
+- Modify: `src/app.tsx` (delete both cases, both names from both route unions, and the whole rubric page import)
 - Modify: `src/modules/gradebook/page.tsx` (delete the `Router.Rubrics` link and its `Link` usage)
 - Modify: `src/db/rubrics.ts` (delete `NewAssessment`, `createAssessment`, `createAssessmentFromTemplate`; keep `newCriterion`, `setCriteria`, `setScore`, `clearScore`, `saveTemplate`)
 - Modify: `src/db/rubrics.test.ts` (delete the tests for the three removed functions)
@@ -479,13 +525,24 @@ Expected: FAIL — `src/modules/rubric/components/assessment-form.tsx` imports b
 git rm src/modules/rubric/components/assessment-form.tsx
 ```
 
-In `src/modules/rubric/page.tsx`, delete the whole `RubricsPage` component and every import only it used (`AssessmentForm`, `deleteRubricAssessment`, `ConfirmButton`, `Link`, `Router`, `scoredCount`, `levelCount`, `RubricAssessment`). Leave `RubricAssessmentPage` exactly as it is.
+Remove `src/modules/rubric/page.tsx` from the repository and from disk — the whole
+file, both components. `RubricAssessmentPage` reads `db.rubricAssessments`, a store
+Task 4 drops; keeping it alive through Task 4 would mean a compile-fix nobody wants
+and two commits where a live route renders a page reading a store that no longer
+exists. Task 6 writes this file fresh against a column.
+
+`grid.tsx`, `components/criteria-editor.tsx` and `components/level-buttons.tsx` STAY —
+Tasks 5 and 6 use all three. Nothing renders `RubricGrid` until Task 6, which is fine.
 
 - [ ] **Step 4: Unwire the route**
 
-In `src/router.ts`, delete the `Rubrics: "/gradebooks/:gradebookId/rubrics",` line. Leave `Rubric` alone — Task 6 replaces it.
+In `src/router.ts`, delete BOTH rubric lines — `Rubrics: "/gradebooks/:gradebookId/rubrics",`
+and `Rubric: "/gradebooks/:gradebookId/rubrics/:assessmentId",`. Task 6 adds one route
+back, at a new path.
 
-In `src/app.tsx`: delete `"Rubrics"` from the route-name array around line 40 and from the union around line 77, delete the `case "Rubrics":` block, and change the import on line 10 to `import { RubricAssessmentPage } from "./modules/rubric/page";`.
+In `src/app.tsx`: delete `"Rubrics"` and `"Rubric"` from the route-name array around
+line 40 and from the union around line 77, delete both `case` blocks, and delete the
+`./modules/rubric/page` import line entirely.
 
 In `src/modules/gradebook/page.tsx`, delete the Grilles link:
 
@@ -516,7 +573,7 @@ absent from the interface until the grid carries it."
 
 ### Task 4: One schema version, and a level that is named after what it is
 
-The chain collapses to `db.version(1)`, `rubricScores` becomes `criterionLevels`, and `rubricAssessments` goes. Every existing workspace now fails to open with `VersionError` and lands on the discard panel Task 1 unlocked.
+The chain collapses to `db.version(17)`, `rubricScores` becomes `criterionLevels`, and `rubricAssessments` goes. Every existing workspace upgrades forward with no `VersionError` — Dexie diffs the declaration against the stored schema and actually deletes the stores that are gone, rather than leaving them as zombies outside `db.tables` the way a downgrade to a lower number silently would. (Task 1's `VersionError` → `corrupt` reclassification still ships; it guards a separate, latent case — a stale service-worker shell reopening a database newer than its own code — not this collapse.)
 
 **Files:**
 - Modify: `src/db/index.ts` (whole `openWorkspaceDb` body; `rubricScoreKey` → `criterionLevelKey`)
@@ -696,16 +753,29 @@ it("takes a rubric column's levels with the column", async () => {
 });
 ```
 
-Add to `src/db/backup.test.ts`:
+In `src/db/backup.test.ts`, **delete the three version-11 acceptance tests** — the one
+that accepts a v11 file and backfills its séances, the one about two colliding v11
+séances, and the assertion that a v11 file parses as version 12. They assert that an
+older file is accepted and repaired, which is exactly the behaviour this design removes;
+leaving them means watching them fail and being tempted to weaken the refusal instead.
+
+Then add the refusal, using the file's own idiom — `parseBackup` THROWS, it does not
+return a result object; see the version-10 test already in the same file:
 
 ```ts
-it("refuses a file from before the grille was a column", () => {
-  // 11 and 12 both export rubricAssessments, a store that no longer exists.
-  // Half-importing is worse than refusing: the grilles would vanish silently
-  // rather than the file being turned away.
-  for (const version of [11, 12]) {
-    expect(parseBackup({ ...validBackupFixture(), version }).ok).toBe(false);
+it("refuses every file from before the grille was a column", async () => {
+  // 11 and 12 both export rubricAssessments, a store that no longer exists, so
+  // both carry grilles with nowhere to land. Half-importing is worse than
+  // refusing: the grilles would vanish silently rather than the file being
+  // turned away. From here only the current format is accepted — a file is
+  // importable only while every store it names still exists.
+  const db = openWorkspaceDb(`backup-old-${crypto.randomUUID()}`);
+  const current = await exportWorkspace(db);
+  for (const version of [10, 11, 12]) {
+    expect(() => parseBackup({ ...current, version })).toThrow();
   }
+  expect(() => parseBackup(current)).not.toThrow();
+  db.close();
 });
 ```
 
@@ -726,30 +796,39 @@ Replace the entire body of `openWorkspaceDb` in `src/db/index.ts` — every `db.
 export function openWorkspaceDb(workspaceId: string): AppDatabase {
   const db = new Dexie(`profs-${workspaceId}`) as AppDatabase;
   /**
-   * ONE version, declaring the schema as it stands.
+   * ONE declaration, numbered above the last of the chain it replaces.
    *
-   * There were sixteen, each a bump with no upgrade callback, because schema
-   * changes here are disposable: a stale workspace is wiped on the next boot
-   * rather than migrated. Nothing is deployed, so that chain described
-   * migrations nobody will ever run, and the current shape could only be read
-   * by replaying fifteen diffs.
+   * There were sixteen versions, each a bump with no upgrade callback, because
+   * schema changes here are disposable: a stale workspace is wiped rather than
+   * migrated. Nothing is deployed, so that chain described migrations nobody
+   * will ever run, and the current shape could only be read by replaying
+   * fifteen diffs. What replaces it is not a chain of one — it is the same
+   * rule stated once, at the next number up.
    *
-   * The consequence is load-bearing and deliberate: IndexedDB refuses to open
-   * a database at a version LOWER than the stored one, so every workspace
-   * built by an earlier build fails to open with `VersionError`, reaches
-   * `RecoveryShell`, and is offered the discard. That is only true because
-   * `classifyOpenFailure` treats `VersionError` as `corrupt` — see
-   * `src/domain/recovery.ts`. Without that, this line bricks every existing
-   * workspace instead of wiping it.
+   * The NUMBER is the load-bearing part, and 1 would have been a silent bug.
+   * Dexie does not surface a downgrade: `dexieOpen` catches the `VersionError`
+   * that a lower number provokes, reopens with no version at all, and patches
+   * the declared schema into whatever it finds. A store that is GONE is not
+   * dropped that way — it stays in IndexedDB, outside `db.tables`, and
+   * therefore outside `wipeWorkspace` and the backup's clear list, which both
+   * read `db.tables`. A term of pupils' levels would survive "supprimer toutes
+   * les données", and `PRIVACY.md` promises that erase is permanent.
+   *
+   * At 17 the upgrade runs forwards, as an upgrade: Dexie diffs this
+   * declaration against the stored schema, DELETES the stores that are gone —
+   * `rubricAssessments`, `rubricScores`, and the older casualties before them
+   * — and carries every surviving store forward with its rows untouched. A
+   * grille already graded is lost because its store is dropped, not because
+   * the workspace is discarded, and nothing reaches `RecoveryShell`.
    *
    * The rule for the next change is unchanged: add a table or a field, bump to
-   * version 2, write no upgrade function.
+   * 18, write no upgrade function.
    *
    * `&` marks a unique index. `desks` refuses two tables on one square,
    * `seatingPlans` one plan per class per salle, and `assignments` one pupil
    * in two chairs — invariants that used to live only in careful code.
    */
-  db.version(1).stores({
+  db.version(17).stores({
     classes: "id, name",
     students: "id, classId, lastName",
     subjects: "id, name",
@@ -958,10 +1037,11 @@ git add -A
 git commit -m "feat(db): one schema version, and a level named after what it is
 
 Sixteen versions described migrations nobody will run — nothing is
-deployed. The chain collapses to db.version(1), and every workspace built
-by an earlier build now fails to open with VersionError and is offered
-the discard, which only works because that error stopped classifying as
-retry.
+deployed. The chain collapses to db.version(17), the next integer above
+the one it replaces, so every existing workspace upgrades forward with
+no VersionError at all: Dexie diffs the declaration against the stored
+schema and deletes the stores that are gone, rather than leaving them as
+zombies outside db.tables the way a lower number silently would.
 
 rubricScores becomes criterionLevels, keyed [columnId+criterionId+
 studentId]: a score was named after an assessment row that no longer
@@ -1428,7 +1508,7 @@ in one transaction."
 
 Four edits, each replacing a statement this work made false:
 
-1. The `src/db/` paragraph — "Twenty tables across `db.version(2)` through `version(14)`" becomes one `db.version(1)` declaring nineteen tables, and states the consequence: an older workspace fails to open and is offered the discard, which is why `VersionError` must classify as `corrupt`.
+1. The `src/db/` paragraph — "Twenty tables across `db.version(2)` through `version(14)`" becomes one `db.version(17)` declaring nineteen tables, and states the consequence: an older workspace upgrades forward silently, with the removed stores actually deleted rather than left as zombies the way a downgrade would leave them.
 2. *Schema changes are disposable* — the rule stands, but the two-version dance for a changed primary key is now historical. Say that a rename sidesteps it entirely: a store that does not exist yet has no key to change. Note that the four upgrade-seam tests are gone and what replaced them.
 3. The rubric invariant — a grille is a column of a carnet, its critères embedded like `calculation`, its levels their own rows in `criterionLevels`. **A level still never feeds an average**, and the opt-in barème is named as the decision deliberately left open.
 4. The journal/backup paragraph — format **13**, accepted alone, and the rule: a file is importable only while every store it names still exists.

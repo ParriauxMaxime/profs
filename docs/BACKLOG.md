@@ -6,9 +6,10 @@ spec → plan → implementation cycle.
 
 ## 1. Grilles d'évaluation (rubrics) — highest value
 
-**Status: delivered, phase 2B.** `src/modules/rubric` (`RubricsPage`,
-`RubricAssessmentPage`, `RubricGrid`), `src/domain/rubric.ts`, `src/db/rubrics.ts`
-and `src/db/cascade.ts`'s `deleteRubricAssessment`/`deleteRubricTemplate`.
+**Status: delivered, phase 2B, then moved from a standalone screen onto the
+carnet.** `src/modules/rubric` (`RubricColumnPage`, `RubricGrid`,
+`RubricCellButton`), `src/domain/rubric.ts`, `src/db/criterion-levels.ts` and
+`src/db/cascade.ts`'s `deleteRubricTemplate`.
 
 A teacher enters a list of criteria and gets a double-entry table: students down
 one axis, criteria across the other, each cell an acquisition level **1 to 4**.
@@ -19,11 +20,21 @@ no dialogs, no save button, phone-shape below `md` and a pinned-column matrix
 above it.
 
 What shipped, against the open questions this entry originally raised:
-- **Standalone, not attached to a gradebook column.** A rubric assessment
-  belongs to a gradebook and a period (for filtering) but a 1–4 level never
-  converts to a mark out of 20 — see the invariant in `CLAUDE.md`.
+- **A grille is a gradebook column, not a screen beside one.** It started
+  standalone — a `RubricAssessment` row reachable only through `Rubrics` /
+  `Rubric`, sharing a gradebook and a period with the carnet but no other
+  surface — and that was the wrong place for it: a teacher is already looking
+  at the grid when they want to assess, and a grille reached at `class →
+  carnet → Grilles → the assessment` was four taps from the lesson it graded.
+  `RubricAssessment` no longer exists; a grille is a `GradeColumn` of `type:
+  "rubric"`, its criteria embedded in the column the way `calculation`'s spec
+  already was, and its levels their own rows in `criterionLevels` — reached
+  through the same two doors a numeric column already had: the cell opens one
+  pupil, the header opens the class matrix at `/gradebooks/:gradebookId/rubric/:columnId`.
+  A 1–4 level still never converts to a mark out of 20 — see the invariant in
+  `CLAUDE.md` — and moving the row did not change that.
 - **Reusable via a template library.** `rubricTemplates` holds named criteria
-  lists; `createAssessmentFromTemplate` copies them into a new assessment with
+  lists; `setColumnCriteria` copies them into a column's `criteria` with
   fresh criterion ids, so editing a template later cannot rewrite a grid
   already graded.
 - **The 1–4 scale renders as both a label and a colour** (non acquis / en
@@ -34,13 +45,17 @@ What was deliberately **not** built:
 - **Criterion weights.** `RubricCriterion` is `{ id, label }` — no weight
   field. Nothing downstream (mean, distribution) would have used one, and a
   weighted 1–4 scale reads as more precision than the levels actually carry.
-- **Rubric-to-average conversion.** There is still no way, and no plan, to
-  turn a rubric mean into something `studentAverage` reads. If this is ever
-  wanted, it needs its own spec — silently blending a competency scale into a
-  /20 average would misrepresent both.
+- **Rubric-to-average conversion.** There is still no way to turn a rubric
+  mean into something `studentAverage` reads, and the column move was built
+  to leave that true: `isNumericColumn("rubric")` is `false`, so nothing on a
+  bulletin moved as a result of it. An opt-in barème — a teacher stating a
+  level-to-mark conversion and letting a grille count toward the moyenne — has
+  been designed for and deliberately not built; if it is ever wanted it needs
+  its own spec, since silently blending a competency scale into a /20 average
+  would misrepresent both.
 - **Cross-class rubric reporting.** Templates are shared across the workspace,
   but there is no view aggregating rubric results across classes or across
-  assessments — each assessment's means and distributions are read on its own
+  columns — each rubric column's means and distributions are read on its own
   page only.
 
 ## 2. Plan de classe (seating chart) with trombinoscope

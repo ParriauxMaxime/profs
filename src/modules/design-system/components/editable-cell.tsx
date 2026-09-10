@@ -60,6 +60,13 @@ export function EditableCell({
   const hasNote = note !== undefined && note.length > 0;
   const noteTitle = hasNote ? t("gradebook.hasNote", { note }) : undefined;
 
+  // A calculation column stores nothing and a rubric column stores no Grade
+  // row at all — its levels live in `criterionLevels`. Neither may reach the
+  // editor: typing into either would produce a stored value the next render
+  // discards. A rubric cell renders through `RubricCellButton` instead, so
+  // this branch is a guard rather than a rendering.
+  if (type === "rubric") return null;
+
   // A calculation column stores nothing — its value is derived on read by the
   // caller and handed in as `value`. Rendering it read-only here (no button,
   // no editor) is the only way to guarantee a teacher can never type into it

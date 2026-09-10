@@ -21,6 +21,7 @@ import { ColumnTypeIcon } from "../design-system/components/column-type-icon";
 import { ConfirmButton } from "../design-system/components/confirm-button";
 import { EditableCell } from "../design-system/components/editable-cell";
 import { PupilName } from "../design-system/components/pupil-name";
+import { RubricCellButton } from "../rubric/cell";
 import { ColumnForm } from "./components/column-form";
 import { PeriodBar } from "./components/period-bar";
 
@@ -37,12 +38,13 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
   const data = useLiveQuery(async () => {
     const gradebook = await db.gradebooks.get(gradebookId);
     if (!gradebook) return null;
-    const [periods, columns, students, grades, groups] = await Promise.all([
+    const [periods, columns, students, grades, groups, templates] = await Promise.all([
       db.periods.where("gradebookId").equals(gradebookId).sortBy("order"),
       db.columns.where("gradebookId").equals(gradebookId).sortBy("order"),
       db.students.where("classId").equals(gradebook.classId).sortBy("lastName"),
       db.grades.where("gradebookId").equals(gradebookId).toArray(),
       db.studentGroups.where("classId").equals(gradebook.classId).sortBy("name"),
+      db.rubricTemplates.toArray(),
     ]);
     const memberships =
       groups.length > 0
@@ -51,7 +53,22 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
             .anyOf(groups.map((g) => g.id))
             .toArray()
         : [];
-    return { gradebook, periods, columns, students, grades, groups, memberships };
+    const rubricColumnIds = columns.filter((c) => c.type === "rubric").map((c) => c.id);
+    const levels =
+      rubricColumnIds.length > 0
+        ? await db.criterionLevels.where("columnId").anyOf(rubricColumnIds).toArray()
+        : [];
+    return {
+      gradebook,
+      periods,
+      columns,
+      students,
+      grades,
+      groups,
+      memberships,
+      levels,
+      templates,
+    };
   }, [db, gradebookId]);
 
   if (data === undefined) return <p className="text-text-muted">{t("common.loading")}</p>;
@@ -157,9 +174,6 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-semibold text-lg">{data.gradebook.name}</h2>
         <div className="flex flex-wrap items-center gap-2">
-          <Link className="btn" to={Router.Rubrics({ gradebookId })}>
-            {t("rubric.title")}
-          </Link>
           {/* A column belongs to a period, so there is nothing to add a column
               to until one exists. */}
           {data.periods.length > 0 && (
@@ -217,6 +231,7 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
           gradebookId={gradebookId}
           periodId={activePeriodId}
           numericColumns={numericColumnsFor(activePeriodId)}
+          templates={data.templates}
           onDone={() => setAddingColumn(false)}
         />
       )}
@@ -230,6 +245,7 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
           periodId={editingColumn.periodId}
           column={editingColumn}
           numericColumns={numericColumnsFor(editingColumn.periodId, editingColumn.id)}
+          templates={data.templates}
           onDone={() => setEditingColumn(null)}
         />
       )}
@@ -257,6 +273,19 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
                         </span>
                         <span className="text-text-faint text-xs">
                           {t("gradebook.coef", { weight: column.weight })}
+                        </span>
+                      </Link>
+                    ) : column.type === "rubric" ? (
+                      // Two doors, the same two a numeric column has: the
+                      // header opens the class matrix, the cell edits one
+                      // pupil. Learned once, used on both.
+                      <Link
+                        to={Router.Rubric({ gradebookId, columnId: column.id })}
+                        className="flex flex-col items-center hover:text-accent"
+                      >
+                        <span className="flex items-center gap-1">
+                          <ColumnTypeIcon type={column.type} />
+                          {column.label}
                         </span>
                       </Link>
                     ) : (
@@ -306,7 +335,15 @@ export function GradebookPage({ gradebookId }: { gradebookId: string }) {
                   <PupilName student={student} />
                 </td>
                 {columns.map((column) =>
-                  column.type === "calculation" ? (
+                  column.type === "rubric" ? (
+                    <td key={column.id} className="px-3 py-2 text-center">
+                      <RubricCellButton
+                        column={column}
+                        levels={data.levels.filter((row) => row.columnId === column.id)}
+                        student={student}
+                      />
+                    </td>
+                  ) : column.type === "calculation" ? (
                     <td key={column.id} className="px-3 py-2 text-center">
                       <EditableCell
                         type="calculation"

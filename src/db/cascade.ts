@@ -29,7 +29,12 @@ export async function deleteGroup(db: AppDatabase, groupId: string): Promise<voi
  * while still rendering a plausible number — the worst kind of wrong.
  */
 export async function deleteColumn(db: AppDatabase, columnId: string): Promise<void> {
-  await db.transaction("rw", [db.columns, db.grades], async () => {
+  await db.transaction("rw", [db.columns, db.grades, db.criterionLevels], async () => {
+    // A rubric column stores no grades and a numeric one stores no levels, so
+    // one of these two sweeps always finds nothing. Both run regardless: the
+    // type is not read here, and a delete that branched on it would be a
+    // second place the column types have to be kept right.
+    await db.criterionLevels.where("columnId").equals(columnId).delete();
     await db.grades.where("columnId").equals(columnId).delete();
     const referencing = await db.columns
       .filter((c) => c.calculation?.sourceColumnIds.includes(columnId) ?? false)
@@ -65,7 +70,7 @@ export async function deleteStudent(db: AppDatabase, studentId: string): Promise
       db.attendance,
       db.behaviourEvents,
       db.assignments,
-      db.rubricScores,
+      db.criterionLevels,
       db.groupMembers,
     ],
     async () => {
@@ -76,7 +81,7 @@ export async function deleteStudent(db: AppDatabase, studentId: string): Promise
       // so without the pupil there is no row left to keep — unlike a Seat,
       // which is furniture that survives its occupant.
       await db.assignments.where("studentId").equals(studentId).delete();
-      await db.rubricScores.where("studentId").equals(studentId).delete();
+      await db.criterionLevels.where("studentId").equals(studentId).delete();
       await db.groupMembers.where("studentId").equals(studentId).delete();
       await db.students.delete(studentId);
     },
@@ -86,19 +91,18 @@ export async function deleteStudent(db: AppDatabase, studentId: string): Promise
 export async function deleteGradebook(db: AppDatabase, gradebookId: string): Promise<void> {
   await db.transaction(
     "rw",
-    [db.gradebooks, db.periods, db.columns, db.grades, db.rubricAssessments, db.rubricScores],
+    [db.gradebooks, db.periods, db.columns, db.grades, db.criterionLevels],
     async () => {
       await db.grades.where("gradebookId").equals(gradebookId).delete();
+      // Collected BEFORE the columns go: a level names its column and nothing
+      // else, so once the column rows are deleted there is no way left to find
+      // the levels that hung off them.
+      const columnIds = await db.columns.where("gradebookId").equals(gradebookId).primaryKeys();
+      if (columnIds.length > 0) {
+        await db.criterionLevels.where("columnId").anyOf(columnIds).delete();
+      }
       await db.columns.where("gradebookId").equals(gradebookId).delete();
       await db.periods.where("gradebookId").equals(gradebookId).delete();
-      const assessmentIds = await db.rubricAssessments
-        .where("gradebookId")
-        .equals(gradebookId)
-        .primaryKeys();
-      if (assessmentIds.length > 0) {
-        await db.rubricScores.where("assessmentId").anyOf(assessmentIds).delete();
-        await db.rubricAssessments.bulkDelete(assessmentIds);
-      }
       // The timetable is deliberately absent from this transaction. A lesson
       // names a class and a matiere, so no entry points at the carnet being
       // removed and there is nothing here to unlink.
@@ -112,28 +116,15 @@ export async function deleteGradebook(db: AppDatabase, gradebookId: string): Pro
  * column — so the grades to drop are found by column, not by period.
  */
 export async function deletePeriod(db: AppDatabase, periodId: string): Promise<void> {
-  await db.transaction(
-    "rw",
-    [db.periods, db.columns, db.grades, db.rubricAssessments, db.rubricScores],
-    async () => {
-      const columnIds = await db.columns.where("periodId").equals(periodId).primaryKeys();
-      if (columnIds.length > 0) {
-        await db.grades.where("columnId").anyOf(columnIds).delete();
-        await db.columns.bulkDelete(columnIds);
-      }
-      // An assessment naming this period is unreachable in the UI once the
-      // period is gone, same as a column would be.
-      const assessmentIds = await db.rubricAssessments
-        .where("periodId")
-        .equals(periodId)
-        .primaryKeys();
-      if (assessmentIds.length > 0) {
-        await db.rubricScores.where("assessmentId").anyOf(assessmentIds).delete();
-        await db.rubricAssessments.bulkDelete(assessmentIds);
-      }
-      await db.periods.delete(periodId);
-    },
-  );
+  await db.transaction("rw", [db.periods, db.columns, db.grades, db.criterionLevels], async () => {
+    const columnIds = await db.columns.where("periodId").equals(periodId).primaryKeys();
+    if (columnIds.length > 0) {
+      await db.grades.where("columnId").anyOf(columnIds).delete();
+      await db.criterionLevels.where("columnId").anyOf(columnIds).delete();
+      await db.columns.bulkDelete(columnIds);
+    }
+    await db.periods.delete(periodId);
+  });
 }
 
 /**
@@ -160,8 +151,7 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
       db.behaviourEvents,
       db.seatingPlans,
       db.assignments,
-      db.rubricAssessments,
-      db.rubricScores,
+      db.criterionLevels,
       db.studentGroups,
       db.groupMembers,
       db.scheduleEntries,
@@ -171,16 +161,14 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
       const gradebookIds = await db.gradebooks.where("classId").equals(classId).primaryKeys();
       if (gradebookIds.length > 0) {
         await db.grades.where("gradebookId").anyOf(gradebookIds).delete();
+        // Collected before the columns go, for `deleteGradebook`'s reason: a
+        // level names its column and nothing else.
+        const columnIds = await db.columns.where("gradebookId").anyOf(gradebookIds).primaryKeys();
+        if (columnIds.length > 0) {
+          await db.criterionLevels.where("columnId").anyOf(columnIds).delete();
+        }
         await db.columns.where("gradebookId").anyOf(gradebookIds).delete();
         await db.periods.where("gradebookId").anyOf(gradebookIds).delete();
-        const assessmentIds = await db.rubricAssessments
-          .where("gradebookId")
-          .anyOf(gradebookIds)
-          .primaryKeys();
-        if (assessmentIds.length > 0) {
-          await db.rubricScores.where("assessmentId").anyOf(assessmentIds).delete();
-          await db.rubricAssessments.bulkDelete(assessmentIds);
-        }
         await db.gradebooks.bulkDelete(gradebookIds);
       }
 
@@ -193,7 +181,7 @@ export async function deleteClass(db: AppDatabase, classId: string): Promise<voi
         // pupil it describes.
         await db.attendance.where("studentId").anyOf(studentIds).delete();
         await db.behaviourEvents.where("studentId").anyOf(studentIds).delete();
-        await db.rubricScores.where("studentId").anyOf(studentIds).delete();
+        await db.criterionLevels.where("studentId").anyOf(studentIds).delete();
         await db.students.bulkDelete(studentIds);
       }
 
@@ -312,16 +300,8 @@ export async function deleteRoom(db: AppDatabase, roomId: string): Promise<void>
   );
 }
 
-/** An assessment and every level recorded on it. */
-export async function deleteRubricAssessment(db: AppDatabase, assessmentId: string): Promise<void> {
-  await db.transaction("rw", [db.rubricAssessments, db.rubricScores], async () => {
-    await db.rubricScores.where("assessmentId").equals(assessmentId).delete();
-    await db.rubricAssessments.delete(assessmentId);
-  });
-}
-
 /**
- * A template holds nothing of its own — assessments copied its criteria — so
+ * A template holds nothing of its own — a column copied its criteria — so
  * deleting one destroys no grades and needs no refusal, unlike `deleteSubject`.
  */
 export async function deleteRubricTemplate(db: AppDatabase, templateId: string): Promise<void> {

@@ -1,12 +1,12 @@
 import { classesOverCapacity, MAX_STUDENTS_PER_CLASS } from "@domain/class-size";
 import { gradeValueSchema } from "@domain/gradebook/grade";
-import { repairSeanceCollisions } from "@domain/seance";
 import { z } from "zod";
 import type { AppDatabase } from ".";
 import type {
   Assignment,
   AttendanceRecord,
   BehaviourEvent,
+  CriterionLevel,
   Desk,
   Grade,
   Gradebook,
@@ -14,8 +14,6 @@ import type {
   GroupMember,
   Period,
   Room,
-  RubricAssessment,
-  RubricScore,
   RubricTemplate,
   ScheduleEntry,
   SchoolClass,
@@ -27,7 +25,7 @@ import type {
 } from "./types";
 
 export interface WorkspaceBackup {
-  version: 12;
+  version: 13;
   exportedAt: number;
   classes: SchoolClass[];
   students: Student[];
@@ -44,8 +42,7 @@ export interface WorkspaceBackup {
   seatingPlans: SeatingPlan[];
   assignments: Assignment[];
   rubricTemplates: RubricTemplate[];
-  rubricAssessments: RubricAssessment[];
-  rubricScores: RubricScore[];
+  criterionLevels: CriterionLevel[];
   studentGroups: StudentGroup[];
   groupMembers: GroupMember[];
   scheduleEntries: ScheduleEntry[];
@@ -55,30 +52,23 @@ export interface WorkspaceBackup {
  * Shape check only — the rows themselves are trusted, since a backup can only
  * come from this app. A wrong shape must fail loudly rather than half-import.
  *
- * Version 2 is rejected outright, not upgraded: phase 2B introduced no
- * migration path, and a v2 file predates the rubric tables entirely, so
- * half-importing it would leave a workspace with gradebooks but no rubric
- * assessments to hang scores off of. Version 3 is rejected the same way: it
- * predates student groups entirely, version 4 the recurring timetable,
- * version 5 the journal, and version 6 the rectangular seating grid that
- * predates the free-position room. There is no version 7 file: 7 exists only
- * as a schema version, the one that drops the grid store so the primary key
- * can change, and nothing was ever exported at it. Version 10 predates the
- * séance-owned note: its journal lived in a day-keyed store that no longer
- * exists, so its text has nowhere to land — half-importing it would silently
- * drop every entry rather than refuse the file that held them.
- * The rule for the next schema change is unchanged: bump the version, do not
- * write an upgrade — importing a file half-populated is worse than refusing
- * it, because half a workspace looks like a whole one.
+ * ONE literal, and every other version refused. A file is importable only
+ * while every store it names still exists, which is what each accumulated
+ * literal had been quietly relying on: a format-12 file carries
+ * `rubricAssessments`, a store this schema no longer has, so its grilles have
+ * nowhere to land. Half-importing is worse than refusing — half a workspace
+ * looks like a whole one — which is the ruling a format-10 file already got
+ * for its day-keyed journal.
  *
- * Version 11 is the one exception: it predates a séance's required
- * `startsAt`/`endsAt`, but nothing in it is LOST — `backfillSeanceTimes`
- * repairs exactly what is missing, the same function the v16 Dexie upgrade
- * runs. Refusing it whole, the way v10 is refused, would cost a teacher last
- * week's export for nothing.
+ * The number stays monotonic rather than resetting with the schema. It now
+ * carries no history, since nothing older is accepted, but a file written
+ * today must not read as older than one written last week to anyone who opens
+ * it in a text editor.
+ *
+ * The rule for the next schema change: bump this literal, write no upgrade.
  */
 const backupSchema = z.object({
-  version: z.union([z.literal(11), z.literal(12)]),
+  version: z.literal(13),
   exportedAt: z.number(),
   classes: z.array(z.object({ id: z.string() }).loose()),
   students: z.array(z.object({ id: z.string() }).loose()),
@@ -119,11 +109,10 @@ const backupSchema = z.object({
     z.object({ planId: z.string(), deskId: z.string(), studentId: z.string() }).loose(),
   ),
   rubricTemplates: z.array(z.object({ id: z.string() }).loose()),
-  rubricAssessments: z.array(z.object({ id: z.string() }).loose()),
-  rubricScores: z.array(
+  criterionLevels: z.array(
     z
       .object({
-        assessmentId: z.string(),
+        columnId: z.string(),
         criterionId: z.string(),
         studentId: z.string(),
       })
@@ -165,8 +154,7 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     seatingPlans,
     assignments,
     rubricTemplates,
-    rubricAssessments,
-    rubricScores,
+    criterionLevels,
     studentGroups,
     groupMembers,
     scheduleEntries,
@@ -186,15 +174,14 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     db.seatingPlans.toArray(),
     db.assignments.toArray(),
     db.rubricTemplates.toArray(),
-    db.rubricAssessments.toArray(),
-    db.rubricScores.toArray(),
+    db.criterionLevels.toArray(),
     db.studentGroups.toArray(),
     db.groupMembers.toArray(),
     db.scheduleEntries.toArray(),
   ]);
 
   return {
-    version: 12,
+    version: 13,
     exportedAt: Date.now(),
     classes,
     students: students.map(({ photo: _photo, ...rest }) => rest),
@@ -224,8 +211,7 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     seatingPlans,
     assignments,
     rubricTemplates,
-    rubricAssessments,
-    rubricScores,
+    criterionLevels,
     studentGroups,
     groupMembers,
     scheduleEntries,
@@ -272,29 +258,7 @@ export function parseBackup(backup: unknown): WorkspaceBackup {
   const over = classesOverCapacity(data.students);
   if (over.length > 0) throw new BackupOverCapacityError(over);
 
-  // A v11 file's séances carry no times. The same function the v16 upgrade
-  // uses repairs them — one implementation, two callers — so a v11 export
-  // imports as a v12 workspace with every séance timed and no two séances of
-  // one class on one day sharing a start (`repairSeanceCollisions`). Applied
-  // unconditionally rather than behind a version check: a v12 file's séances
-  // are already timed and already collision-free, and the repair returns
-  // those unchanged, so a version branch would only be a second thing to keep
-  // right.
-  // Zipped by INDEX, not by an id lookup: `repairSeanceCollisions` returns
-  // exactly one repaired entry per input row, in the same order, so this
-  // avoids asserting a lookup can never miss.
-  const repairedTimes = repairSeanceCollisions(data.sessions);
-  const sessions = data.sessions.map((session, i) => ({
-    ...session,
-    ...repairedTimes[i],
-  }));
-
-  // Honest about what comes out, not just what went in: by this point a v11
-  // file has been fully repaired to v12 shape — every séance timed and
-  // collision-free — so the returned `version` says so rather than echoing
-  // the file's own, which `WorkspaceBackup["version"]` no longer allows to be
-  // anything else.
-  return { ...data, sessions, version: 12 };
+  return data;
 }
 
 /** Destructive: clears every table, then writes the backup's rows. */
@@ -317,8 +281,7 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     db.seatingPlans,
     db.assignments,
     db.rubricTemplates,
-    db.rubricAssessments,
-    db.rubricScores,
+    db.criterionLevels,
     db.studentGroups,
     db.groupMembers,
     db.scheduleEntries,
@@ -341,8 +304,7 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     await db.seatingPlans.bulkAdd(data.seatingPlans);
     await db.assignments.bulkPut(data.assignments);
     await db.rubricTemplates.bulkAdd(data.rubricTemplates);
-    await db.rubricAssessments.bulkAdd(data.rubricAssessments);
-    await db.rubricScores.bulkPut(data.rubricScores);
+    await db.criterionLevels.bulkPut(data.criterionLevels);
     await db.studentGroups.bulkAdd(data.studentGroups);
     await db.groupMembers.bulkPut(data.groupMembers);
     await db.scheduleEntries.bulkAdd(data.scheduleEntries);

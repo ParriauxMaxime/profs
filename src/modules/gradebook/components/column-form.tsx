@@ -1,4 +1,5 @@
-import type { GradeColumn } from "@db";
+import type { GradeColumn, RubricTemplate } from "@db";
+import { setColumnCriteria } from "@db/criterion-levels";
 import { useDb } from "@db/provider";
 import {
   CALCULATION_KINDS,
@@ -13,8 +14,10 @@ import {
   isNumericColumn,
 } from "@domain/gradebook/column";
 import { parseDecimal } from "@domain/gradebook/decimal";
+import type { RubricCriterion } from "@domain/rubric";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { CriteriaField } from "../../rubric/components/criteria-field";
 import { useEscape } from "../../shared/use-escape";
 
 export function ColumnForm({
@@ -23,12 +26,15 @@ export function ColumnForm({
   column,
   /** The gradebook's numeric columns in this period — the only valid sources for a calculation. */
   numericColumns,
+  /** Reusable critères a rubric column can start from — see `CriteriaField`. */
+  templates,
   onDone,
 }: {
   gradebookId: string;
   periodId: string;
   column?: GradeColumn;
   numericColumns: GradeColumn[];
+  templates: RubricTemplate[];
   onDone: () => void;
 }) {
   const { t } = useTranslation();
@@ -44,6 +50,7 @@ export function ColumnForm({
   const [bestCount, setBestCount] = useState(
     column?.calculation?.bestCount === undefined ? "" : String(column.calculation.bestCount),
   );
+  const [criteria, setCriteria] = useState<RubricCriterion[]>(column?.criteria ?? []);
   const [error, setError] = useState<string | null>(null);
 
   useEscape(onDone);
@@ -96,11 +103,16 @@ export function ColumnForm({
           }
         : undefined;
 
+    // A rubric column's critères, built the same way: switching a column
+    // AWAY from "rubric" must clear the field rather than leave a stale list
+    // nothing displays.
+    const criteriaField: RubricCriterion[] | undefined = type === "rubric" ? criteria : undefined;
+
     if (column) {
-      // Destructure `calculation` out rather than leaving a stale spec
-      // behind: switching a column away from "calculation" must clear it,
-      // not just stop reading it.
-      const { calculation: _previousCalculation, ...rest } = column;
+      // Destructure `calculation` and `criteria` out rather than leaving a
+      // stale value behind: switching a column away from "calculation" or
+      // "rubric" must clear it, not just stop reading it.
+      const { calculation: _previousCalculation, criteria: _previousCriteria, ...rest } = column;
       await db.columns.put({
         ...rest,
         label,
@@ -109,6 +121,19 @@ export function ColumnForm({
         max: nextMax,
         ...(calculation ? { calculation } : {}),
       });
+      // The critères themselves are written by `setColumnCriteria`, never
+      // folded into the `put` above, and only after it: `put` replaces the
+      // whole row, so writing the field there first would be overwritten by
+      // that full-row replace, silently reintroducing a stale list.
+      // `setColumnCriteria` drops the levels of any critère that didn't
+      // survive in the same transaction as the write — a plain `put` would
+      // leave those rows behind, invisible in the grid and still carried by
+      // every export. Only a column that is or was a rubric can have
+      // critères to reconcile; calling it for every edit would stamp an
+      // empty `criteria: []` onto columns that never had one.
+      if (type === "rubric" || column.type === "rubric") {
+        await setColumnCriteria(db, column.id, criteriaField ?? []);
+      }
     } else {
       const siblings = await db.columns.where("gradebookId").equals(gradebookId).count();
       await db.columns.add({
@@ -122,6 +147,7 @@ export function ColumnForm({
         order: siblings,
         date: Date.now(),
         ...(calculation ? { calculation } : {}),
+        ...(criteriaField ? { criteria: criteriaField } : {}),
       });
     }
     onDone();
@@ -224,6 +250,11 @@ export function ColumnForm({
             )}
           </fieldset>
         </>
+      )}
+      {type === "rubric" && (
+        <div className="w-full">
+          <CriteriaField value={criteria} onChange={setCriteria} templates={templates} />
+        </div>
       )}
       <button type="submit" className="btn btn-primary">
         {t("common.save")}

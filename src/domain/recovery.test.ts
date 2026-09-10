@@ -7,9 +7,8 @@ function dexieError(name: string): Error {
 }
 
 describe("classifyOpenFailure", () => {
-  it("sends a closed connection and a version clash to a reload", () => {
+  it("sends a closed connection to a reload", () => {
     expect(classifyOpenFailure(dexieError("DatabaseClosedError"))).toBe("retry");
-    expect(classifyOpenFailure(dexieError("VersionError"))).toBe("retry");
     expect(classifyOpenFailure(dexieError("AbortError"))).toBe("retry");
     expect(classifyOpenFailure(dexieError("TimeoutError"))).toBe("retry");
   });
@@ -77,6 +76,18 @@ describe("offersDiscard", () => {
   it("offers it where the data is the problem or the space is", () => {
     expect(offersDiscard("corrupt")).toBe(true);
     expect(offersDiscard("quota")).toBe(true);
+  });
+});
+
+describe("a database newer than the code", () => {
+  it("offers the discard rather than a reload that cannot work", () => {
+    // IndexedDB throws this when the declared version is LOWER than the
+    // stored one — the code is older than the database. No reload fixes it:
+    // the same build comes back. A stale service-worker shell after a schema
+    // bump reaches this too, not only a version collapse.
+    const error = { name: "VersionError", message: "Database version 1 is smaller than 16" };
+    expect(classifyOpenFailure(error)).toBe("corrupt");
+    expect(offersDiscard(classifyOpenFailure(error))).toBe(true);
   });
 });
 

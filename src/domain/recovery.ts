@@ -27,8 +27,15 @@ export type RecoveryKind = (typeof RECOVERY_KINDS)[number];
  * Reloading fixes it. Another tab holding the database mid-upgrade, a
  * connection closed underneath us — the data is intact and nothing should be
  * offered that touches it.
+ *
+ * `VersionError` is deliberately NOT here. It means the declared version is
+ * lower than the stored one — the code is older than the database — which a
+ * reload cannot fix, since the same build comes back. It falls through to
+ * `corrupt`, the branch that offers the discard. The case this list's comment
+ * used to claim for it (another tab mid-upgrade) raises `BlockedError` or
+ * `DatabaseClosedError`, never this.
  */
-const RETRY_ERRORS = ["DatabaseClosedError", "VersionError", "AbortError", "TimeoutError"] as const;
+const RETRY_ERRORS = ["DatabaseClosedError", "AbortError", "TimeoutError"] as const;
 
 /**
  * IndexedDB is not available at all: a private window that denies it, a

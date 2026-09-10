@@ -130,7 +130,7 @@ describe("seedIfEmpty", () => {
     second.close();
   });
 
-  it("seeds one rubric template and one assessment per gradebook, partially filled", async () => {
+  it("seeds one rubric template and one rubric column per carnet, partially filled", async () => {
     const db = openWorkspaceDb("seed-rubric");
     await seedIfEmpty(db, "seed-rubric");
 
@@ -145,26 +145,40 @@ describe("seedIfEmpty", () => {
     ]);
 
     const gradebooks = await db.gradebooks.toArray();
-    const assessments = await db.rubricAssessments.toArray();
-    expect(assessments).toHaveLength(gradebooks.length);
+    const rubricColumns = (await db.columns.toArray()).filter((c) => c.type === "rubric");
+    expect(rubricColumns).toHaveLength(gradebooks.length);
 
-    const scores = await db.rubricScores.toArray();
-    expect(scores.length).toBeGreaterThan(0);
+    const levels = await db.criterionLevels.toArray();
+    expect(levels.length).toBeGreaterThan(0);
 
-    for (const assessment of assessments) {
-      const gradebook = gradebooks.find((g) => g.id === assessment.gradebookId);
-      if (!gradebook) throw new Error("assessment references an unknown gradebook");
-      const studentCount =
-        (await db.students.where("classId").equals(gradebook.classId).count()) *
-        assessment.criteria.length;
-      const assessmentScores = scores.filter((s) => s.assessmentId === assessment.id);
+    for (const column of rubricColumns) {
+      const gradebook = gradebooks.find((g) => g.id === column.gradebookId);
+      if (!gradebook) throw new Error("a rubric column references an unknown carnet");
+      // The column sits in the carnet's own first period, like every other
+      // column the seed writes.
+      const periods = await db.periods.where("gradebookId").equals(gradebook.id).toArray();
+      const firstPeriod = periods.sort((a, b) => a.order - b.order)[0];
+      expect(column.periodId).toBe(firstPeriod.id);
+      expect(column.date).toBeDefined();
+
+      const criteria = column.criteria ?? [];
+      expect(criteria.map((c) => c.label)).toEqual(templates[0].criteria.map((c) => c.label));
+      // Fresh ids, never the template's: a level written against one column
+      // must not be readable from another.
+      for (const criterion of criteria) {
+        expect(templates[0].criteria.some((t) => t.id === criterion.id)).toBe(false);
+      }
+
+      const cellCount =
+        (await db.students.where("classId").equals(gradebook.classId).count()) * criteria.length;
+      const columnLevels = levels.filter((l) => l.columnId === column.id);
       // Roughly two thirds filled — never all of it, never none of it.
-      expect(assessmentScores.length).toBeGreaterThan(0);
-      expect(assessmentScores.length).toBeLessThan(studentCount);
-      // Every scored criterion id belongs to this assessment's own copy.
-      const criterionIds = new Set(assessment.criteria.map((c) => c.id));
-      for (const score of assessmentScores) {
-        expect(criterionIds.has(score.criterionId)).toBe(true);
+      expect(columnLevels.length).toBeGreaterThan(0);
+      expect(columnLevels.length).toBeLessThan(cellCount);
+      // Every level's critère belongs to this column's own copy.
+      const criterionIds = new Set(criteria.map((c) => c.id));
+      for (const level of columnLevels) {
+        expect(criterionIds.has(level.criterionId)).toBe(true);
       }
     }
     db.close();

@@ -58,6 +58,13 @@ export interface Period {
  * `calculation` is only meaningful when `type` is "calculation": the column
  * stores no grade rows of its own, its value is derived on read from other
  * columns' grades. See `src/domain/gradebook/calculation.ts`.
+ *
+ * `criteria` is only meaningful when `type` is "rubric", and it is the third
+ * instance of that pattern rather than a new one: it is embedded rather than
+ * given its own store because a critère is never queried, listed or deleted
+ * except through its column, so embedding avoids a join for something always
+ * read whole. A LEVEL is the opposite and keeps its own row — see
+ * `criterionLevels`.
  */
 export interface GradeColumn {
   id: string;
@@ -68,8 +75,10 @@ export interface GradeColumn {
   weight: number;
   max: number;
   order: number;
+  /** When the column was created. Read only for `type: "rubric"` — a grille happened on a day. */
   date?: number;
   calculation?: CalculationSpec;
+  criteria?: RubricCriterion[];
 }
 
 /**
@@ -167,9 +176,9 @@ export interface Room {
  * One place at one table, in one salle.
  *
  * `Desk` rather than `Table`: a Dexie store named `tables` would shadow
- * `db.tables`, which `wipeWorkspace` and the backup's clear list both read —
- * a silent, total break. Same reason `SchoolClass` is not `class` and
- * `GradeColumn` is not `Column`. The French interface still says *table*.
+ * `db.tables`, the getter `wipeWorkspace` reads directly — a silent, total
+ * break. Same reason `SchoolClass` is not `class` and `GradeColumn` is not
+ * `Column`. The French interface still says *table*.
  *
  * Carries no `studentId`. Who sits here is a property of a CLASS in this
  * salle, not of the furniture, and storing it on the desk is what made a room
@@ -230,26 +239,16 @@ export interface RubricTemplate {
 }
 
 /**
- * One assessment of one gradebook's class against a set of criteria.
+ * One pupil's level on one critère of one column. Keyed
+ * [columnId+criterionId+studentId].
  *
- * `criteria` is a COPY taken when a template was attached, never a reference:
- * editing the template afterwards must not rewrite a grid already graded.
+ * Its own row rather than a map inside a `Grade`, because a level is written
+ * and cleared one tap at a time — the same fork `Grade` and `Assignment` are
+ * on the other side of. A map would make each tap a read-modify-write, and
+ * two fast taps could lose one silently.
  */
-export interface RubricAssessment {
-  id: string;
-  gradebookId: string;
-  periodId: string;
-  sessionId?: string;
-  name: string;
-  date: number;
-  criteria: RubricCriterion[];
-  createdAt: number;
-  updatedAt: number;
-}
-
-/** One cell. Keyed [assessmentId+criterionId+studentId]. */
-export interface RubricScore {
-  assessmentId: string;
+export interface CriterionLevel {
+  columnId: string;
   criterionId: string;
   studentId: string;
   level: RubricLevel;

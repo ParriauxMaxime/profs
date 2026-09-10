@@ -10,4 +10,10 @@ describe("isNumericColumn", () => {
   it("is false for a calculation column, which never enters an average", () => {
     expect(isNumericColumn("calculation")).toBe(false);
   });
+
+  it("keeps a rubric column out of every average", () => {
+    // A level is not a mark. This is the invariant the whole design rests on:
+    // studentAverage only ever sees numeric columns.
+    expect(isNumericColumn("rubric")).toBe(false);
+  });
 });

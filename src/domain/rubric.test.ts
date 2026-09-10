@@ -2,8 +2,11 @@ import {
   criterionMean,
   isRubricLevel,
   levelDistribution,
+  meanColor,
   RUBRIC_LEVEL_COLORS,
   RUBRIC_LEVELS,
+  type RubricLevel,
+  rubricCell,
   studentMean,
 } from "./rubric";
 
@@ -25,6 +28,23 @@ describe("levels", () => {
     expect(isRubricLevel(5)).toBe(false);
     expect(isRubricLevel(2.5)).toBe(false);
     expect(isRubricLevel("3")).toBe(false);
+  });
+});
+
+describe("meanColor", () => {
+  it("clamps below the lowest level to level 1", () => {
+    expect(meanColor(0)).toBe(RUBRIC_LEVEL_COLORS[1]);
+    expect(meanColor(-3)).toBe(RUBRIC_LEVEL_COLORS[1]);
+  });
+
+  it("clamps above the highest level to level 4", () => {
+    expect(meanColor(5)).toBe(RUBRIC_LEVEL_COLORS[4]);
+    expect(meanColor(100)).toBe(RUBRIC_LEVEL_COLORS[4]);
+  });
+
+  it("rounds the 2.5 boundary up rather than down", () => {
+    expect(meanColor(2.49)).toBe(RUBRIC_LEVEL_COLORS[2]);
+    expect(meanColor(2.5)).toBe(RUBRIC_LEVEL_COLORS[3]);
   });
 });
 
@@ -97,5 +117,66 @@ describe("levelDistribution", () => {
 
   it("returns all zeros for an unscored criterion", () => {
     expect(levelDistribution([], "c1")).toEqual({ 1: 0, 2: 0, 3: 0, 4: 0 });
+  });
+});
+
+describe("rubricCell", () => {
+  const criteria = [
+    { id: "just", label: "Justesse" },
+    { id: "ryth", label: "Rythme" },
+    { id: "ecou", label: "Écoute" },
+  ];
+  const level = (criterionId: string, studentId: string, level: RubricLevel) => ({
+    criterionId,
+    studentId,
+    level,
+  });
+
+  it("is empty when the pupil has no level at all", () => {
+    expect(rubricCell([], criteria, "adam")).toEqual({ state: "empty" });
+  });
+
+  it("counts progress while the grille is unfinished, and shows no mean", () => {
+    const levels = [level("just", "adam", 2), level("ryth", "adam", 4)];
+    expect(rubricCell(levels, criteria, "adam")).toEqual({
+      state: "partial",
+      scored: 2,
+      total: 3,
+    });
+  });
+
+  it("means only once every critère is in", () => {
+    const levels = [level("just", "adam", 2), level("ryth", "adam", 4), level("ecou", "adam", 3)];
+    expect(rubricCell(levels, criteria, "adam")).toEqual({ state: "complete", mean: 3 });
+  });
+
+  it("falls back to partial when a critère is added under a finished pupil", () => {
+    // The mean must not survive the denominator changing: a stale 3,0 over
+    // three critères sitting in a column of four is the silently-wrong number
+    // the completeness rule exists to refuse.
+    const levels = [level("just", "adam", 2), level("ryth", "adam", 4), level("ecou", "adam", 3)];
+    const grown = [...criteria, { id: "inte", label: "Intention" }];
+    expect(rubricCell(levels, grown, "adam")).toEqual({ state: "partial", scored: 3, total: 4 });
+  });
+
+  it("counts against the CURRENT critères, never against the levels it holds", () => {
+    // A level for a critère since removed is unreachable data. Counting it
+    // would report 3/2 and mean a level nothing displays.
+    const levels = [level("just", "adam", 2), level("ryth", "adam", 4), level("gone", "adam", 1)];
+    expect(rubricCell(levels, criteria, "adam")).toEqual({ state: "partial", scored: 2, total: 3 });
+  });
+
+  it("ignores other pupils", () => {
+    const levels = [level("just", "adam", 2), level("ryth", "lucas", 4)];
+    expect(rubricCell(levels, criteria, "adam")).toEqual({ state: "partial", scored: 1, total: 3 });
+  });
+
+  it("is empty when the column has no critère yet", () => {
+    expect(rubricCell([], [], "adam")).toEqual({ state: "empty" });
+  });
+
+  it("rounds the mean to two decimals", () => {
+    const levels = [level("just", "adam", 2), level("ryth", "adam", 3), level("ecou", "adam", 3)];
+    expect(rubricCell(levels, criteria, "adam")).toEqual({ state: "complete", mean: 2.67 });
   });
 });

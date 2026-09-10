@@ -30,10 +30,16 @@ export function hourOfDay(ms: number): number {
  * during the lesson, so the hour a séance was created in is the hour it was
  * taught in. Where it guesses wrong, the séance strip's editor corrects it.
  *
- * This is the per-row half of the repair. It cannot see siblings, so it
- * cannot know whether the hour it invents collides with another séance of
- * the same class on the same day — that is `repairSeanceCollisions`, below,
- * which both real callers actually use.
+ * This is the per-row half of the repair, and nothing outside this file calls
+ * it. It cannot see siblings, so it cannot know whether the hour it invents
+ * collides with another séance of the same class on the same day — that is
+ * `repairSeanceCollisions`, below, which wraps it and is what the one real
+ * caller uses: the schema's `db.version(17)` upgrade.
+ *
+ * It used to be two callers. `backup.ts` ran the same repair on import, for a
+ * format-11 file whose séances carried no times; with one backup format
+ * accepted and every format-13 séance already timed, that call was inert and
+ * is gone.
  */
 export function backfillSeanceTimes(row: {
   startsAt?: number;
@@ -58,10 +64,12 @@ interface SeanceTimeRow {
  * A whole collection's séance times, repaired so that no two séances of one
  * class on one day ever share a `startsAt`.
  *
- * Pure, and in the domain, because it has two callers in two layers — the
- * `db.version(16)` upgrade and `parseBackup` — and a repair rule kept in two
- * places is a repair rule that eventually disagrees with itself. This is the
- * argument that made `entriesForDay` one function.
+ * Pure, and in the domain, because a repair rule this exacting belongs beside
+ * its own tests rather than inline in a caller. It has one real caller now,
+ * the `db.version(17)` upgrade: `parseBackup` used to call it too, for a
+ * format-11 file whose séances predated `startsAt`/`endsAt`, but with only
+ * the current backup format accepted, every imported séance already carries
+ * both and that call was removed.
  *
  * `backfillSeanceTimes` alone cannot prevent the collision this exists to
  * fix: it repairs one row at a time, so two untimed séances of the same
