@@ -55,35 +55,51 @@ describe("compareStudents", () => {
 
 describe("studentSequence", () => {
   it("is every pupil in surname order with no params", () => {
-    expect(studentSequence(roster, [], {})).toEqual(["s3", "s1", "s2"]);
+    expect(studentSequence(roster, [], [], {})).toEqual(["s3", "s1", "s2"]);
   });
 
   it("narrows to a class", () => {
     const mixed = [...roster, pupil("s4", "Durand", "Léo", "c2", "4°A")];
-    expect(studentSequence(mixed, [], { classe: "c2" })).toEqual(["s4"]);
+    expect(studentSequence(mixed, [], [], { classe: "c2" })).toEqual(["s4"]);
   });
 
   it("narrows to a group", () => {
+    const groups = [{ id: "g1" }];
     const memberships = [
       { groupId: "g1", studentId: "s1" },
       { groupId: "g1", studentId: "s3" },
     ];
-    expect(studentSequence(roster, memberships, { groupe: "g1" })).toEqual(["s3", "s1"]);
+    expect(studentSequence(roster, groups, memberships, { groupe: "g1" })).toEqual(["s3", "s1"]);
+  });
+
+  // A group that EXISTS and is empty resolves to nobody. Inferring existence
+  // from membership rows could not tell this apart from a deleted group, and
+  // answered it with the whole roster.
+  it("narrows to nobody for a group that exists and has no members", () => {
+    expect(studentSequence(roster, [{ id: "g1" }], [], { groupe: "g1" })).toEqual([]);
+  });
+
+  it("ignores a group that does not exist rather than emptying the list", () => {
+    expect(studentSequence(roster, [{ id: "g1" }], [], { groupe: "gone" })).toEqual([
+      "s3",
+      "s1",
+      "s2",
+    ]);
   });
 
   // Same accent-insensitive search the tables run, so a teacher who typed
   // "eloise" and stepped through the results steps through the rows they saw.
   it("narrows by an accent-insensitive query", () => {
-    expect(studentSequence(roster, [], { q: "eloise" })).toEqual(["s2"]);
+    expect(studentSequence(roster, [], [], { q: "eloise" })).toEqual(["s2"]);
   });
 
   it("searches the class label too", () => {
     const mixed = [...roster, pupil("s4", "Durand", "Léo", "c2", "4°A")];
-    expect(studentSequence(mixed, [], { q: "4°A" })).toEqual(["s4"]);
+    expect(studentSequence(mixed, [], [], { q: "4°A" })).toEqual(["s4"]);
   });
 
   it("applies the sort named in the params", () => {
-    expect(studentSequence(roster, [], { sort: "firstName", dir: "desc" })).toEqual([
+    expect(studentSequence(roster, [], [], { sort: "firstName", dir: "desc" })).toEqual([
       "s3",
       "s2",
       "s1",
@@ -93,15 +109,19 @@ describe("studentSequence", () => {
   // Resolve or ignore — the rule `?classe` already follows for a deleted
   // class. A URL can name a column that no longer exists.
   it("ignores a sort naming a column that does not exist", () => {
-    expect(studentSequence(roster, [], { sort: "ghost", dir: "desc" })).toEqual(["s3", "s1", "s2"]);
+    expect(studentSequence(roster, [], [], { sort: "ghost", dir: "desc" })).toEqual([
+      "s3",
+      "s1",
+      "s2",
+    ]);
   });
 
   it("ignores a class that does not exist rather than emptying the list", () => {
-    expect(studentSequence(roster, [], { classe: "gone" })).toEqual(["s3", "s1", "s2"]);
+    expect(studentSequence(roster, [], [], { classe: "gone" })).toEqual(["s3", "s1", "s2"]);
   });
 
   it("ignores a group that does not exist", () => {
-    expect(studentSequence(roster, [], { groupe: "gone" })).toEqual(["s3", "s1", "s2"]);
+    expect(studentSequence(roster, [], [], { groupe: "gone" })).toEqual(["s3", "s1", "s2"]);
   });
 });
 

@@ -70,13 +70,17 @@ export function compareStudents(a: ListStudent, b: ListStudent, sorting: ColumnS
 /**
  * The pupil ids a list page shows, in the order it shows them.
  *
- * Every param resolves or is ignored: an unknown class, an unknown group and a
- * sort naming a column that no longer exists each fall back rather than
- * emptying the list or sorting by a phantom. That is the rule `?classe`
- * already follows for a deleted class.
+ * Every param resolves or is ignored: an unknown class and a sort naming a
+ * column that no longer exists each fall back rather than emptying the list
+ * or sorting by a phantom. That is the rule `?classe` already follows for a
+ * deleted class. A group is resolved against `groups` itself, not against
+ * `memberships` — a group that exists and currently has no members must
+ * still narrow the list to nobody, which membership rows alone cannot tell
+ * apart from a group that no longer exists.
  */
 export function studentSequence(
   students: ListStudent[],
+  groups: { id: string }[],
   memberships: { groupId: string; studentId: string }[],
   params: StudentListParams,
 ): string[] {
@@ -86,7 +90,7 @@ export function studentSequence(
     visible = visible.filter((student) => student.classId === params.classe);
   }
 
-  if (params.groupe !== undefined && memberships.some((m) => m.groupId === params.groupe)) {
+  if (params.groupe !== undefined && groups.some((group) => group.id === params.groupe)) {
     visible = filterByGroup(visible, memberships, params.groupe);
   }
 
