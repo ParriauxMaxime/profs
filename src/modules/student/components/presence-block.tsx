@@ -2,11 +2,12 @@ import type { Session, Student } from "@db";
 import { toggleAttendance } from "@db/attendance";
 import { useDb } from "@db/provider";
 import { ATTENDANCE_VALUES, type AttendanceValue } from "@domain/attendance";
-import { attendanceSummary, defaultOpenMonth, groupSeancesByMonth } from "@domain/student-summary";
+import { attendanceSummary, groupSeancesByMonth } from "@domain/student-summary";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ToggleOption } from "../../design-system/components/primitives";
+import { useOpenMonth } from "../use-open-month";
+import { MonthDisclosure } from "./month-disclosure";
 
 /**
  * This pupil's attendance, lesson by lesson, editable in place.
@@ -35,22 +36,10 @@ export function PresenceBlock({ student, sessions }: { student: Student; session
   );
 
   const months = groupSeancesByMonth(sessions);
-  // Held as a month key, never an index: the list regroups whenever a séance is
-  // added elsewhere, and an index would open a different month. "" (the
-  // teacher explicitly closed it) is distinct from null (nothing chosen yet,
-  // fall back to the default), so collapsing the default-open month must not
-  // silently re-open it.
-  const [openKey, setOpenKey] = useState<string | null>(null);
-  // A retained key that names no month in THIS list falls back to the default.
-  // Stepping to the next pupil is a `Router.push` on the same route, so this
-  // component is never remounted and the key survives — across classes it can
-  // survive onto a list that has no such month, and every month then drew
-  // collapsed, which is the empty screen `defaultOpenMonth` exists to prevent.
-  // "" is not a stale key: it is the teacher having closed the open month, and
-  // it must keep meaning closed rather than reopening the default.
-  const retained =
-    openKey !== null && (openKey === "" || months.some((month) => month.key === openKey));
-  const open = retained ? openKey : defaultOpenMonth(months, Date.now());
+  // Every rule about which month is open — the key rather than an index, "" as
+  // "closed", a stale key falling back to the default — lives in the hook, and
+  // Comportement uses the same one.
+  const { openKey, toggle } = useOpenMonth(months);
 
   if (records === undefined) return null;
 
@@ -79,21 +68,28 @@ export function PresenceBlock({ student, sessions }: { student: Student; session
 
   return (
     <section className="flex flex-col gap-3">
-      <h3 className="font-medium text-sm text-text-muted">{t("student.assiduity")}</h3>
-
-      {summary.rate !== null && (
-        <div className="flex flex-col gap-1">
-          <span className="font-semibold text-lg tabular-nums">
-            {new Intl.NumberFormat(i18n.language, {
-              style: "percent",
-              maximumFractionDigits: 1,
-            }).format(summary.rate)}
-          </span>
+      {/* Title and figure on one line, the shape a carnet card's own header
+          already uses. Stacked, the percentage read as a heading in its own
+          right and the word naming it sat above as a label for the section
+          rather than for the number. */}
+      <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="font-medium text-sm text-text-muted">{t("student.assiduity")}</h3>
+          {summary.rate !== null && (
+            <span className="font-semibold text-lg tabular-nums">
+              {new Intl.NumberFormat(i18n.language, {
+                style: "percent",
+                maximumFractionDigits: 1,
+              }).format(summary.rate)}
+            </span>
+          )}
+        </div>
+        {summary.rate !== null && (
           <span className="text-sm text-text-muted">
             {`${t("student.markedSeances", { count: summary.marked })} — ${t("student.unjustified", { count: summary.unjustified })}`}
           </span>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {ATTENDANCE_VALUES.map((value) => (
@@ -112,21 +108,16 @@ export function PresenceBlock({ student, sessions }: { student: Student; session
       ) : (
         <ul className="flex flex-col gap-2">
           {months.map((month) => {
-            const isOpen = month.key === open;
+            const isOpen = month.key === openKey;
             const label = monthFormatter.format(new Date(month.year, month.month, 1));
             return (
               <li key={month.key} className="flex flex-col gap-1">
-                <button
-                  type="button"
-                  className="btn w-full justify-between text-left"
-                  aria-expanded={isOpen}
-                  onClick={() => setOpenKey(isOpen ? "" : month.key)}
-                >
-                  <span>{label}</span>
-                  <span className="text-text-muted">
-                    {t("student.monthSeances", { count: month.sessions.length })}
-                  </span>
-                </button>
+                <MonthDisclosure
+                  label={label}
+                  count={t("student.monthSeances", { count: month.sessions.length })}
+                  open={isOpen}
+                  onToggle={() => toggle(month.key)}
+                />
 
                 {isOpen && (
                   <ul className="flex flex-col gap-1">

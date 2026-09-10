@@ -98,6 +98,62 @@ card's primary action, above the register, because mid-lesson rearrangement is
 frequent and has no other path. *Retirer de sa place* replaces the old `↩` and
 reads as an action on a person rather than a symbol on a tile.
 
+**A seat REPORTS the register; the card still records it.** `SeatOccupant`
+answers a question about the ROOM rather than about a pupil — who has been
+marked, and who has already collected something — which was one tap per seat
+before it. Nothing here writes.
+
+**A behaviour event is drawn as a CARD**, a real rectangle, and it is the one
+part of the seat that is not decoration. It was a 6px dot, which has almost no
+area — a yellow card was invisible from a metre away, which is the whole reason
+a teacher would want it on the plan at all. A rectangle has roughly four times
+that area, and it is what the domain already calls the thing. One per event
+rather than per type, capped at three then `+n`: three reds in a lesson is a
+different morning from one, and a per-type mark would flatten exactly what a
+teacher is watching. A polaroid frame was tried for this and removed: it bought
+margin to hang things in, and cost the plan its furniture.
+
+**Attendance is carried twice** — the ring around the face, and a pill at its
+top right — and that is not redundancy. With the pill alone, an absent pupil's
+badge and a *mot dans le carnet* card a few pixels away were two red shapes
+told apart only by which corner they sat in. A ring around a face cannot be
+read as a card clipped beside one, and being the largest coloured thing on the
+seat it is what makes an absence legible across a whole plan.
+
+`ATTENDANCE_COLORS` exists for that collision and is deliberately NOT the
+behaviour palette reused: a seat carries both facts at once, so one green
+meaning *présent* beside another meaning *encouragement* would be a single
+colour with two jobs on one tile. There is no colour for "not recorded" and
+there must not be — an unmarked pupil draws no pill and keeps the plain frame,
+the same distinction `attendance.ts` refuses to collapse by defining no
+default. The pill is colour alone on screen, a knowing exception to the rule
+that colour never carries state by itself, because a letter at that size was
+unreadable at the scale a room shrinks to. The word is on the seat's `title`
+and in its accessible name, built by `useSeatLabel` beside the pill so a mark
+can never be added without one.
+
+**The furniture is blue, and the tokens are `--desk-*`.** They were
+`--wood-*` while the desks were oak, and a token called wood holding a blue
+misleads the next person to read it — the rename is the change, the hex is
+just its value. Nothing else about the room moved: the floor stays warm, so
+the desks separate from it rather than dissolving into one cool wash, and the
+board keeps its wooden frame, which is what a blackboard has.
+
+`--desk-edge` is measured against `--desk` even though it never carries a
+reading: it draws the furniture's outline AND is the ink of the *Place libre*
+label, deliberately faint because an empty place is what a teacher's eye should
+pass over. Picking the blue by eye alone dropped ardoise to 1.46:1 and made
+that label vanish; both grounds sit at 2.1:1 now, where the wood sat.
+
+**`UNIT_PX` is 44, so a place is 88px.** It was 36, and what a seat now says
+did not fit. `MIN_SCALE` is derived from it, so the 44px tap floor holds at
+whatever it is set to — and because the floor renders a place at 44px either
+way, a narrow screen draws exactly what it drew before. What that
+proportionality catches out is anything sized in PX on the tile: the floor
+scale fell with the unit, so the seat's name had to go from 10px to 12px simply
+to render on a phone at the size it already did. The card and pill dimensions
+owe the same arithmetic.
+
 **Merging is a rendering, never a datum.** Two desks exactly `TABLE` apart draw
 as one continuous surface, so *tables de deux*, *îlots* and a *fer à cheval* all
 fall out of adjacency. `tableGroups` finds the components; `freeEdges` borders
@@ -297,6 +353,25 @@ screen under the teacher's finger.
 records the reversal. Giving `Period` dates stays rejected for the reason it
 always was.
 
+**A carnet is drawn as the grid is, with one extra row.** Columns across, a
+row for this pupil, and a `classe` row of per-column means underneath —
+`columnMean` in `average.ts`, which is deliberately **not** normalised to /20
+like everything else that module computes: the cell above it prints the mark as
+stored, so a mean of 12,4 under a `78/100` would read as a collapse. It replaced
+a stacked list of one row per column, which turned five evaluations into five
+full-width cards; and the class row is the thing that list could not carry. The
+header average and the `PositionBar` both compare trimestre against trimestre,
+which does not answer "13 — but was the test hard?" for the one column a conseil
+is actually discussing. A calculation column's class figure is evaluated per
+classmate, since a calculation stores nothing.
+
+**The page's three blocks are all titled.** `Évaluations` sits over the carnet
+cards the way `Assiduité` and `Comportement` sit over theirs, and each carnet's
+own name is an `h4` beneath it. `Assiduité` and its percentage share one line,
+the shape a carnet card's header already uses — stacked, the percentage read as
+a heading in its own right and the word above it as a label for the section
+rather than for the number.
+
 **A consequence, recorded rather than hidden:** `CarnetsPanel` on the class page
 summarises the FIRST period by order, while this page opens on the last marked
 one, so the two show different class means for one carnet. Each is labelled with
@@ -332,13 +407,30 @@ percentage at all: 0 % and 100 % are both claims about lessons nobody
 registered.
 
 **A retained open month must still name a month this pupil has.** Stepping to
-the next pupil is a `Router.push` on the same route, so `PresenceBlock` is never
-remounted and its `openKey` survives — across classes onto a list that may hold
+the next pupil is a `Router.push` on the same route, so nothing here is
+remounted and the `openKey` survives — across classes onto a list that may hold
 no such month, and every month then drew collapsed, which is the empty screen
 `defaultOpenMonth` exists to prevent. `""` is not a stale key: it is the teacher
 having closed the open month, and it keeps meaning closed. `groupSeancesByMonth`
 orders a day's séances by `startsAt` after the date, since two lessons of one
 class on one day are legal here and the input order is `createdAt`.
+
+That rule lives in `useOpenMonth` (`src/modules/student/use-open-month.ts`)
+rather than in either block, because **Comportement is grouped by month too**.
+It takes the same `groupSeancesByMonth` — generic over anything carrying a
+`date` and a `startsAt` — with each event borrowing its séance's; an event whose
+séance is not in this class's list, which a pupil moved between classes has,
+falls back to `createdAt`, the only moment the app still knows about it. The
+block already drew those dateless rather than dropping them.
+
+**`MonthDisclosure` is deliberately not a `.btn`.** `.btn` sets
+`justify-content: center`, and `global.css` lands after `@import "tailwindcss"`,
+so at equal specificity it beats a `justify-between` utility — which is why the
+month and its count sat jammed together in the middle of a full-width row for as
+long as that row was a `.btn`. Open and closed differ by a fill as well as by
+the caret, and the caret is ONE glyph rotated rather than `▸` swapped for `▾`:
+the two characters are different widths in Luciole, so swapping them nudged the
+month name sideways on every toggle.
 
 **`P A R E` is a translated key, never `value[0]`** — English *late* is L. The
 full word is the accessible name and the title, and the state is carried by a
@@ -584,6 +676,16 @@ Management (create, rename, delete) lives in Réglages rather than the drawer: a
 - **Pupils are shown surname first and in capitals** — "BERNARD Adam" — through `PupilName` in `design-system/components/`, the only place a pupil's name is composed. Render a name any other way and it will drift: the app previously did it at eleven call sites and three fell out of convention. `format="surname"` is the narrow-cell form (the seat tile) and drops the letter-spacing, because at 10px tracking buys no legibility and costs width the capitals already ate. In a French school a pupil is called by their surname, the roster sorts by it, and the capitals disambiguate the halves — Marie Claire is otherwise indistinguishable from Claire Marie.
 
   **The capitals are CSS, never `toUpperCase()`.** Transforming the string would put a name nobody is called into the DOM, and from there into the accessible name (some screen readers spell all-caps out letter by letter), into copy-paste, and potentially into a comparison. The stored value stays as typed, so export, CSV and search are unaffected — searching lowercase "bernard" still matches a row rendering BERNARD. CSS `uppercase` also keeps French accents (NGUYÊN, ÉLOÏSE), which a locale-sensitive `toUpperCase()` would not guarantee.
+- **The avatar IS the photo control**, on both screens that carry one — the
+  pupil page's header and the pupil card. `PhotoInput` is a bare 44px circle:
+  empty it opens the file picker on a tap and wears a `+` badge, since a grey
+  disc with no label beside it says nothing; set, it opens *Changer* /
+  *Retirer* through `Modal`, not through an anchored popover of its own —
+  Escape, focus trap, backdrop and return-focus is a list this codebase keeps
+  exactly one copy of, and two buttons do not earn a second. It replaced an
+  avatar sitting beside a full-width labelled button with a removal link under
+  it: three elements and a wrap, for a field a teacher fills once a year.
+
 - **Naming:** identifiers are English; only translation values are French. `class` is reserved, so the row type is `SchoolClass` while the table stays `classes`. The column row type is `GradeColumn`, never `Column` — that collides with TanStack Table's export.
 - **Navigation** uses Chicane `<Link to={Router.X({...})}>`. A raw `<a href>` causes a full page reload.
 - **State bound to a record must be anchored to that record's identity, never to its position.** This codebase has produced the same bug in several disguises, and every instance risked writing to or deleting the wrong pupil:

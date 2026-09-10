@@ -72,7 +72,11 @@ export function StudentHeader({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
+        {/* The avatar is the photo control itself now, at the touch floor
+            rather than at 64px with a labelled button beside it: this page's
+            subject is the pupil, not their picture, and the row it used to
+            wrap is the row carrying the name, the class and the stepper. */}
+        <div className="flex min-w-0 items-center gap-3">
           <PhotoInput
             value={student.photo}
             onChange={(photo) => void setStudentPhoto(db, student.id, photo ?? null)}

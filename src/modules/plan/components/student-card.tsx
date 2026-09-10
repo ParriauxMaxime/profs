@@ -125,32 +125,45 @@ export function StudentCard({
 
   return (
     <div className="paper flex flex-col gap-4 rounded-md border border-border p-4">
-      {/* Wrapping, at every level: the card lives in a 320px column (`lg:w-80`
-          on the class page) and this row carries an avatar, a photo control, a
-          name and Fermer. Without it they shrink past their contents and draw
-          over each other — the surname landed on top of the photo button.
-          `min-w-0` on the name column is what lets the surname wrap instead of
-          setting the column's floor to its own width. */}
+      {/* The card lives in a 320px column (`lg:w-80` on the class page), so
+          this row is tight: an avatar, a name and Fermer. `min-w-0` on the
+          name column is what lets a long surname wrap rather than setting the
+          column's floor to its own width — without it the name shrank past its
+          contents and drew over the avatar. The photo control that used to sit
+          between them is the avatar itself now. */}
       <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <PhotoInput
             value={student.photo}
             onChange={(photo) => void setStudentPhoto(db, student.id, photo ?? null)}
           />
-          <div className="flex min-w-0 flex-col">
-            <span className="break-words font-semibold text-lg">
-              <PupilName student={student} />
-            </span>
-            <Link
-              to={Router.Student({
-                studentId: student.id,
-                ...(listParams ?? { classe: student.classId }),
-              })}
-              className="text-accent text-sm"
-            >
-              {t("student.timeline")}
-            </Link>
-          </div>
+          {/* The name IS the way to the pupil's page — the same door
+              `/students` puts on its surname cell, and for the same reason: a
+              title that names a destination should be the link to it, rather
+              than sit above a second smaller one repeating the identity it
+              already carries. It keeps the heading's weight and colour and
+              takes its affordance from the hover, so the card's hierarchy is
+              the name, then Déplacer, then the register — which is the order a
+              teacher reads it in. `Historique` is gone with the duplication,
+              and `student.timeline` with it — this was its only caller.
+
+              The underline is PERMANENT, not a hover state. This app is used
+              on a tablet mid-lesson, where there is no hover at all, so a
+              heading whose only link signal appears under a mouse is a heading
+              that reads as plain text to everyone actually using it. The ink
+              stays the text colour and the accent goes into the underline:
+              filled accent on this card means *Déplacer*, the action, and a
+              blue title would spend that meaning on something that is merely a
+              destination. */}
+          <Link
+            to={Router.Student({
+              studentId: student.id,
+              ...(listParams ?? { classe: student.classId }),
+            })}
+            className="min-w-0 break-words font-semibold text-lg underline decoration-2 decoration-accent/50 underline-offset-4 hover:decoration-accent"
+          >
+            <PupilName student={student} />
+          </Link>
         </div>
         {/* `shrink-0`, and the row itself does NOT wrap: Fermer stays where a
             teacher reaches for it — top right of the card — while everything

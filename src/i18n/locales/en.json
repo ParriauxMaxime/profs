@@ -66,7 +66,6 @@
     "addPhoto": "Add a photo",
     "removePhoto": "Remove photo",
     "notesHint": "IEP, accommodations, seating constraints…",
-    "timeline": "History",
     "notFound": "Student not found",
     "previous": "Previous pupil",
     "next": "Next pupil",
@@ -85,7 +84,11 @@
     "unjustified_other": "{{count}} unexcused absences",
     "noSeances": "No lesson recorded for this class.",
     "monthSeances_one": "{{count}} lesson",
-    "monthSeances_other": "{{count}} lessons"
+    "monthSeances_other": "{{count}} lessons",
+    "changePhoto": "Change photo",
+    "evaluations": "Assessments",
+    "classRow": "class",
+    "noColumns": "No assessment in this period."
   },
   "class": {
     "addStudent": "Add student",
@@ -322,7 +325,9 @@
     "note": "Observation",
     "comment": "Comment",
     "none": "No events",
-    "confirmDelete": "Delete this event?"
+    "confirmDelete": "Delete this event?",
+    "monthEvents_one": "{{count}} event",
+    "monthEvents_other": "{{count}} events"
   },
   "rubric": {
     "templates": "Rubric templates",

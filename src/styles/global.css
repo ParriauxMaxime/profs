@@ -180,6 +180,20 @@ body {
   --on-behaviour-red: #ffffff;
   --on-behaviour-note: #ffffff;
 
+  /*
+   * Attendance on a seat, and deliberately not the behaviour palette reused.
+   * A tile carries both facts at once — a ring for whether the pupil is here,
+   * pips for what they did — so one green meaning *présent* beside another
+   * meaning *encouragement* would be a single colour with two jobs, on one
+   * 88px square. These are chosen to sit apart from the four above: a teal
+   * present rather than the behaviour green, a violet excusé that exists
+   * nowhere else on the tile.
+   */
+  --attendance-present: #0f766e;
+  --attendance-absent: #a61b1b;
+  --attendance-late: #b45309;
+  --attendance-excused: #6d5bd0;
+
   --level-1: #b32424;
   --level-2: #b76a06;
   --level-3: #147a43;
@@ -207,19 +221,33 @@ body {
    * coordinate grid rather than a second grid laid over it. Integer pixels at
    * any root size, for the reason `.carreaux` is sized in rem.
    *
-   * Measured: --wood-ink on --wood is 6.9:1 here and 5.5:1 in ardoise, both
-   * clear of the 4.5:1 AA threshold for the 10px surnames a seat tile carries.
+   * The furniture is BLUE, and the tokens are named for what they are rather
+   * than for what they look like: they were `--wood-*` while the desks were
+   * oak, and a token called wood holding a blue is a name that misleads the
+   * next person to read it. Nothing else about the room moved — the floor
+   * stays warm, so the desks separate from it rather than dissolving into a
+   * single cool wash.
+   *
+   * Measured: --desk-ink on --desk is 9.1:1 here and 7.1:1 in ardoise, both
+   * clear of the 4.5:1 AA threshold for the 12px names a seat tile carries.
+   *
+   * --desk-edge is checked against --desk too, though it never carries a
+   * reading: it draws the furniture's own outline, and it is the ink of the
+   * "Place libre" label — deliberately faint, since an empty place is what a
+   * teacher's eye should pass over. It sits at 2.1:1 on both grounds, which is
+   * where the wood it replaced sat. Picking the blue by eye alone dropped
+   * ardoise to 1.46:1 and made that label vanish.
    */
   --floor: #e9e2d4;
   --floor-alt: #e4dccb;
   --floor-seam: #d7cdb8;
   --wall: #c6b99f;
   --wall-inner: #ab9c7e;
-  --wood: #dcb886;
-  --wood-hi: #e8cba2;
-  --wood-edge: #a8834f;
-  --wood-ink: #3d2f1b;
-  --chair: #8a6f4e;
+  --desk: #b9cdea;
+  --desk-hi: #d2e0f4;
+  --desk-edge: #6a8cbd;
+  --desk-ink: #17293f;
+  --chair: #5c789f;
   --board: #2f5044;
   --board-frame: #b99a6b;
   --board-ink: #cfe0d6;
@@ -256,6 +284,12 @@ body {
   --on-behaviour-red: #10151c;
   --on-behaviour-note: #10151c;
 
+  /* Lifted for slate, and still apart from the behaviour four above. */
+  --attendance-present: #3fbfae;
+  --attendance-absent: #f0655a;
+  --attendance-late: #e39a3f;
+  --attendance-excused: #a394f0;
+
   --level-1: #e8695f;
   --level-2: #d3903a;
   --level-3: #4cb782;
@@ -268,11 +302,11 @@ body {
 
   /*
    * The salle by projector light. A dark classroom is the case this theme
-   * exists for, so the room gets the same care as the rest of it: dark oak
-   * rather than the light theme's wood dimmed, a floor that stays below the
-   * furniture, and a board nearly black in its frame.
+   * exists for, so the room gets the same care as the rest of it: a deep blue
+   * of its own rather than the light theme's desks dimmed, a floor that stays
+   * below the furniture, and a board nearly black in its frame.
    *
-   * The ink INVERTS — dark on light wood, light on dark wood — rather than
+   * The ink INVERTS — dark on light desks, light on dark ones — rather than
    * staying one value. A single ink cannot clear 4.5:1 on both grounds.
    */
   --floor: #232a33;
@@ -280,11 +314,11 @@ body {
   --floor-seam: #1a2028;
   --wall: #39424e;
   --wall-inner: #2a323c;
-  --wood: #6b563a;
-  --wood-hi: #7d6544;
-  --wood-edge: #413322;
-  --wood-ink: #efe4d2;
-  --chair: #4a3b28;
+  --desk: #384c6a;
+  --desk-hi: #465c7e;
+  --desk-edge: #172335;
+  --desk-ink: #dfe8f5;
+  --chair: #2a3a52;
   --board: #16302a;
   --board-frame: #5e4b32;
   --board-ink: #9fbfae;

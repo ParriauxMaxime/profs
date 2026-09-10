@@ -435,10 +435,10 @@ export function RoomEditorPage({ roomId }: { roomId: string }) {
               held?.kind === "new" ? "outline-2 outline-accent outline-offset-2" : ""
             }`}
             style={{
-              background: "var(--wood)",
-              color: "var(--wood-ink)",
-              border: "2px solid var(--wood-edge)",
-              boxShadow: "inset 0 3px 0 var(--wood-hi), 0 4px 0 var(--wood-edge)",
+              background: "var(--desk)",
+              color: "var(--desk-ink)",
+              border: "2px solid var(--desk-edge)",
+              boxShadow: "inset 0 3px 0 var(--desk-hi), 0 4px 0 var(--desk-edge)",
             }}
           >
             <span aria-hidden="true">+&nbsp;</span>

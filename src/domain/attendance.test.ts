@@ -1,4 +1,4 @@
-import { ATTENDANCE_VALUES, parseAttendanceValue } from "./attendance";
+import { ATTENDANCE_COLORS, ATTENDANCE_VALUES, parseAttendanceValue } from "./attendance";
 
 describe("attendance", () => {
   it("lists the four values", () => {
@@ -13,5 +13,11 @@ describe("attendance", () => {
     expect(parseAttendanceValue("sick")).toBeNull();
     expect(parseAttendanceValue("")).toBeNull();
     expect(parseAttendanceValue(undefined)).toBeNull();
+  });
+
+  it("gives every value a colour, as a token rather than a literal", () => {
+    for (const value of ATTENDANCE_VALUES) {
+      expect(ATTENDANCE_COLORS[value]).toMatch(/^var\(--attendance-[a-z]+\)$/);
+    }
   });
 });

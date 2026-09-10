@@ -66,7 +66,6 @@
     "addPhoto": "Ajouter une photo",
     "removePhoto": "Retirer la photo",
     "notesHint": "PAP, PPRE, tiers-temps, contraintes de placement…",
-    "timeline": "Historique",
     "notFound": "Élève introuvable",
     "previous": "Élève précédent",
     "next": "Élève suivant",
@@ -85,7 +84,11 @@
     "unjustified_other": "{{count}} absences non justifiées",
     "noSeances": "Aucune séance enregistrée pour cette classe.",
     "monthSeances_one": "{{count}} séance",
-    "monthSeances_other": "{{count}} séances"
+    "monthSeances_other": "{{count}} séances",
+    "changePhoto": "Changer la photo",
+    "evaluations": "Évaluations",
+    "classRow": "classe",
+    "noColumns": "Aucune évaluation dans cette période."
   },
   "class": {
     "addStudent": "Ajouter un élève",
@@ -322,7 +325,9 @@
     "note": "Observation",
     "comment": "Commentaire",
     "none": "Aucun événement",
-    "confirmDelete": "Supprimer cet événement ?"
+    "confirmDelete": "Supprimer cet événement ?",
+    "monthEvents_one": "{{count}} événement",
+    "monthEvents_other": "{{count}} événements"
   },
   "rubric": {
     "templates": "Modèles de grille",

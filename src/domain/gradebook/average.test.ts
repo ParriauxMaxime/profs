@@ -1,4 +1,11 @@
-import { type AverageColumn, type AverageGrade, classStats, studentAverage } from "./average";
+import {
+  type AverageColumn,
+  type AverageGrade,
+  classStats,
+  columnMean,
+  studentAverage,
+} from "./average";
+import type { GradeValue } from "./grade";
 
 function col(over: Partial<AverageColumn> & { id: string }): AverageColumn {
   return { type: "numeric", weight: 1, max: 20, periodId: "p1", ...over };
@@ -128,3 +135,30 @@ describe("classStats", () => {
     });
   });
 });
+
+describe("columnMean", () => {
+  it("averages the numeric values in a column's own scale", () => {
+    // Not /20: these are marks out of 100, and the pupil's cell above the mean
+    // shows "78/100". Normalising here would print 12,4 under a 78.
+    expect(columnMean([num(78), num(60), num(72)])).toBe(70);
+  });
+
+  it("ignores values that are not numeric", () => {
+    expect(
+      columnMean([num(12), { type: "checkbox", value: true }, { type: "text", value: "vu" }]),
+    ).toBe(12);
+  });
+
+  it("is null when nothing numeric was marked", () => {
+    expect(columnMean([])).toBeNull();
+    expect(columnMean([{ type: "checkbox", value: true }])).toBeNull();
+  });
+
+  it("rounds to two decimals, like every other figure this app prints", () => {
+    expect(columnMean([num(13), num(14), num(14)])).toBe(13.67);
+  });
+});
+
+function num(value: number): GradeValue {
+  return { type: "numeric", value };
+}

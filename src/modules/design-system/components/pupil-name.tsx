@@ -24,17 +24,31 @@ import type { Student } from "@db";
  */
 export function PupilName({
   student,
-  /** `surname` is for narrow cells — a seat tile has no room for both. */
+  /** `surname` for a cell with room for one line; `stacked` for two. */
   format = "full",
 }: {
   student: Pick<Student, "firstName" | "lastName">;
-  format?: "full" | "surname";
+  format?: "full" | "surname" | "stacked";
 }) {
-  // No extra tracking on the surname-only form. It is used in the seat tile at
+  // No extra tracking on the narrow forms. They are used in the seat tile at
   // 10px, where letter-spacing buys no legibility and costs width that
   // capitals have already eaten — ROUSSEAU and CHEVALIER clipped with it.
   if (format === "surname") {
     return <span className="uppercase">{student.lastName}</span>;
+  }
+
+  // The same two halves as `full`, on two lines instead of one. A seat is 88px
+  // wide, where "BERNARD Adam" wraps wherever it happens to run out — which
+  // put a given name alone on line two for some pupils and split a compound
+  // surname for others. Breaking it here means every tile in the room breaks
+  // in the same place, which is what makes a plan scannable.
+  if (format === "stacked") {
+    return (
+      <>
+        <span className="block truncate uppercase">{student.lastName}</span>
+        <span className="block truncate">{student.firstName}</span>
+      </>
+    );
   }
   return (
     <>

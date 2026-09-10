@@ -61,8 +61,8 @@ export function RoomThumbnail({
           y={(top + position.y * scale).toFixed(2)}
           width={Math.max(1.5, TABLE * scale).toFixed(2)}
           height={Math.max(1.5, TABLE * scale).toFixed(2)}
-          fill="var(--wood)"
-          stroke="var(--wood-edge)"
+          fill="var(--desk)"
+          stroke="var(--desk-edge)"
           strokeWidth={0.4}
         />
       ))}

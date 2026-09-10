@@ -24,10 +24,20 @@ import { useTranslation } from "react-i18next";
 /**
  * How many pixels one half-tile is worth.
  *
- * A desk is `TABLE` units square, so it renders 72 × 72 — comfortably past the
- * 44px live-entry floor.
+ * A desk is `TABLE` units square, so it renders 88 × 88 — comfortably past the
+ * 44px live-entry floor, and enough for what a seat now has to say without
+ * being opened: a 40px face, a surname, a given name, an attendance ring and a
+ * row of behaviour pips. At the 72 this was, those last four fought for the
+ * same 42px of height under the disc.
+ *
+ * Raising it makes the whole room 22% wider, so a narrow column reaches
+ * `MIN_SCALE` sooner and the plan is drawn smaller there. That is the trade:
+ * the screen a teacher watches all lesson is clearer on the tablet it is
+ * watched on, and a phone sees the same plan reduced rather than a different
+ * one. `MIN_SCALE` is derived from this constant, so the 44px tap floor holds
+ * at whatever it is set to.
  */
-export const UNIT_PX = 36;
+export const UNIT_PX = 44;
 
 /**
  * The scale below which a place stops being tappable.
@@ -274,8 +284,8 @@ export function RoomCanvas({
                   top: ghost.at.y * UNIT_PX,
                   width: TABLE * UNIT_PX,
                   height: TABLE * UNIT_PX,
-                  border: `2px dashed ${ghost.allowed ? "var(--wood-edge)" : "var(--color-danger)"}`,
-                  background: ghost.allowed ? "var(--wood)" : "transparent",
+                  border: `2px dashed ${ghost.allowed ? "var(--desk-edge)" : "var(--color-danger)"}`,
+                  background: ghost.allowed ? "var(--desk)" : "transparent",
                   opacity: 0.55,
                 }}
               />
@@ -336,7 +346,7 @@ export function RoomCanvas({
                       ? group.desks
                       : group.desks.filter((sibling) => sibling.id !== liftedDeskId);
                   const edge = freeEdges(desk, surface);
-                  const line = "2px solid var(--wood-edge)";
+                  const line = "2px solid var(--desk-edge)";
                   // A table in hand is LIFTED rather than outlined: it rises,
                   // grows a little and throws a longer shadow, which is what
                   // picking something up looks like. An outline had to compete
@@ -354,8 +364,8 @@ export function RoomCanvas({
                         top: (desk.y - group.y) * UNIT_PX,
                         width: TABLE * UNIT_PX,
                         height: TABLE * UNIT_PX,
-                        background: "var(--wood)",
-                        color: "var(--wood-ink)",
+                        background: "var(--desk)",
+                        color: "var(--desk-ink)",
                         // A place in hand is drawn WHOLE. Borders are normally
                         // painted only where no sibling abuts, which is what
                         // makes a table de deux one continuous surface — so
@@ -377,10 +387,10 @@ export function RoomCanvas({
                         // OUTSIDE of a table, so only a place with open air
                         // below it carries them.
                         boxShadow: lifted
-                          ? "inset 0 3px 0 var(--wood-hi), 0 6px 0 var(--wood-edge), 0 16px 22px rgb(0 0 0 / 0.38)"
+                          ? "inset 0 3px 0 var(--desk-hi), 0 6px 0 var(--desk-edge), 0 16px 22px rgb(0 0 0 / 0.38)"
                           : edge.bottom
-                            ? "inset 0 3px 0 var(--wood-hi), 0 4px 0 var(--wood-edge), 0 7px 10px var(--room-shadow)"
-                            : "inset 0 3px 0 var(--wood-hi)",
+                            ? "inset 0 3px 0 var(--desk-hi), 0 4px 0 var(--desk-edge), 0 7px 10px var(--room-shadow)"
+                            : "inset 0 3px 0 var(--desk-hi)",
                         transform: lifted ? "translateY(-6px) scale(1.06)" : undefined,
                         transition: "transform 120ms ease-out, box-shadow 120ms ease-out",
                       }}
@@ -402,7 +412,7 @@ export function RoomCanvas({
                         style={{
                           ...chairStyle(edge, desk, group),
                           background: "var(--chair)",
-                          border: "2px solid var(--wood-edge)",
+                          border: "2px solid var(--desk-edge)",
                         }}
                       />
                       {renderPlace(desk)}
@@ -415,8 +425,8 @@ export function RoomCanvas({
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-0 rounded"
                   style={{
-                    border: "2px solid var(--wood-edge)",
-                    boxShadow: "0 4px 0 var(--wood-edge), 0 7px 10px var(--room-shadow)",
+                    border: "2px solid var(--desk-edge)",
+                    boxShadow: "0 4px 0 var(--desk-edge), 0 7px 10px var(--room-shadow)",
                   }}
                 />
                 {renderTableOverlay?.(group)}

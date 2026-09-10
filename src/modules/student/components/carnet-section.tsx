@@ -5,17 +5,21 @@ import {
   type AverageColumn,
   type AverageGrade,
   classStats,
+  columnMean,
   studentAverage,
 } from "@domain/gradebook/average";
 import { evaluateCalculation } from "@domain/gradebook/calculation";
 import { formatDecimal } from "@domain/gradebook/decimal";
+import type { GradeValue } from "@domain/gradebook/grade";
 import { lastMarkedPeriod, positionOnScale } from "@domain/student-summary";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ColumnTypeIcon } from "../../design-system/components/column-type-icon";
 import { EditableCell } from "../../design-system/components/editable-cell";
 import { PositionBar } from "../../design-system/components/position-bar";
 import { ToggleGroup, ToggleOption } from "../../design-system/components/primitives";
+import { PupilName } from "../../design-system/components/pupil-name";
 
 /**
  * One carnet, for one pupil.
@@ -25,8 +29,8 @@ import { ToggleGroup, ToggleOption } from "../../design-system/components/primit
  * weeks, because nothing puts them under one control — a `Period` carries no
  * dates, so any such claim would be invented.
  *
- * Rows dispatch on `column.type` rather than assuming a numeric input, so a new
- * column type lands as one more case here instead of a new section on this
+ * Cells dispatch on `column.type` rather than assuming a numeric input, so a
+ * new column type lands as one more case here instead of a new section on this
  * page. A `rubric` column is the one type that does not fit that shape and is
  * filtered out below: `EditableCell` renders nothing for it, and a grille needs
  * a per-critère surface rather than a cell. See `Known gaps` in `CLAUDE.md`.
@@ -135,10 +139,47 @@ export function CarnetSection({
 
   const decimal = (value: number): string => formatDecimal(value, i18n.language);
 
+  // Every column of the carnet as candidate sources, unfiltered — unlike the
+  // grid. `normalisedValue`/`rawValue` in calculation.ts already reject a
+  // non-numeric grade, so a non-numeric column contributes nothing either way.
+  const calculationSources = columns.map((c) => ({ id: c.id, max: c.max, weight: c.weight }));
+
+  const computedFor = (column: (typeof columns)[number], studentId: string): number | null =>
+    column.calculation
+      ? evaluateCalculation(column.calculation, calculationSources, byStudent.get(studentId) ?? [])
+      : null;
+
+  const classmateIds = new Set(classmates.map((mate) => mate.id));
+
+  /**
+   * What the class scored on THIS column, in the column's own scale.
+   *
+   * A calculation stores nothing, so its class figure has to be evaluated per
+   * classmate rather than read — the same derivation the pupil's own cell
+   * uses, applied to everyone.
+   */
+  const meanFor = (column: (typeof columns)[number]): number | null => {
+    if (column.type === "calculation") {
+      const values: GradeValue[] = [];
+      for (const mate of classmates) {
+        const computed = computedFor(column, mate.id);
+        if (computed !== null) values.push({ type: "numeric", value: computed });
+      }
+      return columnMean(values);
+    }
+    const values: GradeValue[] = [];
+    for (const grade of grades) {
+      if (grade.columnId !== column.id) continue;
+      if (!classmateIds.has(grade.studentId)) continue;
+      if (grade.value !== undefined) values.push(grade.value);
+    }
+    return columnMean(values);
+  };
+
   return (
     <section className="flex flex-col gap-3 rounded-md border border-border p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="flex items-center gap-2 font-medium">
+        <h4 className="flex items-center gap-2 font-medium">
           {subject && (
             <span
               className="inline-block h-3 w-3 rounded-full"
@@ -146,7 +187,7 @@ export function CarnetSection({
             />
           )}
           {gradebook.name}
-        </h3>
+        </h4>
         <span className="font-semibold tabular-nums">
           {mine === null ? t("student.noMark") : decimal(mine)}
           {stats && (
@@ -186,64 +227,112 @@ export function CarnetSection({
         />
       )}
 
-      <ul className="flex flex-col gap-1">
-        {periodColumns.map((column) => {
-          const grade = gradeFor(column.id);
-          const isCalculation = column.type === "calculation";
-          // `evaluateCalculation(spec, sources, grades)` — the spec off the
-          // column, and every column of the carnet (unfiltered, unlike the
-          // grid) as the candidate sources. No pre-filter to numeric-only is
-          // needed: `normalisedValue`/`rawValue` in calculation.ts already
-          // reject any grade whose value isn't numeric, so a non-numeric
-          // column contributes nothing either way.
-          const computed =
-            isCalculation && column.calculation
-              ? evaluateCalculation(
-                  column.calculation,
-                  columns.map((c) => ({ id: c.id, max: c.max, weight: c.weight })),
-                  byStudent.get(student.id) ?? [],
-                )
-              : null;
+      {periodColumns.length === 0 ? (
+        <p className="text-sm text-text-faint">{t("student.noColumns")}</p>
+      ) : (
+        // The class grid's own shape, minus the other pupils: columns across,
+        // one row for this child. It replaced a stacked list of one row per
+        // column, which turned five evaluations into five full-width cards and
+        // made a trimestre something a teacher scrolled rather than read.
+        //
+        // The `classe` row underneath is what a stacked list could not have
+        // carried. The header's average and the PositionBar both compare
+        // trimestre against trimestre; this compares mark against mark, which
+        // is what answers "13 — but was the test hard?" for the one column the
+        // conseil is actually discussing.
+        //
+        // `overflow-x-auto` and a per-column minimum, exactly as the grid does
+        // it: a phone scrolls the table sideways rather than wrapping a mark
+        // into a column too narrow to read.
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-border border-b text-left">
+                <th className="sticky left-0 z-10 bg-bg px-2 py-2">
+                  <span className="sr-only">{t("student.lastName")}</span>
+                </th>
+                {periodColumns.map((column) => (
+                  <th key={column.id} className="min-w-24 px-2 py-2 text-center font-medium">
+                    <span className="flex flex-col items-center">
+                      <span className="flex items-center gap-1 break-words">
+                        <ColumnTypeIcon type={column.type} />
+                        {column.label}
+                      </span>
+                      <span className="font-normal text-text-faint text-xs">
+                        {t("student.coefficient", { value: column.weight })}
+                      </span>
+                    </span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-border/50 border-b">
+                <th
+                  scope="row"
+                  className="sticky left-0 z-10 whitespace-nowrap bg-bg px-2 py-2 text-left font-medium"
+                >
+                  <PupilName student={student} format="surname" />
+                </th>
+                {periodColumns.map((column) => {
+                  const grade = gradeFor(column.id);
+                  const isCalculation = column.type === "calculation";
+                  const computed = isCalculation ? computedFor(column, student.id) : null;
 
-          return (
-            <li
-              key={column.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded border border-border px-2 py-1"
-            >
-              <span className="flex min-w-0 flex-wrap items-baseline gap-2">
-                <span className="break-words font-medium text-sm">{column.label}</span>
-                <span className="text-text-faint text-xs">
-                  {t("student.coefficient", { value: column.weight })}
-                </span>
-              </span>
-              <EditableCell
-                type={column.type}
-                max={column.max}
-                value={
-                  isCalculation
-                    ? computed === null
-                      ? undefined
-                      : { type: "numeric", value: computed }
-                    : grade?.value
-                }
-                note={isCalculation ? undefined : grade?.note}
-                // A calculation stores nothing: EditableCell renders the type
-                // read-only, so neither callback can be reached.
-                onChange={(next) =>
-                  isCalculation
-                    ? Promise.resolve()
-                    : writeGrade(db, gradebook.id, column.id, student.id, next)
-                }
-                onNoteChange={(next) =>
-                  isCalculation
-                    ? Promise.resolve()
-                    : setGradeNote(db, gradebook.id, column.id, student.id, next)
-                }
-              />
-            </li>
-          );
-        })}
-      </ul>
+                  return (
+                    <td key={column.id} className="px-2 py-2 text-center">
+                      <EditableCell
+                        type={column.type}
+                        max={column.max}
+                        value={
+                          isCalculation
+                            ? computed === null
+                              ? undefined
+                              : { type: "numeric", value: computed }
+                            : grade?.value
+                        }
+                        note={isCalculation ? undefined : grade?.note}
+                        // A calculation stores nothing: EditableCell renders
+                        // the type read-only, so neither callback is reachable.
+                        onChange={(next) =>
+                          isCalculation
+                            ? Promise.resolve()
+                            : writeGrade(db, gradebook.id, column.id, student.id, next)
+                        }
+                        onNoteChange={(next) =>
+                          isCalculation
+                            ? Promise.resolve()
+                            : setGradeNote(db, gradebook.id, column.id, student.id, next)
+                        }
+                      />
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr className="text-text-muted">
+                <th
+                  scope="row"
+                  className="sticky left-0 z-10 whitespace-nowrap bg-bg px-2 py-2 text-left font-normal"
+                >
+                  {t("student.classRow")}
+                </th>
+                {periodColumns.map((column) => {
+                  const mean = meanFor(column);
+                  return (
+                    <td key={column.id} className="px-2 py-2 text-center tabular-nums">
+                      {mean === null ? (
+                        <span className="text-text-faint">{t("student.noMark")}</span>
+                      ) : (
+                        decimal(mean)
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }

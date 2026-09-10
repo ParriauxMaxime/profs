@@ -1,4 +1,4 @@
-import type { Assignment, Desk, Session, Student } from "@db";
+import type { Assignment, BehaviourEvent, Desk, Session, Student } from "@db";
 import {
   applyPlacement,
   assignmentsForPlan,
@@ -9,6 +9,7 @@ import {
 import { useDb } from "@db/provider";
 import { desksForRoom, listRooms } from "@db/rooms";
 import { readActiveRoom, resolveActiveRoom, writeActiveRoom } from "@domain/active-room";
+import type { AttendanceValue } from "@domain/attendance";
 import { type HeldPupil, resolvePlacement } from "@domain/room";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -16,11 +17,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { Modal } from "../design-system/components/modal";
-import { PupilName } from "../design-system/components/pupil-name";
 import { RoomCanvas } from "../rooms/components/room-canvas";
 import { useEscape } from "../shared/use-escape";
 import { useMediaQuery } from "../shared/use-media-query";
-import { PupilDisc } from "./components/pupil-disc";
+import { SeatOccupant, useSeatLabel } from "./components/seat-occupant";
 import { StudentCard } from "./components/student-card";
 import { StudentRail } from "./components/student-rail";
 
@@ -93,6 +93,34 @@ export function PlanPage({
   // True while a drop is being written. A ref, not state: it must be readable
   // by the very next click handler, before any re-render.
   const dropping = useRef(false);
+
+  const seatLabel = useSeatLabel();
+
+  // The register, for the séance on screen, read whole rather than per pupil.
+  // Both are indexed by `sessionId`, so this is one query each for the room
+  // instead of one per seat — and both live-update, so a mark made in the card
+  // repaints the seat behind it without the page knowing it happened.
+  //
+  // `session` is null until somebody records something, and then there is
+  // nothing to read: an empty map draws a room of unmarked seats, which is
+  // exactly what an unstarted lesson is.
+  const attendanceOf = useLiveQuery(async () => {
+    if (!session) return new Map<string, AttendanceValue>();
+    const rows = await db.attendance.where("sessionId").equals(session.id).toArray();
+    return new Map(rows.map((row) => [row.studentId, row.value]));
+  }, [db, session?.id]);
+
+  const eventsOf = useLiveQuery(async () => {
+    if (!session) return new Map<string, BehaviourEvent[]>();
+    const rows = await db.behaviourEvents.where("sessionId").equals(session.id).sortBy("createdAt");
+    const byStudent = new Map<string, BehaviourEvent[]>();
+    for (const row of rows) {
+      const list = byStudent.get(row.studentId) ?? [];
+      list.push(row);
+      byStudent.set(row.studentId, list);
+    }
+    return byStudent;
+  }, [db, session?.id]);
 
   const rooms = useLiveQuery(() => listRooms(db), [db]);
   // The salles this class is already seated in, fullest first — what
@@ -253,30 +281,39 @@ export function PlanPage({
                 const student = studentId ? byId.get(studentId) : undefined;
                 if (!student) {
                   return (
-                    <span className="text-[11px]" style={{ color: "var(--wood-edge)" }}>
+                    <span className="text-[11px]" style={{ color: "var(--desk-edge)" }}>
                       {t("plan.emptySeat")}
                     </span>
                   );
                 }
                 return (
-                  <>
-                    <PupilDisc student={student} />
-                    <span
-                      className="w-full truncate px-1 text-center text-[10px]"
-                      style={{ color: "var(--wood-ink)" }}
-                    >
-                      <PupilName student={student} format="surname" />
-                    </span>
-                  </>
+                  <SeatOccupant
+                    student={student}
+                    attendance={attendanceOf?.get(student.id) ?? null}
+                    events={eventsOf?.get(student.id) ?? []}
+                  />
                 );
               }}
               placeProps={(desk) => {
                 const studentId = byDesk.get(desk.id) ?? null;
+                const seated = studentId ? byId.get(studentId) : undefined;
                 const isHeld = held !== null && held.fromDeskId === desk.id;
+                // The attendance ring and the behaviour pips are colour and
+                // position only, so the words they stand for live here. A seat
+                // with something in hand says what a tap will do instead:
+                // that is the gesture being offered, and it outranks a report.
+                const label = seated
+                  ? seatLabel(
+                      seated,
+                      attendanceOf?.get(seated.id) ?? null,
+                      eventsOf?.get(seated.id) ?? [],
+                    )
+                  : undefined;
                 return {
                   role: "button",
                   tabIndex: 0,
-                  title: held ? t("plan.placeHere") : undefined,
+                  title: held ? t("plan.placeHere") : label,
+                  "aria-label": label,
                   "aria-pressed": isHeld || undefined,
                   className: isHeld
                     ? "outline-2 outline-accent outline-offset-2"

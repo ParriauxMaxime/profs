@@ -21,10 +21,28 @@ function initials(student: Student): string {
  * One seated pupil, seen from above: their photo, or their initials on a
  * colour.
  *
- * The white ring is what keeps a disc legible against the wood it now sits on
- * — against the old white tile it needed nothing.
+ * The ring is what keeps a disc legible against the desk it sits on — against
+ * the old white tile it needed nothing. It doubles as the seat's attendance
+ * colour when the caller passes one, which is the largest thing on a seat that
+ * can carry one.
+ *
+ * `size` is a number rather than a class because the ring, the shadow and the
+ * initials all derive from it; a caller passing `h-10 w-10` would resize the
+ * circle and leave the lettering behind.
+ *
+ * The object URL is revoked on unmount and between selections, or a lesson
+ * spent opening cards leaks one per pupil.
  */
-export function PupilDisc({ student }: { student: Student }) {
+export function PupilDisc({
+  student,
+  size = 30,
+  ring,
+}: {
+  student: Student;
+  size?: number;
+  /** Replaces the neutral ring — the seat passes the attendance colour. */
+  ring?: string;
+}) {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -37,25 +55,32 @@ export function PupilDisc({ student }: { student: Student }) {
     return () => URL.revokeObjectURL(url);
   }, [student.photo]);
 
+  const shadow = `0 0 0 3px ${ring ?? "rgb(255 255 255 / 80%)"}, 0 2px 3px var(--room-shadow)`;
+
   if (photoUrl) {
     return (
       <img
         src={photoUrl}
         alt=""
-        className="h-[30px] w-[30px] rounded-full object-cover"
-        style={{ boxShadow: "0 0 0 2px rgb(255 255 255 / 75%), 0 2px 3px var(--room-shadow)" }}
-        width={30}
-        height={30}
+        className="rounded-full object-cover"
+        style={{ width: size, height: size, boxShadow: shadow }}
+        width={size}
+        height={size}
       />
     );
   }
 
   return (
     <div
-      className="flex h-[30px] w-[30px] items-center justify-center rounded-full font-bold text-white text-xs"
+      className="flex items-center justify-center rounded-full font-bold text-white"
       style={{
+        width: size,
+        height: size,
+        // Scaled off the disc rather than fixed, so the initials fill a 40px
+        // seat the way they filled a 30px one instead of rattling around in it.
+        fontSize: Math.round(size * 0.36),
         background: colorFor(student.id),
-        boxShadow: "0 0 0 2px rgb(255 255 255 / 75%), 0 2px 3px var(--room-shadow)",
+        boxShadow: shadow,
       }}
     >
       {initials(student)}

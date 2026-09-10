@@ -79,3 +79,30 @@ export function classStats(values: number[]): ClassStats | null {
     median: round2(median),
   };
 }
+
+/**
+ * The class's mean on ONE column, in that column's OWN scale.
+ *
+ * Deliberately NOT normalised to /20, which is the one thing that separates it
+ * from `studentAverage`. It is printed directly beneath the pupil's own cell,
+ * and that cell shows the mark as stored — `78/100` — so a mean of 12,4 under
+ * a 78 would read as a collapse rather than as the same scale.
+ *
+ * Nothing here feeds a bulletin: a per-column mean is a reading aid for one
+ * row of one pupil's page, and every average that counts still comes from
+ * `studentAverage`, weights and all. Non-numeric values are skipped rather
+ * than coerced — a ticked checkbox is not a 1.
+ */
+export function columnMean(values: GradeValue[]): number | null {
+  let total = 0;
+  let count = 0;
+
+  for (const value of values) {
+    if (value.type !== "numeric") continue;
+    total += value.value;
+    count += 1;
+  }
+
+  if (count === 0) return null;
+  return round2(total / count);
+}

@@ -121,18 +121,26 @@ export function StudentPage({
         position={neighbours(sequence, student.id)}
       />
 
-      {carnets.length === 0 ? (
-        <p className="text-sm text-text-faint">{t("student.noCarnets")}</p>
-      ) : (
-        carnets.map(({ gradebook, subject }) => (
-          <CarnetSection
-            key={gradebook.id}
-            gradebook={gradebook}
-            subject={subject}
-            student={student}
-          />
-        ))
-      )}
+      {/* The carnets carry a section title of their own, so the page reads as
+          three named blocks — Évaluations, Assiduité, Comportement — rather
+          than as a stack of cards followed by two headings. Each carnet's own
+          name drops to an h4 underneath it. */}
+      <section className="flex flex-col gap-3">
+        <h3 className="font-medium text-sm text-text-muted">{t("student.evaluations")}</h3>
+
+        {carnets.length === 0 ? (
+          <p className="text-sm text-text-faint">{t("student.noCarnets")}</p>
+        ) : (
+          carnets.map(({ gradebook, subject }) => (
+            <CarnetSection
+              key={gradebook.id}
+              gradebook={gradebook}
+              subject={subject}
+              student={student}
+            />
+          ))
+        )}
+      </section>
 
       <PresenceBlock student={student} sessions={sessions} />
 
