@@ -23,6 +23,61 @@ describe("seedIfEmpty", () => {
     db.close();
   });
 
+  it("seats every class in the salle its level is taught in", async () => {
+    // Room counts belong beside the class and pupil counts above: they are
+    // fixed, unlike the séance history, which grows with the calendar.
+    //
+    // The plan-per-level assertion is the one that earns its place. Nothing
+    // else notices if the level lists and the salles drift apart — a class
+    // would simply be seated in the wrong room, with the right number of
+    // pupils, and every other test would still pass.
+    const db = openWorkspaceDb("seed-salles");
+    await seedIfEmpty(db, "seed-salles");
+
+    const rooms = await db.rooms.toArray();
+    expect(rooms.map((r) => r.name).sort()).toEqual(["101", "102"]);
+
+    const deskCount = new Map<string, number>();
+    for (const room of rooms) {
+      deskCount.set(room.name, await db.desks.where("roomId").equals(room.id).count());
+    }
+    // 4 rangs × 3 tables × 2 places, and 3 rangs bombés de 10.
+    expect(deskCount.get("101")).toBe(24);
+    expect(deskCount.get("102")).toBe(30);
+
+    const salleByName = new Map(rooms.map((r) => [r.name, r.id]));
+    const classes = await db.classes.toArray();
+    const plans = await db.seatingPlans.toArray();
+    expect(plans).toHaveLength(classes.length);
+
+    const planByClass = new Map(plans.map((p) => [p.classId, p.roomId]));
+    for (const schoolClass of classes) {
+      const expected = salleByName.get(
+        schoolClass.level === "6e" || schoolClass.level === "5e" ? "101" : "102",
+      );
+      expect(planByClass.get(schoolClass.id)).toBe(expected);
+    }
+    db.close();
+  });
+
+  it("points every lesson at the salle its class is seated in", async () => {
+    // The timetable carries its own roomId, so it can name a salle the class
+    // never sits in — a disagreement no screen would surface, since the class
+    // page picks the salle and Aujourd'hui only colours by subject.
+    const db = openWorkspaceDb("seed-lesson-salle");
+    await seedIfEmpty(db, "seed-lesson-salle");
+
+    const planByClass = new Map(
+      (await db.seatingPlans.toArray()).map((p) => [p.classId, p.roomId]),
+    );
+    const entries = await db.scheduleEntries.toArray();
+    expect(entries.length).toBeGreaterThan(0);
+    for (const entry of entries) {
+      expect(entry.roomId).toBe(planByClass.get(entry.classId));
+    }
+    db.close();
+  });
+
   it("gives every class exactly one weekly lesson, plus the chorale", async () => {
     // The timetable is written out by hand and deliberately scattered, so a
     // class is one careless edit away from having no lesson at all — which

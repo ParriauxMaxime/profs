@@ -4,7 +4,7 @@ import { BEHAVIOUR_TYPES } from "@domain/behaviour";
 import { addDays, nextDay } from "@domain/calendar";
 import { defaultGradebookName } from "@domain/gradebook/naming";
 import { DEFAULT_PERIOD_NAMES } from "@domain/gradebook/period";
-import { buildRoom, DEFAULT_TEMPLATE } from "@domain/room-templates";
+import { buildRoom, DEFAULT_TEMPLATE, type RoomTemplate } from "@domain/room-templates";
 import { RUBRIC_LEVELS } from "@domain/rubric";
 import { entriesForDay, type WeekCycle } from "@domain/schedule";
 import { SUBJECT_COLORS } from "@domain/subject";
@@ -52,7 +52,7 @@ import { wipeWorkspace } from "./workspace";
  * The demo teacher teaches **éducation musicale**, which is why the school is
  * a whole collège rather than two classes: music is an hour a week for every
  * pupil in the building, so this teacher's roster IS the school — sixteen
- * classes, 360 pupils, one room. That shape is what the app has to survive,
+ * classes, 360 pupils, two salles. That shape is what the app has to survive,
  * and a two-class demo never showed it.
  */
 
@@ -388,45 +388,80 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
     }
   }
 
-  // ---- the salle ---------------------------------------------------------
+  // ---- the salles --------------------------------------------------------
   //
-  // ONE salle, shared by all sixteen classes — which is both what a music
-  // teacher has and the point the demo school exists to make. Sixteen classes
-  // at the same furniture with an arrangement each is the whole of what the
-  // salle/plan split buys, and a seed giving each class its own room would
-  // show none of it.
-  const shape = buildRoom(DEFAULT_TEMPLATE);
-  const roomId = id();
-  const rooms: Room[] = [
-    {
+  // TWO salles, eight classes each — because what the salle/plan split buys is
+  // several classes at the SAME furniture with an arrangement each, and a demo
+  // showing that once shows it as well as a demo showing it twice while
+  // leaving /salles a grid of one card. Two also make the page do its job: a
+  // teacher recognises 101 by its rows and 102 by its arc long before reading
+  // either name, which is the whole argument for drawing each card from its
+  // own desks, and a single seeded salle could never test it.
+  //
+  // Deliberately NOT one salle per class. Sixteen rooms of furniture nobody
+  // shares is the arrangement the split exists to argue against, and it would
+  // make every thumbnail identical.
+  //
+  // 101 is the grid the demo has always had; 102 is an arc of three bowed rows
+  // of ten. `seatCount` for an arc is `perRow * rows`, so 30 is exact.
+  const roomShapes: { name: string; template: RoomTemplate; levels: string[] }[] = [
+    { name: "101", template: DEFAULT_TEMPLATE, levels: ["6e", "5e"] },
+    { name: "102", template: { id: "arc", perRow: 10, rows: 3, curve: 3 }, levels: ["4e", "3e"] },
+  ];
+
+  const rooms: Room[] = [];
+  const desks: Desk[] = [];
+  /** Which salle a class is taught in, and the desks it may sit at. */
+  const salleOf = new Map<string, { roomId: string; desks: Desk[] }>();
+
+  for (const { name, template, levels } of roomShapes) {
+    const shape = buildRoom(template);
+    const roomId = id();
+    rooms.push({
       id: roomId,
-      name: "Salle de musique",
+      name,
       width: shape.width,
       height: shape.height,
       createdAt: now,
       updatedAt: now,
-    },
-  ];
-  const desks: Desk[] = shape.positions.map((position) => ({
-    id: id(),
-    roomId,
-    x: position.x,
-    y: position.y,
-  }));
+    });
+    const roomDesks: Desk[] = shape.positions.map((position) => ({
+      id: id(),
+      roomId,
+      x: position.x,
+      y: position.y,
+    }));
+    desks.push(...roomDesks);
+    for (const schoolClass of classes) {
+      if (levels.includes(schoolClass.level)) {
+        salleOf.set(schoolClass.id, { roomId, desks: roomDesks });
+      }
+    }
+  }
 
   const seatingPlans: SeatingPlan[] = [];
   const assignments: Assignment[] = [];
   for (const schoolClass of classes) {
+    const salle = salleOf.get(schoolClass.id);
+    // Every level is named in `roomShapes`, so a class with no salle means the
+    // two lists have drifted apart — which would silently seat nobody rather
+    // than fail.
+    if (!salle) throw new Error(`no salle for ${schoolClass.name}`);
     const planId = id();
-    seatingPlans.push({ id: planId, classId: schoolClass.id, roomId, updatedAt: now });
+    seatingPlans.push({
+      id: planId,
+      classId: schoolClass.id,
+      roomId: salle.roomId,
+      updatedAt: now,
+    });
     // Reading order, and only as far as the furniture goes: a class larger
     // than the salle leaves its tail in the rail, which is what a teacher
     // would see.
     students
       .filter((s) => s.classId === schoolClass.id)
-      .slice(0, desks.length)
+      .slice(0, salle.desks.length)
       .forEach((student, i) => {
-        assignments.push({ planId, deskId: desks[i].id, studentId: student.id });
+        assignments.push({ planId, deskId: salle.desks[i].id, studentId: student.id });
       });
   }
 
@@ -496,7 +531,10 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       startMinute: entry.start,
       endMinute: entry.start + (entry.minutes ?? 55),
       weekCycle: entry.cycle,
-      roomId,
+      // The salle its class is actually taught in, not a single shared one:
+      // a lesson names where it happens, and with two salles that is now a
+      // fact the timetable can get wrong.
+      roomId: salleOf.get(schoolClass.id)?.roomId,
       createdAt: now,
       updatedAt: now,
     };
