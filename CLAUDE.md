@@ -835,6 +835,31 @@ Everything a teacher sees before the app has loaded lives in `public/`, and it i
 
 The deployment lives at a **subpath** (`/profs/`), so absolute and relative are not interchangeable. `rspack.config.ts` splits it: `BASE_PATH` comes from CI, `SITE_ORIGIN` is a constant there because a workflow cannot spell it (`github.repository_owner` is `ParriauxMaxime`; the Pages host is lower-cased). `basePath` and `siteUrl` reach `index.html` as template parameters. In the manifest, `start_url` and `scope` stay **relative** — those are resolved against the manifest URL — while **`id` is stamped with the base path**, because the spec resolves `id` against the ORIGIN: a relative `"./"` becomes `"/"`, the same identity for every project this account publishes to `parriauxmaxime.github.io`, which is the exact collision `id` exists to prevent.
 
+**`display_override` is `["fullscreen", "standalone"]`, and `display` stays
+`standalone` beneath it.** `display` alone is a fallback CHAIN — fullscreen →
+standalone → minimal-ui → browser — so asking for fullscreen through it would
+be the same request with no floor; the override array is checked first, in
+order, and `display` remains what a browser that ignores it reads.
+
+Fullscreen is asked for because `standalone` gives Android a system status bar
+painted from `theme_color`, and there is no Android equivalent of iOS's
+`black-translucent` — the bar is coloured or it is absent, never translucent
+over the page. What it costs is the clock, the battery and a glance at
+notifications, on the screen a teacher watches for a whole hour. That is a real
+trade and not obviously the right one; it is set here to be judged on a device,
+and reverting is one line.
+
+Nothing in the layout depends on which mode wins, which is what makes the
+experiment cheap: `viewport-fit=cover` is already declared and `AdminLayout`,
+`AppDrawer`, `DataTable` and `Modal` all position off `env(safe-area-inset-*)`,
+which simply reports 0 where a status bar has been hidden. A cutout still
+reports its own inset.
+
+An installed app does not pick this up instantly. The manifest is precached in
+the service worker's `SHELL` and served cache-first, so the new value arrives
+with the new cache a deploy creates; Chrome then updates the installed app in
+its own time, which can take a relaunch or two.
+
 **iOS reads almost nothing from the manifest** — not the name, not the icons, not the display mode — so `apple-touch-icon` and the `apple-mobile-web-app-*` tags say it all again in `index.html`. Adding a manifest member does not reach an iPhone. Safari also composites the touch icon on **black**, ignoring transparency, then rounds it itself, which is why `icon-square.svg` is full bleed and separate from `icon.svg`. `apple-mobile-web-app-status-bar-style` stays `default`: `black-translucent` forces white status text, unreadable over `copie`'s paper, and a theme choice must not decide whether the clock is legible.
 
 Three icon sources, rasterised offline by opening them in the local Chrome — never downloaded, never edited as PNGs. `icon-maskable.svg` exists because a maskable icon is cropped to a circle of 80% diameter, and the mark at full size sits at radius 76.4 of the 76.8 available: it fit by four tenths of a pixel, which is a coincidence and not a safe zone. `og-cover.svg` is the share card, and its `@font-face` deliberately reaches into `src/assets/fonts/` by relative path — it is only ever read from the working tree, and the bundled font is hashed.

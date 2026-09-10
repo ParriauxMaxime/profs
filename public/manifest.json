@@ -8,10 +8,17 @@
   "lang": "fr",
   "dir": "ltr",
   "display": "standalone",
+  "display_override": [
+    "fullscreen",
+    "standalone"
+  ],
   "orientation": "any",
   "background_color": "#fdfdfb",
   "theme_color": "#fdfdfb",
-  "categories": ["education", "productivity"],
+  "categories": [
+    "education",
+    "productivity"
+  ],
   "icons": [
     {
       "src": "icons/icon.svg",
