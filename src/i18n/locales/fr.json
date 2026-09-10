@@ -68,7 +68,13 @@
     "notesHint": "PAP, PPRE, tiers-temps, contraintes de placement…",
     "timeline": "Historique",
     "notFound": "Élève introuvable",
-    "attendanceSummary": "Présence"
+    "attendanceSummary": "Présence",
+    "previous": "Élève précédent",
+    "next": "Élève suivant",
+    "position": "{{index}} / {{total}}",
+    "confirmDelete": "Supprimer cet élève ?",
+    "confirmDeleteBody": "Ses notes, sa présence, son comportement et sa place sont supprimés avec lui. Cette action est définitive.",
+    "noCarnets": "Aucun carnet dans cette classe."
   },
   "class": {
     "addStudent": "Ajouter un élève",

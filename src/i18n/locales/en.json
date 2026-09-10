@@ -68,7 +68,13 @@
     "notesHint": "IEP, accommodations, seating constraints…",
     "timeline": "History",
     "notFound": "Student not found",
-    "attendanceSummary": "Attendance"
+    "attendanceSummary": "Attendance",
+    "previous": "Previous pupil",
+    "next": "Next pupil",
+    "position": "{{index}} / {{total}}",
+    "confirmDelete": "Delete this pupil?",
+    "confirmDeleteBody": "Their marks, attendance, behaviour and seat are deleted with them. This cannot be undone.",
+    "noCarnets": "No gradebook in this class."
   },
   "class": {
     "addStudent": "Add student",
