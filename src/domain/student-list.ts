@@ -15,6 +15,25 @@ import { type ColumnSort, sortingFromParams } from "./table-sort";
 /** The columns a `?sort=` may name. Both list pages offer exactly these. */
 export const STUDENT_SORT_COLUMNS = ["lastName", "firstName", "classLabel"];
 
+/**
+ * The order a list page shows when its URL names no sort.
+ *
+ * It exists because `[]` is not the same thing to a table as it is to this
+ * module. `sortingFromParams` answers `[]` for a URL with no `?sort`, TanStack
+ * leaves the row model untouched for `[]`, and the rows then come out in the
+ * order Dexie handed them over — `orderBy("lastName")`, which is UTF-16
+ * code-unit order. `studentSequence` always runs the collator. Beal sits
+ * before Beaufils for one and after Bernier for the other, so "8 / 360" named
+ * a position the pupil was not at and the next arrow went to a pupil who was
+ * not the next row.
+ *
+ * Both pages hand this to their table instead, so the visible order is the
+ * one the arrows walk by construction. It stays OUT of the URL:
+ * `paramsFromSorting` drops both params when nothing is sorted, and a default
+ * spelled into every link would be state that controls nothing.
+ */
+export const LIST_DEFAULT_SORT: ColumnSort[] = [{ id: "lastName", desc: false }];
+
 export interface StudentListParams {
   q?: string;
   classe?: string;
@@ -52,19 +71,44 @@ function field(student: ListStudent, id: string): string {
 }
 
 /**
+ * A pupil in the shape `compareStudents` takes, for a surface that has no
+ * class label to give it.
+ *
+ * `classLabel` is carried on a row so a list page can sort and search by
+ * Classe. The class page's register neither sorts nor searches — it draws one
+ * class in one order — so the empty string satisfies the shape without
+ * inventing a value. A surface whose SEARCH reaches the sequence must supply
+ * the real label instead, as the roster does; the two would otherwise match
+ * different sets of pupils for one query.
+ */
+export function asListStudent<T extends Omit<ListStudent, "classLabel">>(
+  student: T,
+): T & { classLabel: string } {
+  return { ...student, classLabel: "" };
+}
+
+/**
  * The comparator both the arrows and the tables use.
  *
  * Ties break on the surname, so two pupils with one first name have a stable
  * order — without it, the sequence the arrows walk could differ from the rows
  * rendered, on nothing more than the input order.
+ *
+ * `desc` negates the WHOLE comparison, tie-break included, because that is
+ * what happens to this function on the other side: the tables hand it to
+ * TanStack with `desc: false` and let TanStack negate the number it returns.
+ * Negating only the primary comparison left the two disagreeing exactly where
+ * the primary decides nothing — sort /students by Classe descending and every
+ * pupil of a class ties, so the table reversed each class's internal surname
+ * order while the arrows kept it ascending.
  */
 export function compareStudents(a: ListStudent, b: ListStudent, sorting: ColumnSort[]): number {
   const first = sorting[0];
-  if (first) {
-    const result = collator.compare(field(a, first.id), field(b, first.id));
-    if (result !== 0) return first.desc ? -result : result;
-  }
-  return collator.compare(a.lastName, b.lastName) || collator.compare(a.firstName, b.firstName);
+  const primary = first ? collator.compare(field(a, first.id), field(b, first.id)) : 0;
+  const tie =
+    collator.compare(a.lastName, b.lastName) || collator.compare(a.firstName, b.firstName);
+  const result = primary || tie;
+  return first?.desc ? -result : result;
 }
 
 /**

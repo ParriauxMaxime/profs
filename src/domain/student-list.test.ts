@@ -1,4 +1,4 @@
-import { compareStudents, neighbours, studentSequence } from "./student-list";
+import { compareStudents, LIST_DEFAULT_SORT, neighbours, studentSequence } from "./student-list";
 
 const pupil = (
   id: string,
@@ -50,6 +50,57 @@ describe("compareStudents", () => {
       compareStudents(a, b, [{ id: "firstName", desc: false }]),
     );
     expect(sorted.map((s) => s.id)).toEqual(["b", "a"]);
+  });
+
+  // The tables hand this comparator to TanStack with `desc: false` and let
+  // TanStack negate what it returns — tie-break included. Negating only the
+  // primary comparison here would therefore order a descending column one way
+  // on screen and the other way in the sequence the arrows walk.
+  it("reverses the tie-break too, because that is what the tables do to it", () => {
+    const names = [pupil("a", "Zaza", "Léa"), pupil("b", "Abadie", "Léa")];
+    const sorted = [...names].sort((a, b) =>
+      compareStudents(a, b, [{ id: "firstName", desc: true }]),
+    );
+    expect(sorted.map((s) => s.id)).toEqual(["a", "b"]);
+  });
+
+  // The case that bit: sorting /students by Classe descending ties every
+  // pupil of a class on the sorted field, so the whole block is tie-break and
+  // nothing else. A comparator asymmetric in `desc` walks a ~22-pupil block
+  // backwards relative to the rows.
+  it("is the exact reverse of the ascending order when every row ties", () => {
+    const oneClass = [
+      pupil("a", "Bernard", "Adam"),
+      pupil("b", "Abadie", "Zoé"),
+      pupil("c", "Chevalier", "Éloïse"),
+    ];
+    const ascending = [...oneClass].sort((a, b) =>
+      compareStudents(a, b, [{ id: "classLabel", desc: false }]),
+    );
+    const descending = [...oneClass].sort((a, b) =>
+      compareStudents(a, b, [{ id: "classLabel", desc: true }]),
+    );
+
+    expect(descending.map((s) => s.id)).toEqual(ascending.map((s) => s.id).reverse());
+  });
+});
+
+describe("LIST_DEFAULT_SORT", () => {
+  // Both list pages hand this to their table whenever the URL names no sort,
+  // and that is the whole point of it existing here: with `[]` the table
+  // showed Dexie's `orderBy("lastName")` — UTF-16 code-unit order — while the
+  // arrows walked the collator's. Béal is where they part company: before
+  // Beaufils for a French reader, after Bernier for IndexedDB.
+  it("orders a list exactly as an unsorted sequence does", () => {
+    const accented = [
+      pupil("c", "Bernier", "Chloé"),
+      pupil("a", "Béal", "Adam"),
+      pupil("b", "Beaufils", "Bruno"),
+    ];
+    const rows = [...accented].sort((a, b) => compareStudents(a, b, LIST_DEFAULT_SORT));
+
+    expect(rows.map((s) => s.id)).toEqual(studentSequence(accented, [], [], {}));
+    expect(rows.map((s) => s.lastName)).toEqual(["Béal", "Beaufils", "Bernier"]);
   });
 });
 

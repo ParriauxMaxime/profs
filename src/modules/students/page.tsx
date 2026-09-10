@@ -1,6 +1,6 @@
 import type { Student } from "@db";
 import { useDb } from "@db/provider";
-import { compareStudents, STUDENT_SORT_COLUMNS } from "@domain/student-list";
+import { compareStudents, LIST_DEFAULT_SORT, STUDENT_SORT_COLUMNS } from "@domain/student-list";
 import { type ColumnSort, paramsFromSorting, sortingFromParams } from "@domain/table-sort";
 import { Link } from "@swan-io/chicane";
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
@@ -164,7 +164,12 @@ export function StudentsPage({
         searchPlaceholder={t("students.searchPlaceholder")}
         globalFilter={q ?? ""}
         onGlobalFilterChange={(value) => replaceParams({ q: value })}
-        sorting={sorting}
+        // The EFFECTIVE sort, which is not the same as the URL's. `[]` leaves
+        // TanStack's row model untouched, so the rows would come out in
+        // Dexie's `orderBy("lastName")` — code-unit order — while the pupil
+        // page's arrows walk the collator's. `replaceParams` still writes only
+        // what the teacher actually clicked, so the URL stays clean.
+        sorting={sorting.length > 0 ? sorting : LIST_DEFAULT_SORT}
         onSortingChange={(next) => replaceParams({ sorting: next })}
         onRowClick={(student) => Router.push("Student", { studentId: student.id, ...listParams })}
         // The class filter runs before DataTable ever sees the rows, so an
