@@ -845,7 +845,13 @@ The invitation to install is `InstallInvitation`, on **Aujourd'hui only**, at th
 
 There is **no `robots.txt`**, and that is a decision. A crawler reads robots.txt only from an origin ROOT, and a Pages *project* site is a subpath: `/profs/robots.txt` would never be fetched. Shipping one would look like configuration and be inert. `sitemap.xml` carries the one URL that means anything — every other route renders the same shell from the teacher's own IndexedDB — and is submitted by hand.
 
-`theme-color` is declared twice with `media` queries for the first paint and then **overwritten by the bootstrap script** with the theme actually resolved, since the choice is stored on the device and a teacher on `copie` with a dark phone would otherwise get a dark bar over a paper page. The manifest's `theme_color` and `background_color` are static and light; the splash cannot follow a preference the manifest never sees.
+`theme-color` is declared twice with `media` queries for the first paint, and the bootstrap script then **removes both and puts one unconditional tag in their place** — since the choice is stored on the device and a teacher on `copie` with a dark phone would otherwise get a dark bar over a paper page.
+
+**Removing them is the fix, and appending was the bug.** A user agent uses the FIRST `theme-color` tag in tree order whose `media` matches, so a third tag appended after the pair is never reached: on a light phone `(prefers-color-scheme: light)` matched, and a teacher on `ardoise` got a white status bar over a dark app — visible in an installed PWA, where that bar is the whole top of the screen. The removal happens after the `localStorage` read and inside the same `try`, so a browser with site data blocked throws before anything is removed and the static pair is left standing.
+
+The same job is done again by `useTheme` once the app has booted, because switching theme in Réglages restyled the page and left the chrome the colour it was until the next reload. `THEME_CHROME_COLORS` (`src/domain/theme.ts`) holds the pair; they are literal hex and not `var(--…)`, since the browser reads that tag and the stylesheet does not. Three copies of two colours — the two `media` tags, the inline script, and that constant — and nothing but this paragraph keeps them in step.
+
+The manifest's `theme_color` and `background_color` are static and light; the splash cannot follow a preference the manifest never sees, so an `ardoise` teacher still gets a light bar for the instant before the page paints.
 
 The service worker's `SHELL` is the boot path and nothing else, because `addAll` is **atomic**: one 404 rejects the install and the app ends up with no service worker at all. Renaming an icon means editing that list. Launcher icons, screenshots and the share card are deliberately absent from it — each is fetched at a moment that is online anyway, and precaching them spends the device quota the pupils' photos share.
 

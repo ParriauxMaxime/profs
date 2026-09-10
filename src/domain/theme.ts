@@ -51,3 +51,18 @@ export function writeThemeChoice(choice: ThemeChoice): void {
     // Losing the preference is survivable; failing to apply it is not.
   }
 }
+
+/**
+ * What the browser chrome is told, per resolved theme.
+ *
+ * Literal hex, not a `var(--…)`: `<meta name="theme-color">` is read by the
+ * browser and not by the stylesheet, so a custom property reaches it as an
+ * unparseable string. These are `copie`'s and `ardoise`'s grounds in
+ * `global.css`, and the two must be kept in step by hand — as must the pair
+ * spelled out in `public/index.html`, which cannot import this because it runs
+ * before any bundle.
+ */
+export const THEME_CHROME_COLORS: Record<ResolvedTheme, string> = {
+  copie: "#fdfdfb",
+  ardoise: "#121821",
+};

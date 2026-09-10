@@ -4,6 +4,7 @@ import {
   readThemeChoice,
   resolveTheme,
   THEME_CHOICES,
+  THEME_CHROME_COLORS,
   THEME_STORAGE_KEY,
   writeThemeChoice,
 } from "./theme";
@@ -58,5 +59,13 @@ describe("storage", () => {
   it("falls back when the stored value is not a theme", () => {
     localStorage.setItem(THEME_STORAGE_KEY, "midnight");
     expect(readThemeChoice()).toBe(DEFAULT_THEME);
+  });
+});
+
+describe("THEME_CHROME_COLORS", () => {
+  it("gives every resolved theme a literal hex, never a custom property", () => {
+    for (const theme of ["copie", "ardoise"] as const) {
+      expect(THEME_CHROME_COLORS[theme]).toMatch(/^#[0-9a-f]{6}$/);
+    }
   });
 });

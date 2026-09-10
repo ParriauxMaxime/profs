@@ -62,8 +62,12 @@
       Two static tags cannot be right on their own: the theme is the teacher's
       CHOICE, stored on the device, and a teacher on `copie` with a dark phone
       would get a dark bar over a paper page. The `media` attributes cover the
-      first paint before any script runs; the script below then overwrites the
-      colour with the theme it actually resolved. Keep the two in step.
+      first paint before any script runs; the script below then REPLACES both
+      with a single unconditional tag holding the theme it resolved — replaces,
+      because the first matching tag in tree order wins and an appended one
+      would never be reached. Keep these hex values in step with
+      `THEME_CHROME_COLORS` in `src/domain/theme.ts`, which does the same job
+      once the app has booted.
     -->
     <meta name="theme-color" content="#fdfdfb" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#121821" media="(prefers-color-scheme: dark)" />
@@ -82,9 +86,21 @@
             (stored === "system" &&
               window.matchMedia("(prefers-color-scheme: dark)").matches);
           document.documentElement.setAttribute("data-theme", dark ? "ardoise" : "copie");
-          // The <meta> pair above only knows the DEVICE preference. Once the
-          // stored choice is resolved, the browser chrome is told the truth:
-          // a single tag with no media query wins over both of them.
+          // The <meta> pair above only knows the DEVICE preference, and the
+          // theme is the teacher's CHOICE. Once that is resolved the pair is
+          // REMOVED and one unconditional tag put in its place.
+          //
+          // Removing them is the point. A user agent uses the FIRST
+          // theme-color tag in tree order whose media matches, so appending a
+          // third — which this used to do — loses to the light one on a light
+          // phone: a teacher on ardoise got a white status bar over a dark
+          // app, which is exactly what an installed PWA showed.
+          //
+          // It happens AFTER the read above, inside the same try: a browser
+          // with site data blocked throws before anything is removed, and the
+          // static pair is left standing to do its job.
+          var previous = document.querySelectorAll('meta[name="theme-color"]');
+          for (var i = 0; i < previous.length; i++) previous[i].remove();
           var meta = document.createElement("meta");
           meta.name = "theme-color";
           meta.content = dark ? "#121821" : "#fdfdfb";
