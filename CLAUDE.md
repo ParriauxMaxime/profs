@@ -266,7 +266,7 @@ A teacher thinks in 3°B, not in carnets and rosters, so a class is **one page**
 
 **The URL names a slot, not a row** — `/classes/:classId?date=…&at=…`, the day at local midnight and minutes from midnight. It has to: Aujourd'hui links to a lesson that has no row yet, and a link that could only name a row would be dead until someone recorded something. `resolveSlot` (`src/domain/seance.ts`) falls back to the day's first séance when the time matches nothing, because a lesson moved from 10h to 11h leaves older links naming an hour nothing sits at, and an empty screen is a worse answer than the day's first lesson. What is recorded is filed against the day the strip is SHOWING (`seanceDay`), which ends at the URL's own day before it ever reaches the clock — falling back to today from a day holding no slot at all would mark attendance under today while the screen said 3 September.
 
-`ClassPage` loads the class, its pupils, its groups and their memberships **once** and passes them down; a child that re-queried would flash "Chargement…" over a class already on screen. The **group filter** lives there and filters the unseated rail and the roster register — never the seats, since filtering seats would leave holes in a room. The roster on the Élèves page holds a filter of its own.
+`ClassPage` loads the class and its pupils **once** and passes them down; a child that re-queried would flash "Chargement…" over a class already on screen. The **group filter is not here** — it lives on Élèves, with the roster it narrows, since that is the only screen left that reads one. It never narrowed the seats even when it was here, because filtering seats leaves holes in a room. The pupils are sorted by `compareStudents`, not by Dexie: the register on screen is the list the pupil card's arrows walk, and `sortBy("lastName")` is code-unit order, which puts Béal where a French reader does not look for it.
 
 **A salle is an upgrade to the register, never a prerequisite for it.** With no room in the workspace the seating region becomes a `RosterRegister`: the same pupils, the same tap opening the same `StudentCard`, the same marks. Attendance is a property of a séance, not of a chair, and a teacher who never draws a seating plan must still be able to use the app every day. The gesture is deliberately identical on both surfaces — marks set inline on a list and through a card on a plan would be two ways to record one fact, which is the duplication this app keeps refusing.
 
@@ -286,6 +286,10 @@ a `Period`, which carries no dates and belongs to a carnet; an absence filters
 by a date. No control governs both honestly. Each carnet section carries its
 OWN period tabs, opened on `lastMarkedPeriod` — the last period by order holding
 a marked column — and Présence and Comportement carry no range control at all.
+That default is **latched on the first render that has data**, not recomputed:
+`lastMarkedPeriod` reads the marks, so clearing the last mark in the open period
+changed its answer and slid the section to T1, taking the row just edited off
+screen under the teacher's finger.
 `behaviour-range.ts` was deleted with that second half; `docs/BACKLOG.md` #5
 records the reversal. Giving `Period` dates stays rejected for the reason it
 always was.
@@ -294,6 +298,19 @@ always was.
 summarises the FIRST period by order, while this page opens on the last marked
 one, so the two show different class means for one carnet. Each is labelled with
 its period. Aligning them is a one-line change to `CarnetsPanel`.
+
+**There is exactly one notes field on this page, and *Modifier* must not add a
+second.** The header's textarea sits open because it holds accommodations —
+PAP, PPRE, tiers-temps — and an accommodation changes how every figure below
+it is read. `StudentForm` therefore takes `showNotes`, and this is the one
+caller passing `false`. Two editors of one fact would be the duplication this
+app refuses everywhere else, and here it also lost data: react-hook-form
+captures its defaults at mount, so typing into the header with the form open
+and pressing Enregistrer wrote the notes back as they stood when the form
+opened. Hidden means ABSENT from the write, not written blank — the captured
+default is still in the form's values. A blank note stores as `undefined` on
+both paths, never as `""`, the husk `writeGrade` and `setSessionNote` also
+refuse.
 
 **Attendance is editable here, and that is not the second inline path the
 invariant forbids.** The forbidden thing is a register whose séance is implicit.
@@ -311,6 +328,15 @@ lazily and the app never knows lessons held. With nothing marked there is no
 percentage at all: 0 % and 100 % are both claims about lessons nobody
 registered.
 
+**A retained open month must still name a month this pupil has.** Stepping to
+the next pupil is a `Router.push` on the same route, so `PresenceBlock` is never
+remounted and its `openKey` survives — across classes onto a list that may hold
+no such month, and every month then drew collapsed, which is the empty screen
+`defaultOpenMonth` exists to prevent. `""` is not a stale key: it is the teacher
+having closed the open month, and it keeps meaning closed. `groupSeancesByMonth`
+orders a day's séances by `startsAt` after the date, since two lessons of one
+class on one day are legal here and the input order is `createdAt`.
+
 **`P A R E` is a translated key, never `value[0]`** — English *late* is L. The
 full word is the accessible name and the title, and the state is carried by a
 border as well as a fill. The initials break this app's plain-language-label
@@ -318,20 +344,39 @@ convention knowingly: four French words at 44px do not fit a 375px row beside a
 date and an hour, and the alternatives each cost the thing the block is for,
 which is reading a month at a glance.
 
-**`PositionBar` is the first chart in the app.** Hand-written inline SVG,
-because a chart library from a CDN would break the no-network promise as surely
-as an analytics call. It prints the same figures in text beside it, and
-`positionOnScale` returns null under two values or for a spread with no width —
-a point drawn as a scale is a lie about a class.
+**`PositionBar` is the first chart in the app.** Hand-written, because a chart
+library from a CDN would break the no-network promise as surely as an analytics
+call. It is drawn from ordinary elements and **not** from an SVG stretched to
+width: a `viewBox` under `preserveAspectRatio="none"` scales x by ~2.8 at 375px
+and y by 1, which turned the pupil's marker into a lozenge and clipped half of
+it off at either end of the scale. A percentage `left` is immune to both. It
+prints the same figures in text beside it, and `positionOnScale` returns null
+under two values or for a spread with no width — a point drawn as a scale is a
+lie about a class.
 
 **The URL carries the LIST, not the pupil.** `/students/:studentId?q&classe&
 groupe&sort&dir` describes the list the `‹ ›` arrows walk, rebuilt by
 `studentSequence`; a page navigation cannot carry an array. Stepping uses
 `Router.push` — the opposite of `/`'s week stepper and for the opposite reason:
-walking a roster is a sequence of destinations. `compareStudents` is handed to
-both tables as their `sortingFn`, so the rows and the arrows cannot order the
-same pupils differently. This is why `/classes/:classId/eleves` finally carries
-`?groupe&sort&dir`: it was the one list page keeping its filter in React state.
+walking a roster is a sequence of destinations. This is why
+`/classes/:classId/eleves` finally carries `?q&groupe&sort&dir`: it was the one
+list page keeping its filter in React state, and a search DataTable held itself
+narrowed the rows without narrowing the arrows — "17 / 28" over a list of four.
+
+**Two things make the rows and the arrows agree, and one of them is not
+obvious.** `compareStudents` is handed to both tables as their `sortingFn`, so
+the comparison is shared — and it negates its WHOLE result for `desc`,
+tie-break included, because that is what TanStack does to the wrapper the
+tables pass it. Negating only the primary comparison left the two disagreeing
+exactly where the primary decides nothing: Classe descending ties every pupil
+of a class, so the table reversed each class's internal surname order while the
+arrows kept it ascending. The second is `LIST_DEFAULT_SORT`. With no `?sort`,
+`sortingFromParams` answers `[]`, TanStack leaves the row model untouched, and
+the rows come out in Dexie's `orderBy("lastName")` — UTF-16 code-unit order,
+which disagrees with the collator on 243 of the seeded pool's 357 surnames.
+Both pages hand the table that default instead of `[]`. It stays out of the
+URL: `paramsFromSorting` drops both params when nothing is sorted, and a
+default spelled into every link is state that controls nothing.
 
 **`writeGrade` lives in `src/db/grades.ts`** and re-reads the row inside its
 transaction. It was a local function in the grid page and a hand-copied block in
