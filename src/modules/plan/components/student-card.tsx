@@ -59,8 +59,12 @@ export function StudentCard({
   /** Only offered when they actually hold a place. */
   onUnseat?: () => void;
   /**
-   * The list the pupil page's `‹ ›` arrows should walk, when this card was
-   * opened from one. Absent on the seating plan, which is not a list.
+   * The list the pupil page's `‹ ›` arrows should walk.
+   *
+   * Absent from a seat on the plan, where there is no list on screen — the
+   * link then names the pupil's own CLASS, which is what the teacher is
+   * actually looking at. Empty params would not do: they mean "every pupil in
+   * the workspace", which is right for an unfiltered /students and wrong here.
    */
   listParams?: StudentListParams;
 }) {
@@ -138,7 +142,10 @@ export function StudentCard({
               <PupilName student={student} />
             </span>
             <Link
-              to={Router.Student({ studentId: student.id, ...listParams })}
+              to={Router.Student({
+                studentId: student.id,
+                ...(listParams ?? { classe: student.classId }),
+              })}
               className="text-accent text-sm"
             >
               {t("student.timeline")}
