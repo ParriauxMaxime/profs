@@ -21,6 +21,12 @@ import { PupilName } from "../../design-system/components/pupil-name";
  * behind a triangle is a note nobody opens. The cost, that a conseil de classe
  * is a room with colleagues in it, is accepted in the design.
  *
+ * It is also the ONLY notes field on this page, which is why *Modifier* opens
+ * `StudentForm` with `showNotes={false}`. Two editors of one fact is the
+ * duplication this app refuses everywhere else, and here it also lost data:
+ * react-hook-form captures its defaults at mount, so saving the form wrote
+ * back the notes as they stood when it opened.
+ *
  * The arrows are drawn whenever there is a real list to walk: the one the
  * caller named in `listParams`, or — when a card names none, as a seat on the
  * plan or the salle-less register do — the pupil's own class, which
@@ -138,6 +144,11 @@ export function StudentHeader({
           classId={student.classId}
           student={student}
           studentCount={studentCount}
+          // The notes field below this form is the page's only one, and it
+          // writes on blur. A second copy inside the form would have written
+          // back the notes as they were when the form opened, losing an
+          // accommodation typed here in the meantime.
+          showNotes={false}
           onDone={() => setEditing(false)}
         />
       )}
