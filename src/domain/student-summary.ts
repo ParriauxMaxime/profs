@@ -82,3 +82,79 @@ export function positionOnScale(value: number, values: number[]): Position | nul
 
   return { min, max, mean, fraction: place(value), meanFraction: place(mean) };
 }
+
+/**
+ * Which period tab a carnet opens on: the last one, by `order`, holding a
+ * column somebody has marked — "where the marking has got to", which in
+ * December is the trimestre being discussed.
+ *
+ * It needs no dates, which is the point: a `Period` carries none, and inventing
+ * one would change what a bulletin filters by. A carnet with no mark at all
+ * falls back to its first period, which is where its grid starts.
+ */
+export function lastMarkedPeriod(
+  periods: { id: string; order: number }[],
+  columns: { id: string; periodId: string }[],
+  gradedColumnIds: Iterable<string>,
+): string | null {
+  const ordered = [...periods].sort((a, b) => a.order - b.order);
+  if (ordered.length === 0) return null;
+
+  const periodOf = new Map(columns.map((column) => [column.id, column.periodId]));
+  const marked = new Set<string>();
+  for (const columnId of gradedColumnIds) {
+    const periodId = periodOf.get(columnId);
+    if (periodId !== undefined) marked.add(periodId);
+  }
+
+  for (let i = ordered.length - 1; i >= 0; i -= 1) {
+    if (marked.has(ordered[i].id)) return ordered[i].id;
+  }
+  return ordered[0].id;
+}
+
+export interface SeanceMonth<T> {
+  /** `"2026-11"` — the year and the zero-based month, for React keys and state. */
+  key: string;
+  year: number;
+  /** Zero-based, as `Date.getMonth()` gives it. */
+  month: number;
+  sessions: T[];
+}
+
+/**
+ * A class's séances, newest first, in calendar months.
+ *
+ * The month comes off a `Date`, never from arithmetic on the timestamp: this
+ * codebase adds days by walking the calendar for `weekParity`'s reason, and a
+ * month is a worse offender than a day.
+ */
+export function groupSeancesByMonth<T extends { date: number }>(sessions: T[]): SeanceMonth<T>[] {
+  const months = new Map<string, SeanceMonth<T>>();
+
+  for (const session of [...sessions].sort((a, b) => b.date - a.date)) {
+    const day = new Date(session.date);
+    const year = day.getFullYear();
+    const month = day.getMonth();
+    const key = `${year}-${month}`;
+    const existing = months.get(key);
+    if (existing) {
+      existing.sessions.push(session);
+    } else {
+      months.set(key, { key, year, month, sessions: [session] });
+    }
+  }
+
+  return [...months.values()];
+}
+
+/**
+ * The month expanded when the page opens: the current one, or the most recent
+ * one holding a séance. A page whose only open section is empty reads as a bug.
+ */
+export function defaultOpenMonth(months: { key: string }[], now: number): string | null {
+  if (months.length === 0) return null;
+  const today = new Date(now);
+  const currentKey = `${today.getFullYear()}-${today.getMonth()}`;
+  return months.some((month) => month.key === currentKey) ? currentKey : months[0].key;
+}
