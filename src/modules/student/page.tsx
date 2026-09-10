@@ -3,6 +3,7 @@ import { sessionsForClass } from "@db/sessions";
 import { neighbours, studentSequence } from "@domain/student-list";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useTranslation } from "react-i18next";
+import { CarnetSection } from "./components/carnet-section";
 import { StudentHeader } from "./components/student-header";
 
 /**
@@ -82,12 +83,23 @@ export function StudentPage({
     );
   }, [db, q, classe, groupe, sort, dir]);
 
+  const carnets = useLiveQuery(async () => {
+    if (!student) return [];
+    const gradebooks = await db.gradebooks.where("classId").equals(student.classId).toArray();
+    const subjects = await db.subjects.toArray();
+    return gradebooks.map((gradebook) => ({
+      gradebook,
+      subject: subjects.find((s) => s.id === gradebook.subjectId),
+    }));
+  }, [db, student]);
+
   if (
     student === undefined ||
     schoolClass === undefined ||
     sessions === undefined ||
     classmates === undefined ||
-    sequence === undefined
+    sequence === undefined ||
+    carnets === undefined
   ) {
     return <p className="text-text-muted">{t("common.loading")}</p>;
   }
@@ -102,6 +114,19 @@ export function StudentPage({
         listParams={listParams}
         position={neighbours(sequence, student.id)}
       />
+
+      {carnets.length === 0 ? (
+        <p className="text-sm text-text-faint">{t("student.noCarnets")}</p>
+      ) : (
+        carnets.map(({ gradebook, subject }) => (
+          <CarnetSection
+            key={gradebook.id}
+            gradebook={gradebook}
+            subject={subject}
+            student={student}
+          />
+        ))
+      )}
     </div>
   );
 }

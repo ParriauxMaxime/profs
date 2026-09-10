@@ -74,7 +74,11 @@
     "position": "{{index}} / {{total}}",
     "confirmDelete": "Supprimer cet élève ?",
     "confirmDeleteBody": "Ses notes, sa présence, son comportement et sa place sont supprimés avec lui. Cette action est définitive.",
-    "noCarnets": "Aucun carnet dans cette classe."
+    "noCarnets": "Aucun carnet dans cette classe.",
+    "classAverage": "classe {{value}}",
+    "positionDescription": "{{value}} sur une échelle de {{min}} à {{max}}, moyenne de la classe {{mean}}",
+    "coefficient": "coef {{value}}",
+    "noMark": "—"
   },
   "class": {
     "addStudent": "Ajouter un élève",

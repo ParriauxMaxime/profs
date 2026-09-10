@@ -74,7 +74,11 @@
     "position": "{{index}} / {{total}}",
     "confirmDelete": "Delete this pupil?",
     "confirmDeleteBody": "Their marks, attendance, behaviour and seat are deleted with them. This cannot be undone.",
-    "noCarnets": "No gradebook in this class."
+    "noCarnets": "No gradebook in this class.",
+    "classAverage": "class {{value}}",
+    "positionDescription": "{{value}} on a scale from {{min}} to {{max}}, class average {{mean}}",
+    "coefficient": "weight {{value}}",
+    "noMark": "—"
   },
   "class": {
     "addStudent": "Add student",
