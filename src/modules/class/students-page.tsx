@@ -1,7 +1,9 @@
 import type { Student, StudentGroup } from "@db";
 import { deleteGroup, deleteStudent } from "@db/cascade";
 import { useDb } from "@db/provider";
-import { filterByGroup, groupsForStudent } from "@domain/group";
+import { filterByGroup, groupsForStudent, resolveGroupSelection } from "@domain/group";
+import { compareStudents, LIST_DEFAULT_SORT, STUDENT_SORT_COLUMNS } from "@domain/student-list";
+import { type ColumnSort, paramsFromSorting, sortingFromParams } from "@domain/table-sort";
 import { Link } from "@swan-io/chicane";
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -18,7 +20,19 @@ import { GroupFilter } from "./components/group-filter";
 import { GroupForm } from "./components/group-form";
 import { StudentForm } from "./components/student-form";
 
-const helper = createColumnHelper<Student>();
+/**
+ * The class name is carried ON the row, exactly as `/students` carries it, and
+ * for a reason that has nothing to do with showing it: the roster does not
+ * draw a Classe column at all. `studentSequence` searches `classLabel`, so the
+ * arrows would walk a wider list than the rows whenever a query happened to
+ * match the class name — "d" against 6°D matched every pupil for the sequence
+ * and only eight of them for the table. Searching the same three fields off
+ * the same three values is what makes the two identical rather than merely
+ * similar.
+ */
+type RosterRow = Student & { classLabel: string };
+
+const helper = createColumnHelper<RosterRow>();
 
 /**
  * The roster: who is in this class, which groups they belong to, and the card
@@ -35,7 +49,19 @@ const helper = createColumnHelper<Student>();
  * belongs to a lesson, and this page is not one — a teacher marking today's
  * register does it from the plan, where a session is selected.
  */
-export function ClassStudentsPage({ classId }: { classId: string }) {
+export function ClassStudentsPage({
+  classId,
+  q,
+  groupe,
+  sort,
+  dir,
+}: {
+  classId: string;
+  q?: string;
+  groupe?: string;
+  sort?: string;
+  dir?: string;
+}) {
   const { t } = useTranslation();
   const db = useDb();
   const [editing, setEditing] = useState<Student | "new" | null>(null);
@@ -44,8 +70,6 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
   // The pupil whose card is open, held as an id: the table sorts and searches
   // underneath the card, and a row index would open a different pupil.
   const [cardStudentId, setCardStudentId] = useState<string | null>(null);
-  // Held as a group id, never an index — see GroupFilter.
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   // An explicit null distinguishes "no such class" from "still loading":
   // useLiveQuery gives undefined for both, and the page would otherwise sit on
@@ -70,6 +94,41 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
 
   const groupsList = groups ?? [];
   const membershipsList = memberships ?? [];
+  // Tolerant of both still loading: `columns` below is a hook and must run on
+  // every render, including the ones before the queries are back.
+  const rows: RosterRow[] = (students ?? []).map((student) => ({
+    ...student,
+    classLabel: schoolClass?.name ?? "",
+  }));
+
+  // Every param this page owns, written in one place. A handler naming only
+  // the param it changes silently clears the others — the bug `/students`
+  // already had to fix by centralising its four.
+  //
+  // `q` is one of them, and it had to become one: while DataTable held the
+  // search itself, the roster on screen was narrowed to "mar" and the params
+  // handed to `StudentCard` were not, so opening MARTIN gave "17 / 28" and
+  // arrows that stepped through the whole class. `replace`, never `push` — a
+  // push per keystroke makes Back walk a typed name one character at a time.
+  const sorting = sortingFromParams(sort, dir, STUDENT_SORT_COLUMNS);
+  const selectedGroupId = resolveGroupSelection(groupsList, groupe ?? null);
+  const replaceParams = (next: { q?: string; groupe?: string | null; sorting?: ColumnSort[] }) =>
+    Router.replace("ClassStudents", {
+      classId,
+      q: (next.q ?? q) || undefined,
+      groupe: (next.groupe === undefined ? selectedGroupId : next.groupe) ?? undefined,
+      ...paramsFromSorting(next.sorting ?? sorting),
+    });
+
+  // What the pupil page needs to rebuild this exact list for its arrows: the
+  // class, the group narrowing it, the search narrowing it further, and the
+  // order it is in.
+  const listParams = {
+    classe: classId,
+    q: q || undefined,
+    groupe: selectedGroupId ?? undefined,
+    ...paramsFromSorting(sorting),
+  };
 
   const columns = useMemo(
     () => [
@@ -90,8 +149,17 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
             <PupilName student={info.row.original} format="surname" />
           </button>
         ),
+        // The shared comparator, so the rows and the pupil page's `‹ ›`
+        // arrows can never disagree about this list's order.
+        sortingFn: (a, b, columnId) =>
+          compareStudents(a.original, b.original, [{ id: columnId, desc: false }]),
       }),
-      helper.accessor("firstName", { header: () => t("student.firstName"), size: 20 }),
+      helper.accessor("firstName", {
+        header: () => t("student.firstName"),
+        size: 20,
+        sortingFn: (a, b, columnId) =>
+          compareStudents(a.original, b.original, [{ id: columnId, desc: false }]),
+      }),
       helper.display({
         id: "groups",
         header: () => t("group.title"),
@@ -145,9 +213,9 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
   }
   if (schoolClass === null) return <p className="text-text-muted">{t("class.notFound")}</p>;
 
-  const visibleStudents = filterByGroup(students, membershipsList, selectedGroupId);
+  const visibleStudents = filterByGroup(rows, membershipsList, selectedGroupId);
   const cardStudent =
-    cardStudentId === null ? null : (students.find((s) => s.id === cardStudentId) ?? null);
+    cardStudentId === null ? null : (rows.find((s) => s.id === cardStudentId) ?? null);
 
   return (
     <div className="flex flex-col gap-4">
@@ -162,7 +230,7 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
         <GroupFilter
           groups={groups}
           selectedGroupId={selectedGroupId}
-          onSelect={setSelectedGroupId}
+          onSelect={(groupId) => replaceParams({ groupe: groupId })}
         />
       )}
 
@@ -241,7 +309,7 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
                       body={t("group.confirmDeleteBody", { count })}
                       onConfirm={async () => {
                         await deleteGroup(db, group.id);
-                        if (selectedGroupId === group.id) setSelectedGroupId(null);
+                        if (selectedGroupId === group.id) replaceParams({ groupe: null });
                       }}
                     />
                   </div>
@@ -276,14 +344,24 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
       </section>
 
       <DataTable
-        columns={columns as ColumnDef<Student, unknown>[]}
+        columns={columns as ColumnDef<RosterRow, unknown>[]}
         data={visibleStudents}
         // The row keys must be student ids: the actions cell holds an armed
         // delete, and an index key would let a sort or a search hand that
         // armed button to a different student.
         getRowId={(student) => student.id}
-        globalSearchFields={["lastName", "firstName"]}
+        // The same three fields `studentSequence` searches, so a query cannot
+        // narrow the rows and the arrows differently.
+        globalSearchFields={["lastName", "firstName", "classLabel"]}
         emptyMessage={t("class.noStudents")}
+        globalFilter={q ?? ""}
+        onGlobalFilterChange={(value) => replaceParams({ q: value })}
+        // The EFFECTIVE sort, which is not the same as the URL's: `[]` leaves
+        // TanStack's row model untouched and the rows come out in Dexie's
+        // `sortBy("lastName")` — code-unit order — while the pupil page's
+        // arrows walk the collator's.
+        sorting={sorting.length > 0 ? sorting : LIST_DEFAULT_SORT}
+        onSortingChange={(next) => replaceParams({ sorting: next })}
       />
 
       {cardStudent && (
@@ -291,6 +369,7 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
           key={cardStudent.id}
           student={cardStudent}
           session={null}
+          listParams={listParams}
           onClose={() => setCardStudentId(null)}
         />
       )}

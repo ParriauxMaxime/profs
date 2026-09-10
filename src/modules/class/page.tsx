@@ -4,6 +4,7 @@ import { listRooms } from "@db/rooms";
 import { getOrCreateSessionAt, sessionsForClass, sessionsForDay, startOfDay } from "@db/sessions";
 import { entriesForDay } from "@domain/schedule";
 import { hourOfDay, resolveSlot, type Slot, slotsForDay, teachingDays } from "@domain/seance";
+import { asListStudent, compareStudents, LIST_DEFAULT_SORT } from "@domain/student-list";
 import { readTermStart } from "@domain/term";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -93,10 +94,18 @@ export function ClassPage({
     async () => (await db.classes.get(classId)) ?? null,
     [db, classId],
   );
-  const students = useLiveQuery(
-    () => db.students.where("classId").equals(classId).sortBy("lastName"),
-    [db, classId],
-  );
+  // The collator's order, not Dexie's, and that matters beyond looking right.
+  // The register on screen IS the list the pupil card's arrows walk — with no
+  // params from the caller, `StudentCard` names this class, and
+  // `studentSequence` always runs the collator. `sortBy("lastName")` is UTF-16
+  // code-unit order, which puts Béal after Bernier, so "8 / 28" named a row
+  // the pupil was not at and the next arrow skipped one.
+  const students = useLiveQuery(async () => {
+    const roster = await db.students.where("classId").equals(classId).toArray();
+    return roster.sort((a, b) =>
+      compareStudents(asListStudent(a), asListStudent(b), LIST_DEFAULT_SORT),
+    );
+  }, [db, classId]);
 
   // A pure read: it resolves which day is on screen and fetches that day's
   // séances. It creates nothing, which is the whole point of this page.

@@ -111,7 +111,15 @@ function Routes({ route }: { route: AppRoute }) {
         <ClassPage classId={route.params.classId} date={route.params.date} at={route.params.at} />
       );
     case "ClassStudents":
-      return <ClassStudentsPage classId={route.params.classId} />;
+      return (
+        <ClassStudentsPage
+          classId={route.params.classId}
+          q={route.params.q}
+          groupe={route.params.groupe}
+          sort={route.params.sort}
+          dir={route.params.dir}
+        />
+      );
     case "ClassDiary":
       // The journal is one class's archive and nothing else: DiaryPage takes
       // the class it reads, so there is no wrapper and no selector.
@@ -125,7 +133,16 @@ function Routes({ route }: { route: AppRoute }) {
       Router.replace("Class", { classId: route.params.classId });
       return null;
     case "Student":
-      return <StudentPage studentId={route.params.studentId} />;
+      return (
+        <StudentPage
+          studentId={route.params.studentId}
+          q={route.params.q}
+          classe={route.params.classe}
+          groupe={route.params.groupe}
+          sort={route.params.sort}
+          dir={route.params.dir}
+        />
+      );
     case "Gradebook":
       return <GradebookPage gradebookId={route.params.gradebookId} />;
     case "Entry":

@@ -19,11 +19,29 @@ export function StudentForm({
   classId,
   student,
   studentCount,
+  showNotes = true,
   onDone,
 }: {
   classId: string;
   student?: Student;
   studentCount: number;
+  /**
+   * Whether this form owns the pupil's notes, as it does on the roster and
+   * on the class page.
+   *
+   * The pupil page passes false, because its header keeps a notes field
+   * permanently open beside this form. Two editors of one fact on one screen
+   * is the duplication this app refuses everywhere else, and the second one
+   * was worse than redundant: react-hook-form captures its defaults at mount,
+   * so an accommodation typed into the header while this form sat open was
+   * written back to whatever the notes had been when the form opened — with
+   * no warning, on the field that carries PAP, PPRE and tiers-temps.
+   *
+   * Hidden means ABSENT from the write, not written blank. The captured
+   * default is still sitting in the form's values; leaving `notes` out of the
+   * update is what keeps it from reaching the row.
+   */
+  showNotes?: boolean;
   onDone: () => void;
 }) {
   const { t } = useTranslation();
@@ -51,15 +69,25 @@ export function StudentForm({
   const onSubmit = handleSubmit(async (values) => {
     if (full) return;
     const now = Date.now();
+    // Blank stores as absent, never as "". That is the husk `writeGrade` and
+    // `setSessionNote` both refuse, and `setStudentNotes` — the other writer
+    // of this very field — already stored it this way, so a note cleared here
+    // and a note cleared from a card read the same afterwards.
+    const notes = showNotes ? values.notes || undefined : undefined;
     if (student) {
-      await db.students.update(student.id, { ...values, updatedAt: now });
+      await db.students.update(student.id, {
+        lastName: values.lastName,
+        firstName: values.firstName,
+        ...(showNotes ? { notes } : {}),
+        updatedAt: now,
+      });
     } else {
       await db.students.add({
         id: crypto.randomUUID(),
         classId,
         lastName: values.lastName,
         firstName: values.firstName,
-        notes: values.notes,
+        notes,
         createdAt: now,
         updatedAt: now,
       });
@@ -90,10 +118,12 @@ export function StudentForm({
           <input className="field" {...register("firstName")} />
         </label>
       </div>
-      <label className="flex flex-col gap-1">
-        <span className="text-sm text-text-muted">{t("student.notes")}</span>
-        <textarea className="field" rows={2} {...register("notes")} />
-      </label>
+      {showNotes && (
+        <label className="flex flex-col gap-1">
+          <span className="text-sm text-text-muted">{t("student.notes")}</span>
+          <textarea className="field" rows={2} {...register("notes")} />
+        </label>
+      )}
       {full && (
         <p role="alert" className="text-danger text-sm">
           {t("class.rosterFull", { max: MAX_STUDENTS_PER_CLASS })}

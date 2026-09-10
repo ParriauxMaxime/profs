@@ -12,6 +12,7 @@ import {
   BEHAVIOUR_TYPES,
   type BehaviourType,
 } from "@domain/behaviour";
+import type { StudentListParams } from "@domain/student-list";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useRef, useState } from "react";
@@ -46,6 +47,7 @@ export function StudentCard({
   onClose,
   onMove,
   onUnseat,
+  listParams,
 }: {
   student: Student;
   session?: Session | null;
@@ -56,6 +58,15 @@ export function StudentCard({
   onMove?: () => void;
   /** Only offered when they actually hold a place. */
   onUnseat?: () => void;
+  /**
+   * The list the pupil page's `‹ ›` arrows should walk.
+   *
+   * Absent from a seat on the plan, where there is no list on screen — the
+   * link then names the pupil's own CLASS, which is what the teacher is
+   * actually looking at. Empty params would not do: they mean "every pupil in
+   * the workspace", which is right for an unfiltered /students and wrong here.
+   */
+  listParams?: StudentListParams;
 }) {
   const { t } = useTranslation();
   const db = useDb();
@@ -130,7 +141,13 @@ export function StudentCard({
             <span className="break-words font-semibold text-lg">
               <PupilName student={student} />
             </span>
-            <Link to={Router.Student({ studentId: student.id })} className="text-accent text-sm">
+            <Link
+              to={Router.Student({
+                studentId: student.id,
+                ...(listParams ?? { classe: student.classId }),
+              })}
+              className="text-accent text-sm"
+            >
               {t("student.timeline")}
             </Link>
           </div>

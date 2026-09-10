@@ -1,6 +1,5 @@
 import type { Grade } from "@db";
-import { gradeKey } from "@db";
-import { setGradeNote } from "@db/grades";
+import { setGradeNote, writeGrade } from "@db/grades";
 import { useDb } from "@db/provider";
 import { formatGradeValue, isBlankInput, parseGradeValue } from "@domain/gradebook/grade";
 import { Link } from "@swan-io/chicane";
@@ -89,27 +88,7 @@ export function EntryPage({ gradebookId, columnId }: { gradebookId: string; colu
     if (!blank && parsed === null) return false;
     setIsCommitting(true);
     try {
-      // Re-read rather than trust the render-time snapshot: the note flush
-      // just above may have just written a note-only row into existence, and
-      // a `put` here must carry it forward, never clobber it.
-      const existing = await db.grades.get(gradeKey(gradebookId, columnId, current.id));
-      if (parsed === null) {
-        if (existing?.note !== undefined) {
-          const { value: _dropped, ...rest } = existing;
-          await db.grades.put({ ...rest, updatedAt: Date.now() });
-        } else {
-          await db.grades.delete(gradeKey(gradebookId, columnId, current.id));
-        }
-      } else {
-        await db.grades.put({
-          ...existing,
-          gradebookId,
-          columnId,
-          studentId: current.id,
-          value: parsed,
-          updatedAt: Date.now(),
-        });
-      }
+      await writeGrade(db, gradebookId, columnId, current.id, parsed);
       setDraft(null);
       return true;
     } finally {

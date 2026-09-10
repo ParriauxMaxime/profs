@@ -1,35 +1,51 @@
-import { deleteBehaviourEvent } from "@db/cascade";
 import { useDb } from "@db/provider";
 import { sessionsForClass } from "@db/sessions";
-import { ATTENDANCE_VALUES } from "@domain/attendance";
-import { BEHAVIOUR_COLORS, BEHAVIOUR_TYPES, countByType } from "@domain/behaviour";
-import {
-  BEHAVIOUR_RANGES,
-  type BehaviourRange,
-  DEFAULT_BEHAVIOUR_RANGE,
-  rangeStart,
-  withinRange,
-} from "@domain/behaviour-range";
-import { readTermStart } from "@domain/term";
-import { Link } from "@swan-io/chicane";
+import { neighbours, studentSequence } from "@domain/student-list";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Router } from "../../router";
-import { ConfirmButton } from "../design-system/components/confirm-button";
-import { PupilName } from "../design-system/components/pupil-name";
+import { BehaviourBlock } from "./components/behaviour-block";
+import { CarnetSection } from "./components/carnet-section";
+import { PresenceBlock } from "./components/presence-block";
+import { StudentHeader } from "./components/student-header";
 
-export function StudentPage({ studentId }: { studentId: string }) {
-  const { t, i18n } = useTranslation();
+/**
+ * One pupil, across time.
+ *
+ * Every other surface in this app is class-major (the grid, the roster) or
+ * séance-major (the card, the register). This is the transpose: one child, every
+ * carnet, every lesson — the shape a conseil de classe needs, which is the
+ * moment this page is built for.
+ *
+ * The page loads the PUPIL once — the pupil, their class, their classmates and
+ * their séances — and hands that down, the way `ClassPage` does: a child that
+ * re-fetched any of those would flash "Chargement…" over a pupil already on
+ * screen every time something changed. Carnets are a narrower case: each
+ * `CarnetSection` runs its own live query, scoped to one gradebook, and that
+ * is deliberate rather than a gap — see its own docstring for why re-querying
+ * there is still safe.
+ */
+export function StudentPage({
+  studentId,
+  q,
+  classe,
+  groupe,
+  sort,
+  dir,
+}: {
+  studentId: string;
+  q?: string;
+  classe?: string;
+  groupe?: string;
+  sort?: string;
+  dir?: string;
+}) {
+  const { t } = useTranslation();
   const db = useDb();
-  // Counts only. The timeline below stays complete: a behaviour log is a
-  // record of what was observed when, and hiding entries from it would be a
-  // different claim than summarising a window of them.
-  const [range, setRange] = useState<BehaviourRange>(DEFAULT_BEHAVIOUR_RANGE);
+  const listParams = { q, classe, groupe, sort, dir };
 
   // An explicit null distinguishes "no such pupil" from "still loading":
-  // useLiveQuery gives undefined for both, and the page would otherwise sit
-  // on "Chargement…" forever for a pupil who has been deleted.
+  // useLiveQuery gives undefined for both, and the page would otherwise sit on
+  // "Chargement…" forever for a pupil who has been deleted.
   const student = useLiveQuery(
     async () => (await db.students.get(studentId)) ?? null,
     [db, studentId],
@@ -45,172 +61,82 @@ export function StudentPage({ studentId }: { studentId: string }) {
     [db, student],
   );
 
-  const events = useLiveQuery(
-    () => db.behaviourEvents.where({ studentId }).reverse().sortBy("createdAt"),
-    [db, studentId],
+  const classmates = useLiveQuery(
+    async () =>
+      student ? await db.students.where("classId").equals(student.classId).toArray() : [],
+    [db, student],
   );
 
-  const attendanceRecords = useLiveQuery(
-    () => db.attendance.where({ studentId }).toArray(),
-    [db, studentId],
-  );
+  // The set the arrows walk. `classe` may name another class entirely — a
+  // teacher stepping through an unfiltered /students — so the candidates are
+  // every pupil in the workspace, narrowed by the params rather than by this
+  // pupil's class.
+  const sequence = useLiveQuery(async () => {
+    const [students, classes] = await Promise.all([
+      db.students.orderBy("lastName").toArray(),
+      db.classes.toArray(),
+    ]);
+    const names = new Map(classes.map((c) => [c.id, c.name]));
+    // Only loaded when a group is actually named: the arrows walk the list the
+    // teacher arrived from, and most arrivals name no group at all.
+    const groups = groupe === undefined ? [] : await db.studentGroups.toArray();
+    const memberships = groupe === undefined ? [] : await db.groupMembers.toArray();
+    return studentSequence(
+      students.map((s) => ({ ...s, classLabel: names.get(s.classId) ?? "" })),
+      groups,
+      memberships,
+      { q, classe, groupe, sort, dir },
+    );
+  }, [db, q, classe, groupe, sort, dir]);
+
+  const carnets = useLiveQuery(async () => {
+    if (!student) return [];
+    const gradebooks = await db.gradebooks.where("classId").equals(student.classId).toArray();
+    const subjects = await db.subjects.toArray();
+    return gradebooks.map((gradebook) => ({
+      gradebook,
+      subject: subjects.find((s) => s.id === gradebook.subjectId),
+    }));
+  }, [db, student]);
 
   if (
     student === undefined ||
+    schoolClass === undefined ||
     sessions === undefined ||
-    events === undefined ||
-    attendanceRecords === undefined
+    classmates === undefined ||
+    sequence === undefined ||
+    carnets === undefined
   ) {
     return <p className="text-text-muted">{t("common.loading")}</p>;
   }
-  if (student === null) {
-    return <p className="text-text-muted">{t("student.notFound")}</p>;
-  }
-
-  const sessionById = new Map(sessions.map((session) => [session.id, session]));
-  // "Now" is read once for the whole render: a bound recomputed per event
-  // could straddle midnight in a long list and drop one.
-  const countedEvents = withinRange(events, rangeStart(range, readTermStart(), Date.now()));
-  const counts = countByType(countedEvents);
-  const dateFormatter = new Intl.DateTimeFormat(i18n.language, { dateStyle: "long" });
-
-  const attendanceCounts = Object.fromEntries(
-    ATTENDANCE_VALUES.map((value) => [
-      value,
-      attendanceRecords.filter((record) => record.value === value).length,
-    ]),
-  );
+  if (student === null) return <p className="text-text-muted">{t("student.notFound")}</p>;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
-        {student.photo ? (
-          <PhotoPreview photo={student.photo} />
-        ) : (
-          <div className="h-16 w-16 rounded-full bg-bg-subtle" />
-        )}
-        <div className="flex flex-col">
-          <span className="font-semibold text-lg">
-            <PupilName student={student} />
-          </span>
-          {schoolClass && (
-            <Link to={Router.Class({ classId: schoolClass.id })} className="text-accent text-sm">
-              {schoolClass.name}
-            </Link>
-          )}
-        </div>
-      </div>
+    <div className="flex flex-col gap-6">
+      <StudentHeader
+        student={student}
+        schoolClass={schoolClass}
+        studentCount={classmates.length}
+        listParams={listParams}
+        position={neighbours(sequence, student.id)}
+      />
 
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="font-medium text-sm text-text-muted">{t("behaviour.title")}</span>
-          <fieldset className="m-0 flex flex-wrap gap-1 border-0 p-0">
-            <legend className="sr-only">{t("behaviour.rangeLabel")}</legend>
-            {BEHAVIOUR_RANGES.map((option) => (
-              <button
-                key={option}
-                type="button"
-                className={option === range ? "btn btn-primary" : "btn"}
-                aria-pressed={option === range}
-                onClick={() => setRange(option)}
-              >
-                {t(`behaviour.range.${option}`)}
-              </button>
-            ))}
-          </fieldset>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {BEHAVIOUR_TYPES.map((type) => (
-            <div
-              key={type}
-              className="flex min-h-11 flex-1 items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm"
-            >
-              <span className="flex items-center gap-2">
-                <span
-                  className="inline-block h-3 w-3 rounded-full"
-                  style={{ background: BEHAVIOUR_COLORS[type] }}
-                />
-                {t(`behaviour.${type}`)}
-              </span>
-              <span className="font-semibold">{counts[type]}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      {carnets.length === 0 ? (
+        <p className="text-sm text-text-faint">{t("student.noCarnets")}</p>
+      ) : (
+        carnets.map(({ gradebook, subject }) => (
+          <CarnetSection
+            key={gradebook.id}
+            gradebook={gradebook}
+            subject={subject}
+            student={student}
+          />
+        ))
+      )}
 
-      <div className="flex flex-col gap-2">
-        <span className="font-medium text-sm text-text-muted">
-          {t("student.attendanceSummary")}
-        </span>
-        <div className="flex flex-wrap gap-2">
-          {ATTENDANCE_VALUES.map((value) => (
-            <div
-              key={value}
-              className="flex min-h-11 flex-1 items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm"
-            >
-              <span>{t(`attendance.${value}`)}</span>
-              <span className="font-semibold">{attendanceCounts[value]}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <PresenceBlock student={student} sessions={sessions} />
 
-      <div className="flex flex-col gap-2">
-        <span className="font-medium text-sm text-text-muted">{t("student.timeline")}</span>
-        {events.length === 0 ? (
-          <span className="text-sm text-text-faint">{t("behaviour.none")}</span>
-        ) : (
-          <div className="flex flex-col gap-1">
-            {events.map((event) => {
-              const session = sessionById.get(event.sessionId);
-              return (
-                <div
-                  key={event.id}
-                  className="flex items-center justify-between gap-2 rounded border border-border px-2 py-1 text-sm"
-                >
-                  <span className="flex items-center gap-2">
-                    <span
-                      className="inline-block h-3 w-3 rounded-full"
-                      style={{ background: BEHAVIOUR_COLORS[event.type] }}
-                    />
-                    {t(`behaviour.${event.type}`)}
-                    {session ? ` — ${dateFormatter.format(session.date)}` : ""}
-                    {event.comment ? ` — ${event.comment}` : ""}
-                  </span>
-                  <ConfirmButton
-                    variant="link"
-                    danger
-                    label={t("common.delete")}
-                    confirmLabel={t("behaviour.confirmDelete")}
-                    onConfirm={() => deleteBehaviourEvent(db, event.id)}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <BehaviourBlock student={student} sessions={sessions} />
     </div>
-  );
-}
-
-/**
- * A pupil's stored photo, rendered from an object URL created for the
- * lifetime of this component only and revoked on unmount or when the photo
- * changes.
- */
-function PhotoPreview({ photo }: { photo: Blob }) {
-  const [url, setUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    const next = URL.createObjectURL(photo);
-    setUrl(next);
-    return () => URL.revokeObjectURL(next);
-  }, [photo]);
-
-  if (!url) return <div className="h-16 w-16 rounded-full bg-bg-subtle" />;
-
-  return (
-    <img src={url} alt="" className="h-16 w-16 rounded-full object-cover" width={64} height={64} />
   );
 }

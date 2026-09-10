@@ -68,7 +68,24 @@
     "notesHint": "PAP, PPRE, tiers-temps, contraintes de placement…",
     "timeline": "Historique",
     "notFound": "Élève introuvable",
-    "attendanceSummary": "Présence"
+    "previous": "Élève précédent",
+    "next": "Élève suivant",
+    "position": "{{index}} / {{total}}",
+    "confirmDelete": "Supprimer cet élève ?",
+    "confirmDeleteBody": "Ses notes, sa présence, son comportement et sa place sont supprimés avec lui. Cette action est définitive.",
+    "noCarnets": "Aucun carnet dans cette classe.",
+    "classAverage": "classe {{value}}",
+    "positionDescription": "{{value}} sur une échelle de {{min}} à {{max}}, moyenne de la classe {{mean}}",
+    "coefficient": "coef {{value}}",
+    "noMark": "—",
+    "assiduity": "Assiduité",
+    "markedSeances_one": "{{count}} séance marquée",
+    "markedSeances_other": "{{count}} séances marquées",
+    "unjustified_one": "{{count}} absence non justifiée",
+    "unjustified_other": "{{count}} absences non justifiées",
+    "noSeances": "Aucune séance enregistrée pour cette classe.",
+    "monthSeances_one": "{{count}} séance",
+    "monthSeances_other": "{{count}} séances"
   },
   "class": {
     "addStudent": "Ajouter un élève",
@@ -256,7 +273,13 @@
     "late": "En retard",
     "excused": "Excusé",
     "title": "Présence",
-    "needsSession": "La présence et le comportement se notent sur la séance de la classe."
+    "needsSession": "La présence et le comportement se notent sur la séance de la classe.",
+    "initial": {
+      "present": "P",
+      "absent": "A",
+      "late": "R",
+      "excused": "E"
+    }
   },
   "plan": {
     "unseated": "Élèves sans place",
@@ -299,13 +322,7 @@
     "note": "Observation",
     "comment": "Commentaire",
     "none": "Aucun événement",
-    "confirmDelete": "Supprimer cet événement ?",
-    "rangeLabel": "Période des compteurs",
-    "range": {
-      "all": "Tout",
-      "days30": "30 jours",
-      "term": "Depuis la rentrée"
-    }
+    "confirmDelete": "Supprimer cet événement ?"
   },
   "rubric": {
     "templates": "Modèles de grille",
