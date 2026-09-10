@@ -2,6 +2,7 @@ import {
   criterionMean,
   isRubricLevel,
   levelDistribution,
+  meanColor,
   RUBRIC_LEVEL_COLORS,
   RUBRIC_LEVELS,
   type RubricLevel,
@@ -27,6 +28,23 @@ describe("levels", () => {
     expect(isRubricLevel(5)).toBe(false);
     expect(isRubricLevel(2.5)).toBe(false);
     expect(isRubricLevel("3")).toBe(false);
+  });
+});
+
+describe("meanColor", () => {
+  it("clamps below the lowest level to level 1", () => {
+    expect(meanColor(0)).toBe(RUBRIC_LEVEL_COLORS[1]);
+    expect(meanColor(-3)).toBe(RUBRIC_LEVEL_COLORS[1]);
+  });
+
+  it("clamps above the highest level to level 4", () => {
+    expect(meanColor(5)).toBe(RUBRIC_LEVEL_COLORS[4]);
+    expect(meanColor(100)).toBe(RUBRIC_LEVEL_COLORS[4]);
+  });
+
+  it("rounds the 2.5 boundary up rather than down", () => {
+    expect(meanColor(2.49)).toBe(RUBRIC_LEVEL_COLORS[2]);
+    expect(meanColor(2.5)).toBe(RUBRIC_LEVEL_COLORS[3]);
   });
 });
 

@@ -2,16 +2,11 @@ import type { CriterionLevel, GradeColumn, Student } from "@db";
 import { clearLevel, setLevel } from "@db/criterion-levels";
 import { useDb } from "@db/provider";
 import { formatDecimal } from "@domain/gradebook/decimal";
-import { RUBRIC_LEVEL_COLORS, type RubricLevel, rubricCell } from "@domain/rubric";
+import { meanColor, type RubricLevel, rubricCell } from "@domain/rubric";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PupilName } from "../design-system/components/pupil-name";
 import { LevelButtons } from "./components/level-buttons";
-
-/** Nearest whole level for colouring a continuous mean. Clamped to 1–4. */
-function meanColor(mean: number): string {
-  return RUBRIC_LEVEL_COLORS[Math.min(4, Math.max(1, Math.round(mean))) as RubricLevel];
-}
 
 /**
  * One rubric cell in the carnet: what the pupil's grille says, and the way in.

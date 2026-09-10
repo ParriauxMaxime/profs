@@ -2,6 +2,7 @@ import type { AppDatabase, CriterionLevel, Student } from "@db";
 import { clearLevel, setLevel } from "@db/criterion-levels";
 import {
   levelDistribution,
+  meanColor,
   RUBRIC_LEVEL_COLORS,
   RUBRIC_LEVELS,
   type RubricCriterion,
@@ -16,12 +17,6 @@ import { LevelButtons } from "./components/level-buttons";
 
 function cellKey(criterionId: string, studentId: string): string {
   return `${criterionId}|${studentId}`;
-}
-
-/** Nearest whole level for colouring a continuous mean. Clamped to 1–4. */
-function meanColor(mean: number): string {
-  const rounded = Math.min(4, Math.max(1, Math.round(mean))) as RubricLevel;
-  return RUBRIC_LEVEL_COLORS[rounded];
 }
 
 /**

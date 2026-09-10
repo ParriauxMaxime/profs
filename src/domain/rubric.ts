@@ -30,6 +30,12 @@ export const RUBRIC_LEVEL_TEXT_COLORS: Record<RubricLevel, string> = {
   4: "var(--on-level-4)",
 };
 
+/** Nearest whole level for colouring a continuous mean. Clamped to 1–4. */
+export function meanColor(mean: number): string {
+  const rounded = Math.min(4, Math.max(1, Math.round(mean))) as RubricLevel;
+  return RUBRIC_LEVEL_COLORS[rounded];
+}
+
 /** One thing being assessed. No weight: nothing downstream depends on one. */
 export interface RubricCriterion {
   id: string;
