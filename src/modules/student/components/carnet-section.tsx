@@ -28,6 +28,16 @@ import { ToggleGroup, ToggleOption } from "../../design-system/components/primit
  * Rows dispatch on `column.type` rather than assuming a numeric input. That is
  * what lets a `rubric` column arrive as one more case here instead of a new
  * section on this page.
+ *
+ * This component runs its OWN `useLiveQuery`, scoped to one gradebook, rather
+ * than reading columns and grades handed down from `StudentPage`. That does
+ * not reopen the "loads once and hands down" rule `StudentPage` states for the
+ * pupil: `useLiveQuery` keeps rendering its previous result while a re-read is
+ * in flight, so committing a mark in this section updates its own figures in
+ * place rather than blanking the section the teacher is looking at. Threading
+ * every carnet's columns, grades and classmates through the page instead would
+ * make that orchestrator load data no other child needs, to satisfy a flash
+ * that cannot happen.
  */
 export function CarnetSection({
   gradebook,
@@ -162,8 +172,11 @@ export function CarnetSection({
           const grade = gradeFor(column.id);
           const isCalculation = column.type === "calculation";
           // `evaluateCalculation(spec, sources, grades)` — the spec off the
-          // column, and every numeric column of the carnet as the sources,
-          // exactly as the grid builds them.
+          // column, and every column of the carnet (unfiltered, unlike the
+          // grid) as the candidate sources. No pre-filter to numeric-only is
+          // needed: `normalisedValue`/`rawValue` in calculation.ts already
+          // reject any grade whose value isn't numeric, so a non-numeric
+          // column contributes nothing either way.
           const computed =
             isCalculation && column.calculation
               ? evaluateCalculation(

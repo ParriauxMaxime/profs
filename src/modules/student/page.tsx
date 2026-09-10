@@ -14,9 +14,13 @@ import { StudentHeader } from "./components/student-header";
  * carnet, every lesson — the shape a conseil de classe needs, which is the
  * moment this page is built for.
  *
- * The page loads everything ONCE and hands it down, the way `ClassPage` does:
- * a child that re-queried would flash "Chargement…" over a pupil already on
- * screen every time a mark was committed.
+ * The page loads the PUPIL once — the pupil, their class, their classmates and
+ * their séances — and hands that down, the way `ClassPage` does: a child that
+ * re-fetched any of those would flash "Chargement…" over a pupil already on
+ * screen every time something changed. Carnets are a narrower case: each
+ * `CarnetSection` runs its own live query, scoped to one gradebook, and that
+ * is deliberate rather than a gap — see its own docstring for why re-querying
+ * there is still safe.
  */
 export function StudentPage({
   studentId,
