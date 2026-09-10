@@ -1,6 +1,7 @@
 # profs — évaluations: one editor for a barème and a grille (design)
 
-Status: designed, not implemented.
+Status: **draft, not settled — do not plan from this yet.** See *Open* at the
+end for what is known to be wrong or undecided.
 Supersedes `2026-09-09-profs-rubric-as-column-design.md`, which made a grille a
 `GradeColumn` of `type: "rubric"` with embedded `criteria`. That move stands;
 what changes is that the grille stops being one fixed thing.
@@ -461,3 +462,41 @@ Touched: `src/db/index.ts`, `src/db/types.ts`, `src/db/backup.ts`,
 `src/modules/shared/app-drawer.tsx`, `src/modules/settings/page.tsx`
 (the *Modèle de grille* section is removed), both locale files, `CLAUDE.md`,
 `docs/BACKLOG.md`.
+
+## Open
+
+Recorded where the design was left, not as a wish list.
+
+**The saisie uses the system keyboard, and must not.** *The cells* above
+specifies Points mode as "a numeric field, `parseDecimal`". On a tablet the
+system keyboard covers roughly half the screen, so a four-critère panel loses
+its last two lines and its total behind it — and the teacher marks blind or
+dismisses the keyboard between every critère. This contradicts the reason
+`LevelButtons` exists at all.
+
+The principle the spec should have stated: **the editor may use the keyboard,
+the saisie never may.** Building a barème is desk work; using one happens
+standing, one-handed, mid-passage.
+
+Three replacements were drawn and none chosen: a row of 44px pastilles 0→N
+(one gesture for Points, Niveaux and Coché alike, but a /20 critère is 21
+chips); a −/+ stepper (compact at any scale, slow to reach 8); an app-owned
+two-row pad showing only the selected critère's legal values (never the system
+keyboard, but a new control and a new notion of selected critère). A fourth
+option pairs pastilles with an editor rule capping what one critère may be
+worth, on the argument that a critère worth 20 is not a critère but the whole
+barème.
+
+**The creation funnel is undecided.** Whether *Nouvelle évaluation* is a full
+screen or a sheet, and whether one can be created from the carnet at the moment
+it is needed rather than only from `/evaluations`, was never resolved. The
+editor asks for a name, a label per critère and a label plus an abbreviation
+per level; presets are the answer to most of that, but how much typing remains
+on the shortest path from "I need a grille" to "I am marking" has not been
+measured against a real one.
+
+**Scope.** The design grew from "move *Modèle de grille* out of Réglages" to a
+new table, a version chain, a page, an editor, a collapsed `ColumnType`, a
+changed `studentAverage`, a backup bump and a re-seeded demo. That growth was
+agreed step by step, and it has not been re-examined as a whole against the
+option of shipping something much smaller first.
