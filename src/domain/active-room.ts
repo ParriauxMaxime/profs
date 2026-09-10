@@ -54,19 +54,42 @@ export function clearActiveRoom(classId: string): void {
 }
 
 /**
- * The salle to render, given what is stored and what actually exists.
+ * The salle to render, given what is stored, where the class is already
+ * seated, and what actually exists.
  *
  * Anchored to the salle's identity, never to its position in the list: a
  * stored index would retarget onto whichever room slid into that slot when one
  * was deleted, which is the bug this codebase has produced in several
- * disguises. A stored id matching nothing falls back to the first salle, and
- * an empty list resolves to null so the caller can offer to create one.
+ * disguises. An empty list resolves to null so the caller can offer to create
+ * one.
+ *
+ * Three answers in order, and the middle one is the whole point:
+ *
+ * 1. **What the teacher chose**, if that salle still exists. Picking a salle
+ *    by hand is the strongest statement there is, and a teacher who moved 3°B
+ *    into 102 for one lesson must not be dragged back out of it.
+ * 2. **A salle the class is already seated in**, in the order `occupied` gives
+ *    — the caller sorts it by how many pupils are actually placed, so a plan
+ *    holding an arrangement beats an empty one.
+ * 3. **The first salle**, which is only ever a guess.
+ *
+ * Step 2 did not exist while a workspace held one salle, because "the first
+ * salle" and "this class's salle" were then the same answer and the fallback
+ * was right by accident. With two, every class taught in the second one opened
+ * onto the first — and since the plan page creates a plan from an effect for
+ * whatever room resolves, the guess WROTE itself as a `seatingPlans` row.
+ * Sorting `occupied` by occupancy rather than by name is what lets a workspace
+ * already carrying such a row recover: the spurious plan is empty, so it
+ * loses.
  */
 export function resolveActiveRoom(
   rooms: readonly { id: string }[],
   storedId: string | null,
+  /** Rooms this class already has a plan in, best first. */
+  occupied: readonly string[] = [],
 ): string | null {
   if (rooms.length === 0) return null;
-  if (storedId !== null && rooms.some((room) => room.id === storedId)) return storedId;
-  return rooms[0].id;
+  const exists = (id: string) => rooms.some((room) => room.id === id);
+  if (storedId !== null && exists(storedId)) return storedId;
+  return occupied.find(exists) ?? rooms[0].id;
 }

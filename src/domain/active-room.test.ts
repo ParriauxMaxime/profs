@@ -77,4 +77,38 @@ describe("resolveActiveRoom", () => {
     // "b" stays "b" even though it is now first — the id is what is held.
     expect(resolveActiveRoom([{ id: "b" }, { id: "c" }], "b")).toBe("b");
   });
+
+  it("prefers a salle the class is already seated in over the first one", () => {
+    // The bug this exists to prevent: with one salle in the workspace,
+    // "the first salle" and "this class's salle" were the same answer, so
+    // falling back to rooms[0] was right by accident. With two, a class
+    // taught in the second one opened onto the first — and the effect behind
+    // the plan then WROTE an empty plan there, making the wrong guess
+    // permanent and visible on /salles as a salle used by everybody.
+    expect(resolveActiveRoom(rooms, null, ["c"])).toBe("c");
+  });
+
+  it("takes the occupied salles in the order given", () => {
+    // The caller orders them by how many pupils are actually seated, so a
+    // plan created by a mis-resolve — empty, because nobody was ever placed
+    // in it — loses to the one the teacher really uses. That is what lets a
+    // workspace already holding a spurious plan heal itself rather than
+    // needing a re-seed.
+    expect(resolveActiveRoom(rooms, null, ["c", "a"])).toBe("c");
+  });
+
+  it("ignores an occupied salle that no longer exists", () => {
+    expect(resolveActiveRoom(rooms, null, ["gone"])).toBe("a");
+  });
+
+  it("still lets a stored choice beat the occupied salles", () => {
+    // Picking a salle by hand is the strongest statement there is: a teacher
+    // moving 3°B into 102 for one lesson must not be dragged back to the
+    // salle their plan happens to be fullest in.
+    expect(resolveActiveRoom(rooms, "b", ["c"])).toBe("b");
+  });
+
+  it("falls back to the first when the class is seated nowhere", () => {
+    expect(resolveActiveRoom(rooms, null, [])).toBe("a");
+  });
 });

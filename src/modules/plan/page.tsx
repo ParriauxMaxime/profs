@@ -1,5 +1,11 @@
 import type { Assignment, Desk, Session, Student } from "@db";
-import { applyPlacement, assignmentsForPlan, getOrCreatePlan, unassign } from "@db/plans";
+import {
+  applyPlacement,
+  assignmentsForPlan,
+  getOrCreatePlan,
+  plansForClass,
+  unassign,
+} from "@db/plans";
 import { useDb } from "@db/provider";
 import { desksForRoom, listRooms } from "@db/rooms";
 import { readActiveRoom, resolveActiveRoom, writeActiveRoom } from "@domain/active-room";
@@ -89,10 +95,34 @@ export function PlanPage({
   const dropping = useRef(false);
 
   const rooms = useLiveQuery(() => listRooms(db), [db]);
+  // The salles this class is already seated in, fullest first — what
+  // `resolveActiveRoom` falls back to before it falls back to the first salle
+  // in the workspace. Occupancy rather than name order because a plan created
+  // by a previous mis-resolve is empty, and must lose to the one the teacher
+  // actually uses.
+  const occupiedRoomIds = useLiveQuery(async () => {
+    const plans = await plansForClass(db, classId);
+    const counted = await Promise.all(
+      plans.map(async (plan) => ({
+        roomId: plan.roomId,
+        seated: await db.assignments.where("planId").equals(plan.id).count(),
+      })),
+    );
+    return counted.sort((a, b) => b.seated - a.seated).map((entry) => entry.roomId);
+  }, [db, classId]);
   // Device-local and held as an id, never an index: deleting a salle reorders
   // the list, and an index would retarget onto its neighbour.
   const [storedRoomId, setStoredRoomId] = useState(() => readActiveRoom(classId));
-  const activeRoomId = resolveActiveRoom(rooms ?? [], storedRoomId);
+  // Nothing resolves until BOTH queries have landed, and that is load-bearing
+  // rather than tidy. `rooms` and `occupiedRoomIds` settle independently, so a
+  // render where the salles are known and the class's plans are not would
+  // resolve to the first salle — and the effect below would immediately write
+  // a plan there, which is the very row this fix exists to stop creating.
+  // Holding `room` at null until both are in keeps that effect quiet.
+  const activeRoomId =
+    rooms === undefined || occupiedRoomIds === undefined
+      ? null
+      : resolveActiveRoom(rooms, storedRoomId, occupiedRoomIds);
   const room = rooms?.find((r) => r.id === activeRoomId) ?? null;
 
   const selectRoom = useCallback(
@@ -129,7 +159,7 @@ export function PlanPage({
     [db, plan?.id],
   );
 
-  if (rooms === undefined) {
+  if (rooms === undefined || occupiedRoomIds === undefined) {
     return <p className="text-text-muted">{t("common.loading")}</p>;
   }
 
