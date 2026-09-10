@@ -4,11 +4,40 @@
 
 **Goal:** Turn a rubric assessment from a standalone screen into a `GradeColumn` of type `"rubric"` whose cell opens into its critères, so the carnet becomes the live assessment surface.
 
-**Architecture:** `RubricAssessment` stops being a row: a column carries the critères embedded (the `calculation` precedent) and a level keeps its own row, rekeyed `[columnId+criterionId+studentId]` in a store renamed `criterionLevels`. The Dexie version chain collapses to a single `db.version(1)`, which is only safe once `VersionError` classifies as recoverable. No level ever becomes a mark: `isNumericColumn("rubric")` is `false`, so `studentAverage` is untouched and nothing on a bulletin can move.
+**Architecture:** `RubricAssessment` stops being a row: a column carries the critères embedded (the `calculation` precedent) and a level keeps its own row, rekeyed `[columnId+criterionId+studentId]` in a store renamed `criterionLevels`. The Dexie version chain collapses to a single `db.version(17)`, the next integer above the chain it replaces, so every existing workspace upgrades forward with no `VersionError` — the removed stores are actually deleted rather than left as zombies outside `db.tables`. No level ever becomes a mark: `isNumericColumn("rubric")` is `false`, so `studentAverage` is untouched and nothing on a bulletin can move.
 
 **Tech Stack:** TypeScript, React 19, Dexie 4 (IndexedDB), Chicane router, TailwindCSS, Jest + fake-indexeddb, Biome, rspack.
 
 **Spec:** `docs/superpowers/specs/2026-09-09-profs-rubric-as-column-design.md`
+
+> **Superseded on this point (2026-09-10):** this plan was written on a false
+> premise about the schema collapse, corrected mid-branch in the spec above.
+> It reasoned that dropping the version number to `db.version(1)` would
+> provoke a `VersionError` on every existing workspace, landing it on
+> `RecoveryShell`'s discard panel — and treated that as the mechanism that
+> made the collapse safe, once `VersionError` classified as `corrupt`. That is
+> wrong: Dexie **catches** a downgrade `VersionError`, silently reopens with no
+> version at all, and patches the declared schema into whatever it finds. The
+> dropped stores are never deleted — they stay in IndexedDB, outside
+> `db.tables`, and therefore outside `wipeWorkspace` and the backup's clear
+> list, against `PRIVACY.md`'s promise that "supprimer toutes les données" is
+> permanent.
+>
+> What shipped is `db.version(17)` — the next integer **above** the old
+> chain's top of 16, not below it. At 17, Dexie runs an ordinary **forward**
+> upgrade: no `VersionError` at all, the removed stores are actually deleted,
+> and every surviving store carries its rows forward untouched. The
+> `VersionError` → `corrupt` reclassification in `src/domain/recovery.ts` still
+> shipped and is still correct, but it fixes an independent, pre-existing
+> latent bug (a stale service-worker shell reopening a database newer than its
+> own code) — it is not what makes this collapse safe, because the collapse
+> going forward never raises `VersionError` in the first place.
+>
+> Every `db.version(1)` reference below, and the paragraph asserting "every
+> existing workspace now fails to open with `VersionError` and lands on the
+> discard panel", are corrected in place to match what was actually built.
+> This plan is left otherwise as written — a historical record of the task
+> breakdown, not a re-derivation of the design.
 
 ## Global Constraints
 
@@ -43,7 +72,7 @@
 - `src/domain/gradebook/grade.ts` — `parseGradeValue` refuses `"rubric"`.
 - `src/domain/rubric.ts` — `CriterionLevelLike`, `RubricCell`, `rubricCell`.
 - `src/db/types.ts` — `GradeColumn.criteria`, `CriterionLevel` replaces `RubricScore`, `RubricAssessment` deleted.
-- `src/db/index.ts` — one `db.version(1)`, `criterionLevelKey`.
+- `src/db/index.ts` — one `db.version(17)`, `criterionLevelKey`.
 - `src/db/rubrics.ts` — reduced to template writes only.
 - `src/db/cascade.ts` — `deleteColumn` sweeps levels; assessment cascades deleted.
 - `src/db/backup.ts` — format 13, single literal, `criterionLevels`.
@@ -65,7 +94,7 @@
 
 ### Task 1: A database the code is too old for offers a way out
 
-`VersionError` classifies as `retry`, which offers only *Recharger* — a button that fails identically, forever. Task 2 makes every existing workspace raise it, so this lands first. It is also a live bug on its own: a stale service-worker shell after any schema bump hits the same wall.
+`VersionError` classifies as `retry`, which offers only *Recharger* — a button that fails identically, forever. It is a live bug on its own, independent of Task 2's schema collapse: a stale service-worker shell reopening a database newer than its own code hits the same wall. (Task 2's collapse to `db.version(17)` does **not** raise it — that was this plan's original, corrected premise; see the note near the top of this document. This task still lands first because the bug is real on its own terms.)
 
 **Files:**
 - Modify: `src/domain/recovery.ts:31` (the `RETRY_ERRORS` list and the comment above it)
@@ -544,7 +573,7 @@ absent from the interface until the grid carries it."
 
 ### Task 4: One schema version, and a level that is named after what it is
 
-The chain collapses to `db.version(1)`, `rubricScores` becomes `criterionLevels`, and `rubricAssessments` goes. Every existing workspace now fails to open with `VersionError` and lands on the discard panel Task 1 unlocked.
+The chain collapses to `db.version(17)`, `rubricScores` becomes `criterionLevels`, and `rubricAssessments` goes. Every existing workspace upgrades forward with no `VersionError` — Dexie diffs the declaration against the stored schema and actually deletes the stores that are gone, rather than leaving them as zombies outside `db.tables` the way a downgrade to a lower number silently would. (Task 1's `VersionError` → `corrupt` reclassification still ships; it guards a separate, latent case — a stale service-worker shell reopening a database newer than its own code — not this collapse.)
 
 **Files:**
 - Modify: `src/db/index.ts` (whole `openWorkspaceDb` body; `rubricScoreKey` → `criterionLevelKey`)
@@ -767,30 +796,39 @@ Replace the entire body of `openWorkspaceDb` in `src/db/index.ts` — every `db.
 export function openWorkspaceDb(workspaceId: string): AppDatabase {
   const db = new Dexie(`profs-${workspaceId}`) as AppDatabase;
   /**
-   * ONE version, declaring the schema as it stands.
+   * ONE declaration, numbered above the last of the chain it replaces.
    *
-   * There were sixteen, each a bump with no upgrade callback, because schema
-   * changes here are disposable: a stale workspace is wiped on the next boot
-   * rather than migrated. Nothing is deployed, so that chain described
-   * migrations nobody will ever run, and the current shape could only be read
-   * by replaying fifteen diffs.
+   * There were sixteen versions, each a bump with no upgrade callback, because
+   * schema changes here are disposable: a stale workspace is wiped rather than
+   * migrated. Nothing is deployed, so that chain described migrations nobody
+   * will ever run, and the current shape could only be read by replaying
+   * fifteen diffs. What replaces it is not a chain of one — it is the same
+   * rule stated once, at the next number up.
    *
-   * The consequence is load-bearing and deliberate: IndexedDB refuses to open
-   * a database at a version LOWER than the stored one, so every workspace
-   * built by an earlier build fails to open with `VersionError`, reaches
-   * `RecoveryShell`, and is offered the discard. That is only true because
-   * `classifyOpenFailure` treats `VersionError` as `corrupt` — see
-   * `src/domain/recovery.ts`. Without that, this line bricks every existing
-   * workspace instead of wiping it.
+   * The NUMBER is the load-bearing part, and 1 would have been a silent bug.
+   * Dexie does not surface a downgrade: `dexieOpen` catches the `VersionError`
+   * that a lower number provokes, reopens with no version at all, and patches
+   * the declared schema into whatever it finds. A store that is GONE is not
+   * dropped that way — it stays in IndexedDB, outside `db.tables`, and
+   * therefore outside `wipeWorkspace` and the backup's clear list, which both
+   * read `db.tables`. A term of pupils' levels would survive "supprimer toutes
+   * les données", and `PRIVACY.md` promises that erase is permanent.
+   *
+   * At 17 the upgrade runs forwards, as an upgrade: Dexie diffs this
+   * declaration against the stored schema, DELETES the stores that are gone —
+   * `rubricAssessments`, `rubricScores`, and the older casualties before them
+   * — and carries every surviving store forward with its rows untouched. A
+   * grille already graded is lost because its store is dropped, not because
+   * the workspace is discarded, and nothing reaches `RecoveryShell`.
    *
    * The rule for the next change is unchanged: add a table or a field, bump to
-   * version 2, write no upgrade function.
+   * 18, write no upgrade function.
    *
    * `&` marks a unique index. `desks` refuses two tables on one square,
    * `seatingPlans` one plan per class per salle, and `assignments` one pupil
    * in two chairs — invariants that used to live only in careful code.
    */
-  db.version(1).stores({
+  db.version(17).stores({
     classes: "id, name",
     students: "id, classId, lastName",
     subjects: "id, name",
@@ -999,10 +1037,11 @@ git add -A
 git commit -m "feat(db): one schema version, and a level named after what it is
 
 Sixteen versions described migrations nobody will run — nothing is
-deployed. The chain collapses to db.version(1), and every workspace built
-by an earlier build now fails to open with VersionError and is offered
-the discard, which only works because that error stopped classifying as
-retry.
+deployed. The chain collapses to db.version(17), the next integer above
+the one it replaces, so every existing workspace upgrades forward with
+no VersionError at all: Dexie diffs the declaration against the stored
+schema and deletes the stores that are gone, rather than leaving them as
+zombies outside db.tables the way a lower number silently would.
 
 rubricScores becomes criterionLevels, keyed [columnId+criterionId+
 studentId]: a score was named after an assessment row that no longer
@@ -1469,7 +1508,7 @@ in one transaction."
 
 Four edits, each replacing a statement this work made false:
 
-1. The `src/db/` paragraph — "Twenty tables across `db.version(2)` through `version(14)`" becomes one `db.version(1)` declaring nineteen tables, and states the consequence: an older workspace fails to open and is offered the discard, which is why `VersionError` must classify as `corrupt`.
+1. The `src/db/` paragraph — "Twenty tables across `db.version(2)` through `version(14)`" becomes one `db.version(17)` declaring nineteen tables, and states the consequence: an older workspace upgrades forward silently, with the removed stores actually deleted rather than left as zombies the way a downgrade would leave them.
 2. *Schema changes are disposable* — the rule stands, but the two-version dance for a changed primary key is now historical. Say that a rename sidesteps it entirely: a store that does not exist yet has no key to change. Note that the four upgrade-seam tests are gone and what replaced them.
 3. The rubric invariant — a grille is a column of a carnet, its critères embedded like `calculation`, its levels their own rows in `criterionLevels`. **A level still never feeds an average**, and the opt-in barème is named as the decision deliberately left open.
 4. The journal/backup paragraph — format **13**, accepted alone, and the rule: a file is importable only while every store it names still exists.

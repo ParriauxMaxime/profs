@@ -70,8 +70,11 @@ control back on the class page.
 roomId, x, y) is one place and carries no occupant; `SeatingPlan` is one class
 in one salle; `Assignment` is `[planId+deskId] → studentId`, keyed exactly as
 `Grade` is. `Desk` rather than `Table` because a Dexie store named `tables`
-would shadow `db.tables`, which `wipeWorkspace` and the backup's clear list both
-read — the same reason `SchoolClass` is not `class`.
+would shadow `db.tables`, the getter `wipeWorkspace` reads directly — the same
+reason `SchoolClass` is not `class`. The backup's own clear list does not read
+`db.tables`: `importWorkspace` clears a hand-written array of tables
+(`src/db/backup.ts`), which is why adding a store means editing that array by
+hand — see *Schema changes are disposable* below.
 
 **Three unique indexes carry rules that used to live only in careful code.**
 `&[roomId+x+y]` — no two desks share a point. `&[classId+roomId]` — one plan per
@@ -286,7 +289,7 @@ The rule that replaces the old one: **a séance with no attendance and no behavi
 
 **A lesson names a class and a matière, never a carnet.** `ScheduleEntry` carried an optional `gradebookId` that the form asked for and NOTHING read — Aujourd'hui and the hour grid both colour by `subjectId`, and the grid a lesson was to open onto was never built. It was redundant twice over: a `Gradebook` is itself `(classId, subjectId, name)`, so the picker asked the teacher to re-declare an association the two fields above it in the same form had already made. Where it was not redundant it was wrong — a class holding two carnets of one matière ("Écrit" and "Oral") would have had one of them pinned to every Monday 10h for the year, from a form filled in September. If a screen ever wants the grid, it resolves `(classId, subjectId)` on read and, finding two, lands on the class's Carnets rather than guessing.
 
-Nothing enforces one carnet per (class, matière), and nothing should: a bivalent teacher's 3°B holds two carnets of two matières, and Écrit/Oral is a real way to keep one. `db.version(15)` drops the entry's `gradebookId` index; the field itself needed no version, since `.stores()` declares indexes rather than fields, and an existing row simply keeps an unread property. This changes no backup format number — `scheduleEntries` is validated `.loose()`, so a dropped index changes nothing about what is exported. (The format did move later, to **12** — see below.)
+Nothing enforces one carnet per (class, matière), and nothing should: a bivalent teacher's 3°B holds two carnets of two matières, and Écrit/Oral is a real way to keep one. `db.version(15)` — since folded into the single `db.version(17)` this codebase now declares — dropped the entry's `gradebookId` index; the field itself needed no version, since `.stores()` declares indexes rather than fields, and an existing row simply kept an unread property. This changed no backup format number — `scheduleEntries` is validated `.loose()`, so a dropped index changes nothing about what is exported. (The format did move later, to **13** — see below.)
 
 `entriesForDay` in `src/domain/schedule.ts` is the form every SCREEN needs, because the term anchor is optional and a teacher may never have set one. With none it selects the `weekCycle === "all"` entries for that weekday rather than guessing a parity — a teacher without a term start still sees what happens every week, and never sees week A's lessons on a day the app cannot name. It is one function because it was two, copied into Aujourd'hui and the class page, and a parity rule kept in two places eventually disagrees with itself.
 
@@ -328,7 +331,7 @@ This app has no network and cannot be that record. **Naming** keeps the distinct
 
 A note is a **field on `Session`** — `Session.note`, free text, written and read whole — and not a store of its own. The reasoning is `GradeColumn.criteria`'s: there is exactly one note per séance, always read with its séance and cleared whole, which is what a field is for; a `CriterionLevel` is written one cell at a time, which is what a compound key is for. `setSessionNote` (`src/db/sessions.ts`) **clears** the field on blank text rather than storing `""`, the same rule `writeGrade` applies to a grade with neither value nor note — a husk survives every export and makes "does this séance have a note?" answer yes for a lesson that has none.
 
-One note per **séance**, not per class per day. The day-keyed `DiaryEntry` this replaced was dropped by `db.version(14).stores({ diaryEntries: null })`, with no upgrade function and every existing entry lost, per the standing rule that schema changes are disposable. What the old key protected against still holds: a note must never be pinned to a clock, or moving a lesson from 10h to 11h would leave its text matching no lesson. The answer is that a note is keyed to the **séance**, which moves with it, rather than to a time — and a class taught twice in a day now carries two notes, which is what a teacher means by them.
+One note per **séance**, not per class per day. The day-keyed `DiaryEntry` this replaced was dropped by `db.version(14).stores({ diaryEntries: null })` — a version since folded into the single `db.version(17)` this codebase now declares — with no upgrade function and every existing entry lost, per the standing rule that schema changes are disposable. What the old key protected against still holds: a note must never be pinned to a clock, or moving a lesson from 10h to 11h would leave its text matching no lesson. The answer is that a note is keyed to the **séance**, which moves with it, rather than to a time — and a class taught twice in a day now carries two notes, which is what a teacher means by them.
 
 The backup format is **13**, and it alone is accepted. What replaced the accumulating union of literals `parseBackup` used to check — 11, then 12 — is one rule stated once: a format is importable only while every store it names still exists. A version-12 file still names `rubricAssessments`, a store this schema no longer has, so its grilles have nowhere to land; half-importing it would leave a workspace that looks whole and is not, which is the same ruling a version-10 file already got for its day-keyed journal. Both are refused whole. `repairSeanceCollisions` no longer has a caller here: it ran once on a format-11 import to time a séance that predated `startsAt`/`endsAt`, and with only format 13 accepted, every imported séance already carries both.
 
@@ -495,9 +498,9 @@ That rule had only ever been exercised by bumps that *added* a table, and it doe
 
 The regression tests that used to run new code against an old row — the v2 per-class layout, the v9 saved room, the v13 day-keyed journal entry, the v15 séance collisions — are gone: a single declaration leaves no intermediate version for such a fixture to sit at. One test replaces them in `src/db/index.test.ts`, built against a fixture at the schema this declaration supersedes: it asserts that every store the declaration drops is absent from `db.backendDB().objectStoreNames` — the raw IndexedDB store list, never `db.tables`, which is the distinction the downgrade trap below makes necessary — while `sessions`, `attendance` and `behaviourEvents` survive with an untimed séance repaired and reachable. **This seam is still the blind spot: nothing else in the suite runs new code against an old row.** Every future schema change wants such a fixture, one per store whose shape moves.
 
-**The number is 17, and 1 would have been a silent bug, because Dexie CATCHES a downgrade.** A declared version LOWER than the one a workspace is already at provokes a real `VersionError` from IndexedDB, but `dexieOpen` catches it, reopens with no version at all, and patches the declared schema into whatever it finds — a console warning, never a rejection. The database opens, `db.tables` reads exactly as it would at the right number, and the stores the declaration means to drop are **not** deleted: they stay in IndexedDB, outside `db.tables`, and therefore outside `wipeWorkspace` and the backup's clear list, since both read `db.tables`. A term of pupils' rubric levels would survive "supprimer toutes les données", invisible and unreachable, against a `PRIVACY.md` that calls that erase permanent — measured against Dexie 4 in Chrome, not only reasoned about against `fake-indexeddb`. 17 is nothing more than the next integer above the chain it replaces, but it is the whole reason a collapse is safe: any number equal to or lower than a workspace's own would silently leave its dropped stores behind instead of deleting them.
+**The number is 17, and 1 would have been a silent bug, because Dexie CATCHES a downgrade.** A declared version LOWER than the one a workspace is already at provokes a real `VersionError` from IndexedDB, but `dexieOpen` catches it, reopens with no version at all, and patches the declared schema into whatever it finds — a console warning, never a rejection. The database opens, `db.tables` reads exactly as it would at the right number, and the stores the declaration means to drop are **not** deleted: they stay in IndexedDB, outside `db.tables`, and therefore outside `wipeWorkspace`, which reads `db.tables` directly. A term of pupils' rubric levels would survive "supprimer toutes les données", invisible and unreachable, against a `PRIVACY.md` that calls that erase permanent — measured against Dexie 4 in Chrome, not only reasoned about against `fake-indexeddb`. 17 is nothing more than the next integer above the chain it replaces, but it is the whole reason a collapse is safe: any number equal to or lower than a workspace's own would silently leave its dropped stores behind instead of deleting them.
 
-You do **not** need to touch `wipeWorkspace` or the backup's clear list when adding a table — both read `db.tables`. You **do** need to add it to `backup.ts` by hand, since the export builds a literal, and to seed a row for it into the wipe test and the schema table-list test. Those two will fail until you do; that is the guard, not an oversight. The backup case earned its own guard the hard way: the day-keyed journal store, since dropped in v14, was missing from export and import for a whole commit while every backup test passed, because the double-import test compares row counts across two imports and a table missing *entirely* keeps its count on both passes.
+You do **not** need to touch `wipeWorkspace` when adding a table — it reads `db.tables`. You **do** need to add it to `backup.ts` by hand, on both the export side and `importWorkspace`'s clear list, since both build a literal array rather than reading `db.tables`, and to seed a row for it into the wipe test and the schema table-list test. Those two will fail until you do; that is the guard, not an oversight. The backup case earned its own guard the hard way: the day-keyed journal store, since dropped in v14, was missing from export and import for a whole commit while every backup test passed, because the double-import test compares row counts across two imports and a table missing *entirely* keeps its count on both passes.
 
 ### A database that will not open must never be a blank page
 
@@ -611,6 +614,16 @@ The service worker's `SHELL` is the boot path and nothing else, because `addAll`
   `.btn` globally, an icon-only destructive action, or dropping a column on
   narrow screens would each fix it, and each is a design change outside this
   work.
+- Editing a column's type away from `numeric` — to `rubric` or anything else —
+  leaves its `grades` rows orphaned: invisible in every grid, never averaged,
+  still carried by every JSON export. `ColumnForm` reconciles `criteria` and
+  cascades `criterionLevels` on a rubric column, but never sweeps `db.grades`.
+  This predates this branch — `numeric → calculation` has always done the
+  same — and is not fixed here.
+- The open rubric cell panel (`RubricCellButton`) stretches its table row to
+  roughly 300px in place, pushing every row below it down the page. Opening
+  in place rather than navigating away was the design's deliberate choice;
+  this is the cost it accepts.
 
 ## Reference
 

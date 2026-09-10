@@ -176,9 +176,9 @@ export interface Room {
  * One place at one table, in one salle.
  *
  * `Desk` rather than `Table`: a Dexie store named `tables` would shadow
- * `db.tables`, which `wipeWorkspace` and the backup's clear list both read —
- * a silent, total break. Same reason `SchoolClass` is not `class` and
- * `GradeColumn` is not `Column`. The French interface still says *table*.
+ * `db.tables`, the getter `wipeWorkspace` reads directly — a silent, total
+ * break. Same reason `SchoolClass` is not `class` and `GradeColumn` is not
+ * `Column`. The French interface still says *table*.
  *
  * Carries no `studentId`. Who sits here is a property of a CLASS in this
  * salle, not of the furniture, and storing it on the desk is what made a room

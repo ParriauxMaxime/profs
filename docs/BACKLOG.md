@@ -55,7 +55,7 @@ What was deliberately **not** built:
   would misrepresent both.
 - **Cross-class rubric reporting.** Templates are shared across the workspace,
   but there is no view aggregating rubric results across classes or across
-  assessments — each assessment's means and distributions are read on its own
+  columns — each rubric column's means and distributions are read on its own
   page only.
 
 ## 2. Plan de classe (seating chart) with trombinoscope

@@ -111,9 +111,11 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
    * that a lower number provokes, reopens with no version at all, and patches
    * the declared schema into whatever it finds. A store that is GONE is not
    * dropped that way — it stays in IndexedDB, outside `db.tables`, and
-   * therefore outside `wipeWorkspace` and the backup's clear list, which both
-   * read `db.tables`. A term of pupils' levels would survive "supprimer toutes
-   * les données", and `PRIVACY.md` promises that erase is permanent.
+   * therefore outside `wipeWorkspace`, which reads `db.tables` directly (the
+   * backup's clear list does not: `importWorkspace` clears a hand-written
+   * array, so it needs no fix here but also earns nothing from this number).
+   * A term of pupils' levels would survive "supprimer toutes les données", and
+   * `PRIVACY.md` promises that erase is permanent.
    *
    * At 17 the upgrade runs forwards, as an upgrade: Dexie diffs this
    * declaration against the stored schema, DELETES the stores that are gone —
