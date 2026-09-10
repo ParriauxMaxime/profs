@@ -516,7 +516,6 @@
   "seance": {
     "at": "{{hoursPadded}}:{{minutes}}",
     "none": "No lesson",
-    "start": "Start a lesson",
     "delete": "Delete the lesson",
     "confirmDelete": "Delete the lesson of {{day}}?",
     "confirmDeleteBody": "Its attendance and behaviour go with it.",
@@ -525,7 +524,8 @@
     "editTimes": "Edit times",
     "startsAt": "Start",
     "endsAt": "End",
-    "timesInvalid": "The end must come after the start."
+    "timesInvalid": "The end must come after the start.",
+    "markAllPresent": "All present ({{remaining}})"
   },
   "classes": {
     "searchPlaceholder": "Filter by name",

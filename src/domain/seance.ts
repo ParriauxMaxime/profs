@@ -26,7 +26,7 @@ export function hourOfDay(ms: number): number {
  *
  * `createdAt` is the right source for a missing start because of how a séance
  * comes into being: all four things that create one — an attendance mark, a
- * behaviour event, note text, "Commencer une séance" — are acts performed
+ * behaviour event, note text, "Tous présents" — are acts performed
  * during the lesson, so the hour a séance was created in is the hour it was
  * taught in. Where it guesses wrong, the séance strip's editor corrects it.
  *

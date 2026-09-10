@@ -132,18 +132,21 @@ function SeanceTimeEditor({
  * Nothing here writes on its own. A slot with no `sessionId` is a lesson the
  * timetable predicts and nobody has recorded yet, and tapping it only changes
  * which lesson is on screen — the séance row appears on the first mark, the
- * first behaviour event, the first character of note, or "Commencer une
- * séance", never on arrival.
+ * first behaviour event, the first character of note, or "Tous présents" —
+ * never on arrival. That last one replaced "Commencer une séance", and is not
+ * an exception to the rule but the clearest case of it: it creates the séance
+ * by recording something in it, where its predecessor created one holding
+ * nothing at all.
  */
 export function SeanceStrip({
   days,
   slots,
   current,
-  canStart,
+  unmarkedCount,
   className,
   onSelectDay,
   onSelect,
-  onStart,
+  onMarkAllPresent,
   onTimesSaved,
 }: {
   /** Days offering a lesson, oldest first, always including the one on screen. */
@@ -152,16 +155,16 @@ export function SeanceStrip({
   slots: Slot[];
   current: Slot | null;
   /**
-   * True when this lesson has no séance yet — starting makes it real — or
-   * when it already does but no séance sits at the current clock hour, so an
-   * extra one there would be new rather than a row already reachable from the
-   * strip. A button that cannot do anything is worse than no button.
+   * How many pupils this lesson has no attendance mark for — what "Tous
+   * présents" would fill. Zero hides it: a button that cannot do anything is
+   * worse than no button, and the count is on the label so the teacher knows
+   * what one tap is about to record.
    */
-  canStart: boolean;
+  unmarkedCount: number;
   className?: string;
   onSelectDay: (day: number) => void;
   onSelect: (slot: Slot) => void;
-  onStart: () => void;
+  onMarkAllPresent: () => void;
   /**
    * The current séance's start was just corrected. The URL's `at` names a
    * minute, not a row, so it must be re-pointed at the new one or `resolveSlot`
@@ -234,9 +237,9 @@ export function SeanceStrip({
         })}
       </div>
 
-      {canStart && (
-        <button type="button" className="btn" onClick={onStart}>
-          {t("seance.start")}
+      {unmarkedCount > 0 && (
+        <button type="button" className="btn" onClick={onMarkAllPresent}>
+          {t("seance.markAllPresent", { remaining: unmarkedCount })}
         </button>
       )}
 

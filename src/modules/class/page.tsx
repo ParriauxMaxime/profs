@@ -1,4 +1,5 @@
 import type { ScheduleEntry, Session } from "@db";
+import { markRemainingPresent } from "@db/attendance";
 import { useDb } from "@db/provider";
 import { listRooms } from "@db/rooms";
 import { getOrCreateSessionAt, sessionsForClass, sessionsForDay, startOfDay } from "@db/sessions";
@@ -33,7 +34,7 @@ import { SeanceStrip } from "./components/seance-strip";
  * plan created a séance for a lesson nobody taught — the schedule's "predicts,
  * never pre-creates" ruling, undone by the one screen that reads it. A séance
  * row appears on the first thing actually recorded: an attendance mark, a
- * behaviour event, a note that changed, or "Commencer une séance". Every one
+ * behaviour event, a note that changed, or "Tous présents". Every one
  * of those paths goes through `ensureSeance` and awaits it before writing;
  * none of them is an effect.
  *
@@ -157,16 +158,6 @@ export function ClassPage({
   const slotEndsAt = slot?.endsAt ?? null;
   const slotSessionId = slot?.sessionId ?? null;
   const slotSubjectId = dayEntries.find((e) => e.id === slot?.entryId)?.subjectId;
-  // The day's séances, for `canStart` — see `startSeance`.
-  const daySessions = lesson === undefined ? [] : lesson.daySessions;
-  // "Commencer une séance" offers to make THIS slot real when it has no
-  // séance yet, or — when it already does — to start an extra one at the
-  // current hour. It hides only in the second case, and only once a séance
-  // already sits at that hour: starting another there could only reuse a row
-  // the strip already reaches. A button that cannot do anything is worse than
-  // no button.
-  const canStart =
-    slotSessionId === null || !daySessions.some((s) => s.startsAt === hourOfDay(Date.now()));
 
   /**
    * The séance to write against, brought into being if it does not exist yet.
@@ -224,39 +215,6 @@ export function ClassPage({
     [classId, date],
   );
 
-  /**
-   * "Commencer une séance": make this slot real, or — when it already is —
-   * start a NEW séance at the CURRENT clock hour.
-   *
-   * The old contract was "open the day's UNSCHEDULED séance, creating it only
-   * if the day has none", because `resolveSlot` matched a slot by its time:
-   * two untimed séances on one day both answered to "no time", the first won
-   * every lookup, and the second would be written unreachable — invisible in
-   * the strip, invisible in the register, present only in the export. Times
-   * are required now, so a séance started now lands on the hour it was
-   * started rather than on no time at all, and `getOrCreateSessionAt` reuses
-   * whichever séance already sits at that hour instead of making a second.
-   * The hazard does not disappear, it changes shape: the rule relaxes from
-   * "at most one unscheduled séance a day" to "at most one séance an hour",
-   * and `canStart` guards it the same way — hidden once starting could only
-   * reuse a row already reachable.
-   */
-  const startSeance = useCallback(async (): Promise<void> => {
-    if (slotSessionId === null) {
-      await ensureSeance();
-      return;
-    }
-    const startsAt = hourOfDay(Date.now());
-    const session = await getOrCreateSessionAt(db, classId, { date: seanceDay, startsAt });
-    selectSlot({
-      date: session.date,
-      startsAt: session.startsAt,
-      endsAt: session.endsAt,
-      sessionId: session.id,
-      entryId: null,
-    });
-  }, [db, classId, ensureSeance, slotSessionId, seanceDay, selectSlot]);
-
   // The roster register's marks for the slot on screen. Read directly rather
   // than through the pupil card, which only ever reads for the one pupil it
   // has open. Empty while no séance exists yet — nothing has been recorded,
@@ -268,6 +226,46 @@ export function ClassPage({
         : await db.attendance.where("sessionId").equals(slotSessionId).toArray(),
     [db, slotSessionId],
   );
+
+  /**
+   * Who this lesson has no mark for yet — what the register button offers to
+   * fill, and whether it has anything to offer at all.
+   *
+   * With no séance the answer is "everybody", which is the common case: the
+   * teacher walks in, taps once, and the séance is created by the marks rather
+   * than before them.
+   */
+  const unmarked =
+    students === undefined
+      ? []
+      : students.filter(
+          (student) => !(attendanceRecords ?? []).some((row) => row.studentId === student.id),
+        );
+
+  /**
+   * "Tous présents": mark everyone this lesson has no mark for.
+   *
+   * It replaced "Commencer une séance", which made a séance and stopped there
+   * — and a séance with no attendance and no behaviour is not a lesson taught,
+   * by this app's own rule, so the button's whole effect was a row that
+   * counted for nothing. This does the thing a teacher actually starts a
+   * lesson by doing, and the séance falls out of it: `ensureSeance` first, then
+   * the marks, which is the same "created by the first thing recorded" path a
+   * single tap on the register takes.
+   *
+   * REMAINING rather than all — see `markRemainingPresent`. The gesture is
+   * "the two absences are marked, everyone else was here", and overwriting
+   * would un-record the marks just made.
+   */
+  const markAllPresent = useCallback(async (): Promise<void> => {
+    if (unmarked.length === 0) return;
+    const sessionId = await ensureSeance();
+    await markRemainingPresent(
+      db,
+      sessionId,
+      unmarked.map((student) => student.id),
+    );
+  }, [db, ensureSeance, unmarked]);
 
   if (
     schoolClass === undefined ||
@@ -366,11 +364,11 @@ export function ClassPage({
         days={dayOptions}
         slots={slots}
         current={slot}
-        canStart={canStart}
         className="border-border border-b pb-3"
         onSelectDay={selectDay}
         onSelect={selectSlot}
-        onStart={() => void startSeance()}
+        unmarkedCount={unmarked.length}
+        onMarkAllPresent={() => void markAllPresent()}
         onTimesSaved={retimeCurrentSlot}
       />
 
