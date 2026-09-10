@@ -64,10 +64,12 @@ interface SeanceTimeRow {
  * A whole collection's séance times, repaired so that no two séances of one
  * class on one day ever share a `startsAt`.
  *
- * Pure, and in the domain, because it has two callers in two layers — the
- * `db.version(16)` upgrade and `parseBackup` — and a repair rule kept in two
- * places is a repair rule that eventually disagrees with itself. This is the
- * argument that made `entriesForDay` one function.
+ * Pure, and in the domain, because a repair rule this exacting belongs beside
+ * its own tests rather than inline in a caller. It has one real caller now,
+ * the `db.version(17)` upgrade: `parseBackup` used to call it too, for a
+ * format-11 file whose séances predated `startsAt`/`endsAt`, but with only
+ * the current backup format accepted, every imported séance already carries
+ * both and that call was removed.
  *
  * `backfillSeanceTimes` alone cannot prevent the collision this exists to
  * fix: it repairs one row at a time, so two untimed séances of the same
