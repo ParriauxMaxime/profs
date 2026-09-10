@@ -351,7 +351,9 @@
     "cellEmpty": "Not yet assessed",
     "cellPartial": "{{scored}}/{{total}} criteria",
     "cellComplete": "Mean level: {{mean}}",
-    "openFor": "Assess {{name}}",
+    "openEmpty": "Assess {{name}} — not yet assessed",
+    "openPartial": "Assess {{name}} — {{scored}} of {{total}} criteria",
+    "openComplete": "Assess {{name}} — mean level {{mean}}",
     "closePanel": "Close"
   },
   "today": {

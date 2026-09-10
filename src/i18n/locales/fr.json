@@ -351,7 +351,9 @@
     "cellEmpty": "Pas encore évalué",
     "cellPartial": "{{scored}}/{{total}} critères",
     "cellComplete": "Moyenne des niveaux : {{mean}}",
-    "openFor": "Évaluer {{name}}",
+    "openEmpty": "Évaluer {{name}} — pas encore évalué",
+    "openPartial": "Évaluer {{name}} — {{scored}} critères sur {{total}}",
+    "openComplete": "Évaluer {{name}} — moyenne des niveaux {{mean}}",
     "closePanel": "Fermer"
   },
   "today": {

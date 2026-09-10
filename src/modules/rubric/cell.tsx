@@ -49,20 +49,33 @@ export function RubricCellButton({
     await setLevel(db, column.id, criterionId, student.id, next);
   }
 
+  // One branch on `cell.state` drives both strings together, so the title
+  // (sighted, on hover) and the accessible name (always, for a screen
+  // reader — `aria-label` replaces the rendered content, it does not
+  // supplement it) can never disagree about which state they describe.
+  const name = `${student.lastName} ${student.firstName}`;
+  let title: string;
+  let ariaLabel: string;
+  if (cell.state === "complete") {
+    const mean = formatDecimal(cell.mean, i18n.language);
+    title = t("rubric.cellComplete", { mean });
+    ariaLabel = t("rubric.openComplete", { name, mean });
+  } else if (cell.state === "partial") {
+    title = t("rubric.cellPartial", { scored: cell.scored, total: cell.total });
+    ariaLabel = t("rubric.openPartial", { name, scored: cell.scored, total: cell.total });
+  } else {
+    title = t("rubric.cellEmpty");
+    ariaLabel = t("rubric.openEmpty", { name });
+  }
+
   return (
     <div className="flex flex-col items-center gap-2">
       <button
         type="button"
         className="min-h-11 min-w-11 tabular-nums"
         aria-expanded={open}
-        aria-label={t("rubric.openFor", { name: `${student.lastName} ${student.firstName}` })}
-        title={
-          cell.state === "complete"
-            ? t("rubric.cellComplete", { mean: formatDecimal(cell.mean, i18n.language) })
-            : cell.state === "partial"
-              ? t("rubric.cellPartial", { scored: cell.scored, total: cell.total })
-              : t("rubric.cellEmpty")
-        }
+        aria-label={ariaLabel}
+        title={title}
         onClick={() => setOpen((current) => !current)}
       >
         {cell.state === "empty" && <span className="text-text-faint">—</span>}
