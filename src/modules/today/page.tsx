@@ -1,6 +1,6 @@
 import { useDb } from "@db/provider";
 import { sessionsInRange, startOfDay } from "@db/sessions";
-import { addDays, weekDays } from "@domain/calendar";
+import { addDays, startOfIsoWeek, weekDays } from "@domain/calendar";
 import { entriesForDay, isoWeekday } from "@domain/schedule";
 import { slotsForDay } from "@domain/seance";
 import { readTermStart } from "@domain/term";
@@ -124,13 +124,29 @@ export function TodayPage({ date }: { date?: string }) {
       <h2 className="font-semibold text-lg">{t("today.title")}</h2>
       <CalendarNav
         label={windowLabel}
+        date={anchor}
         onPrevious={() => step(-1)}
         onNext={() => step(1)}
         onToday={goToday}
+        // `replace`, like every other move here: picking a date is a change of
+        // view, not a navigation, and a `push` per pick would make Back walk
+        // back through every day the teacher looked at.
+        onPickDate={(day) => Router.replace("Home", { date: String(day) })}
       />
 
       {lessons.length === 0 ? (
-        <EmptyToday hasEntries={data.entries.length > 0} termStart={termStart} wide={wide} />
+        <EmptyToday
+          hasEntries={data.entries.length > 0}
+          termStart={termStart}
+          // `entriesForDate` returns nothing before the anchor on purpose —
+          // the parity would be negative and arbitrary, and week A's lessons
+          // shown in August are worse than none. The date field made that week
+          // one gesture away instead of a dozen taps, so the screen has to say
+          // which of the two empties this is: nothing timetabled, or a week
+          // the timetable does not reach yet.
+          beforeTerm={termStart !== null && startOfIsoWeek(to) < startOfIsoWeek(termStart)}
+          wide={wide}
+        />
       ) : (
         <TimeGrid
           columns={columns}
@@ -154,10 +170,13 @@ export function TodayPage({ date }: { date?: string }) {
 function EmptyToday({
   hasEntries,
   termStart,
+  beforeTerm,
   wide,
 }: {
   hasEntries: boolean;
   termStart: number | null;
+  /** The whole window falls before the term anchor, so no entry can resolve. */
+  beforeTerm: boolean;
   wide: boolean;
 }) {
   const { t } = useTranslation();
@@ -176,6 +195,14 @@ function EmptyToday({
   return (
     <div className="flex flex-col gap-2">
       <p className="text-text-muted">{t(wide ? "today.nothingThisWeek" : "today.nothingToday")}</p>
+      {beforeTerm && (
+        <p className="text-sm text-text-muted">
+          {t("today.beforeTermStart")}{" "}
+          <Link to={Router.Settings()} className="underline">
+            {t("nav.settings")}
+          </Link>
+        </p>
+      )}
       {termStart === null && (
         <p className="text-sm text-text-muted">
           {t("today.needsTermStart")}{" "}

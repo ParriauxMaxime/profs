@@ -370,7 +370,8 @@
     "nothingToday": "Nothing scheduled today.",
     "nothingThisWeek": "Nothing scheduled this week.",
     "needsTermStart": "Lessons in week A or B need a start-of-year date:",
-    "recorded": "Lesson recorded"
+    "recorded": "Lesson recorded",
+    "beforeTermStart": "This week falls before the recorded term start, where the timetable begins."
   },
   "students": {
     "searchPlaceholder": "Search for a student",
@@ -435,7 +436,8 @@
   "calendar": {
     "previous": "Previous",
     "next": "Next",
-    "today": "Today"
+    "today": "Today",
+    "pickDate": "Pick a date"
   },
   "diary": {
     "view": "View",

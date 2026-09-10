@@ -370,7 +370,8 @@
     "nothingToday": "Rien de prévu aujourd'hui.",
     "nothingThisWeek": "Rien de prévu cette semaine.",
     "needsTermStart": "Les cours en semaine A ou B ont besoin d'une date de début d'année :",
-    "recorded": "Séance enregistrée"
+    "recorded": "Séance enregistrée",
+    "beforeTermStart": "Cette semaine précède la rentrée enregistrée, à partir de laquelle l’emploi du temps commence."
   },
   "students": {
     "searchPlaceholder": "Rechercher un élève",
@@ -435,7 +436,8 @@
   "calendar": {
     "previous": "Précédent",
     "next": "Suivant",
-    "today": "Aujourd'hui"
+    "today": "Aujourd'hui",
+    "pickDate": "Choisir une date"
   },
   "diary": {
     "view": "Affichage",

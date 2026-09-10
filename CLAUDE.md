@@ -551,6 +551,26 @@ A/B week parity is **derived** from a term-start date, never stored, so no calen
 
 **`/` writes nothing.** A block could have opened its `SeanceNote` inline, turning the week view into the place a teacher writes up their week in one pass instead of one round trip per class — and that was rejected, because a note would then be written in two places, the duplication this app has refused everywhere else (one path for attendance, one for a mark). The séance strip on the class page owns both the note and, now, the time editor for `endsAt` and `startsAt`; `/` only links there. Saturday and Sunday earn a column only when that **date** carries a lesson or a séance, the same per-weekday rule `/schedule` applies, applied here per date since a Saturday make-up lesson is a fact about the 12th and not about Saturdays.
 
+**`CalendarNav` carries an opt-in date field**, and `/` is the only caller
+passing one. Three buttons can only walk, and reaching June from September is a
+lot of tapping to answer "what did I do with 3°B before the holidays". It
+reports a DAY and the caller decides what that means, the same division that
+keeps the label a caller's business — and it is a native `<input type="date">`
+rather than a calendar of our own: Réglages already picks the term anchor with
+one, it is keyboard- and screen-reader complete for free, and its overlay is
+browser chrome rather than one of the blocking dialogs this app bans. A
+half-typed value parses to null and is IGNORED, since the field emits on every
+keystroke and "2026-09-0" would otherwise step the view through days nobody
+asked for. `max-w-*` sizes it, never `w-auto`: `.field` sets `width: 100%` and
+beats a utility at equal specificity, the same ordering trap `.btn` sets for
+`justify-between`.
+
+Landing on a week BEFORE the term anchor is now one gesture rather than a dozen
+taps, and `entriesForDate` returns nothing there on purpose — the parity would
+be negative and arbitrary. So `EmptyToday` distinguishes the two empties: no
+timetable at all, and a week the timetable does not reach yet. Without that,
+the picker looks broken every time a teacher aims at last June.
+
 The `‹ / Aujourd'hui / ›` control is `CalendarNav` (`src/modules/design-system/components/calendar-nav.tsx`), shared with the journal: it knows nothing about whether it steps a day, a week or a month, which is what lets the two features step differently through the same three buttons. Its i18n keys moved from `diary.previous`/`diary.next`/`diary.today` to top-level `calendar.*`, the `attendance.*` reasoning applied again: a control shared by two features belongs to neither.
 
 ### The journal is not a cahier de textes
