@@ -96,30 +96,39 @@ export function groupMemberKey(groupId: string, studentId: string): [string, str
 export function openWorkspaceDb(workspaceId: string): AppDatabase {
   const db = new Dexie(`profs-${workspaceId}`) as AppDatabase;
   /**
-   * ONE version, declaring the schema as it stands.
+   * ONE declaration, numbered above the last of the chain it replaces.
    *
-   * There were sixteen, each a bump with no upgrade callback, because schema
-   * changes here are disposable: a stale workspace is wiped on the next boot
-   * rather than migrated. Nothing is deployed, so that chain described
-   * migrations nobody will ever run, and the current shape could only be read
-   * by replaying fifteen diffs.
+   * There were sixteen versions, each a bump with no upgrade callback, because
+   * schema changes here are disposable: a stale workspace is wiped rather than
+   * migrated. Nothing is deployed, so that chain described migrations nobody
+   * will ever run, and the current shape could only be read by replaying
+   * fifteen diffs. What replaces it is not a chain of one — it is the same
+   * rule stated once, at the next number up.
    *
-   * The consequence is load-bearing and deliberate: IndexedDB refuses to open
-   * a database at a version LOWER than the stored one, so every workspace
-   * built by an earlier build fails to open with `VersionError`, reaches
-   * `RecoveryShell`, and is offered the discard. That is only true because
-   * `classifyOpenFailure` treats `VersionError` as `corrupt` — see
-   * `src/domain/recovery.ts`. Without that, this line bricks every existing
-   * workspace instead of wiping it.
+   * The NUMBER is the load-bearing part, and 1 would have been a silent bug.
+   * Dexie does not surface a downgrade: `dexieOpen` catches the `VersionError`
+   * that a lower number provokes, reopens with no version at all, and patches
+   * the declared schema into whatever it finds. A store that is GONE is not
+   * dropped that way — it stays in IndexedDB, outside `db.tables`, and
+   * therefore outside `wipeWorkspace` and the backup's clear list, which both
+   * read `db.tables`. A term of pupils' levels would survive "supprimer toutes
+   * les données", and `PRIVACY.md` promises that erase is permanent.
+   *
+   * At 17 the upgrade runs forwards, as an upgrade: Dexie diffs this
+   * declaration against the stored schema, DELETES the stores that are gone —
+   * `rubricAssessments`, `rubricScores`, and the older casualties before them
+   * — and carries every surviving store forward with its rows untouched. A
+   * grille already graded is lost because its store is dropped, not because
+   * the workspace is discarded, and nothing reaches `RecoveryShell`.
    *
    * The rule for the next change is unchanged: add a table or a field, bump to
-   * version 2, write no upgrade function.
+   * 18, write no upgrade function.
    *
    * `&` marks a unique index. `desks` refuses two tables on one square,
    * `seatingPlans` one plan per class per salle, and `assignments` one pupil
    * in two chairs — invariants that used to live only in careful code.
    */
-  db.version(1).stores({
+  db.version(17).stores({
     classes: "id, name",
     students: "id, classId, lastName",
     subjects: "id, name",

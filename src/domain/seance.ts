@@ -33,7 +33,15 @@ export function hourOfDay(ms: number): number {
  * This is the per-row half of the repair. It cannot see siblings, so it
  * cannot know whether the hour it invents collides with another séance of
  * the same class on the same day — that is `repairSeanceCollisions`, below,
- * which both real callers actually use.
+ * which is the form anything repairing a whole collection wants.
+ *
+ * Neither has a caller any more. Both had exactly two — the v16 upgrade
+ * callback and the import path in `backup.ts` — and the schema collapse took
+ * the first while the single accepted backup format took the second, since
+ * every format-13 file's séances already carry times. They are kept and
+ * tested; whether dead code survives is a question for the branch, not for
+ * this comment. What the comment must not do is name callers that no longer
+ * exist.
  */
 export function backfillSeanceTimes(row: {
   startsAt?: number;

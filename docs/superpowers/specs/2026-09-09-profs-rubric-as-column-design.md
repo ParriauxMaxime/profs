@@ -240,15 +240,21 @@ invisible in the grid, never summarised, still carried by export.
 ## Migration
 
 The app is not released. So rather than adding versions 17 and 18 to a chain of
-sixteen, **the chain collapses to a single `db.version(1)`** declaring the
-schema as it now stands. That is the honest expression of "schema changes are
-disposable": there is nothing deployed to migrate, so there is no migration —
-and no history of migrations to read past when someone wants to know the
-current shape.
+sixteen, **the chain collapses to a single declaration** of the schema as it
+now stands. That is the honest expression of "schema changes are disposable":
+there is nothing deployed to migrate, so there is no migration — and no history
+of migrations to read past when someone wants to know the current shape.
 
 ```ts
-db.version(1).stores({ …the whole schema, rubricAssessments absent… });
+db.version(17).stores({ …the whole schema, rubricAssessments absent… });
 ```
+
+**The number is 17, and 1 would have been a silent bug.** This is corrected
+from an earlier draft of this spec, which said `db.version(1)` and reasoned
+from a `VersionError` that never happens; the subsection below carries the
+measurement. 17 is simply the next integer above the chain's last version —
+one declaration, no chain, no upgrade callback. The next change bumps to 18 and
+writes no upgrade function, exactly as the standing rule has always said.
 
 The store is also **renamed**: `rubricScores` becomes `criterionLevels`. Under
 a collapse the rename costs nothing mechanically, and it is right on its own
@@ -263,55 +269,85 @@ the reason `Desk` is not `Table`. The per-version comments go with the versions.
 
 ### What a collapse does to an existing workspace
 
-IndexedDB refuses to open a database at a version LOWER than the stored one,
-throwing `VersionError`. Every workspace that exists today is at v16, so every
-one of them fails to open, `initWorkspace` rejects, and `main.tsx` renders
-`RecoveryShell`. That is intended: an old workspace is discarded, not upgraded.
+**Measured, not reasoned about**, with probes against Dexie 4 and
+`fake-indexeddb` — because the reasoning was wrong twice before the probe
+settled it.
 
-**It only works because of a one-line fix in `src/domain/recovery.ts`, and
-without that fix this design bricks every existing workspace.** Today:
+At **17**, the upgrade runs forwards, as an upgrade. Dexie diffs the
+declaration against the stored schema, **deletes** the stores that are gone —
+`rubricAssessments`, `rubricScores`, and the older casualties before them — and
+carries every surviving store forward with its rows untouched. Nothing rejects,
+`initWorkspace` resolves, and `RecoveryShell` is never reached. A grille already
+graded is lost because its STORE is dropped, not because the workspace is
+discarded.
 
-```ts
-const RETRY_ERRORS = ["DatabaseClosedError", "VersionError", "AbortError", "TimeoutError"];
+**The trap, worth writing down so nobody rediscovers it: Dexie swallows a
+downgrade.** A number LOWER than the stored one — `db.version(1)` against a v16
+workspace — provokes a real `VersionError` from IndexedDB, and `dexieOpen`
+catches it:
+
+```js
+case 'VersionError':
+    if (nativeVerToOpen > 0) {
+        nativeVerToOpen = 0;
+        return tryOpenDB();     // reopen with no version at all
+    }
 ```
 
-`VersionError` classifies as `retry`, and `offersDiscard("retry")` is `false` —
-so the panel would offer *Recharger* and nothing else, and the reload would fail
-identically, forever. Bricked, with the pupils still in IndexedDB and no route
-to the wipe in Réglages: precisely the dead end that module exists to remove.
+It then patches the declared schema into whatever it found, warning `Dexie
+SchemaDiff: Schema was extended without increasing the number passed to
+db.version()`. The database opens. `db.tables` reads exactly as it does at 17.
+And the stores that are gone are **not** deleted: they stay in IndexedDB,
+outside `db.tables` — which is what `wipeWorkspace` and the backup's clear list
+both read. A term of pupils' levels would survive *supprimer toutes les
+données*, invisible and unreachable, against a `PRIVACY.md` that calls that
+erase permanent.
 
-`VersionError` is removed from `RETRY_ERRORS` and falls through to `corrupt`,
-which offers the discard. The comment above that list is corrected with it: the
-case it describes — another tab holding the database mid-upgrade — raises
+That is why `src/db/index.test.ts` asserts the dropped stores are absent from
+`db.backendDB().objectStoreNames` and deliberately **not** from `db.tables`: a
+`db.tables` assertion passes under either number and would have caught nothing.
+
+**`src/domain/recovery.ts`'s one-line fix stays, and is no longer load-bearing
+for this design.** `VersionError` was classified `retry`, and
+`offersDiscard("retry")` is `false`, so a panel offering only *Recharger* would
+have failed identically, forever. It is removed from `RETRY_ERRORS` and falls
+through to `corrupt`. The comment above that list is corrected with it: the case
+it describes — another tab holding the database mid-upgrade — raises
 `BlockedError` or `DatabaseClosedError`, never `VersionError`. `VersionError`
 means *the code is older than the database*, which no reload can fix.
 
-**This is a latent bug today, independent of this design.** A device running a
-stale service-worker shell after any schema bump hits exactly that dead end. The
-fix is not scoped to the collapse and should not be described as if it were.
+**This is a latent bug independent of this design**, which is the whole reason
+it survives the correction: a device running a stale service-worker shell after
+any schema bump can still meet a `VersionError` that reaches a caller, and it
+must land on the branch offering a way out. What is no longer true is that this
+design depends on it — nothing here produces a `VersionError` any more.
 
-The discard deletes the database and keeps the registry entry, so the workspace
-returns **named and empty**. It does not return seeded: `seedIfEmpty` gates on
-`profs-seeded-workspaces` in `localStorage`, which the discard does not touch,
-and that is deliberate — Réglages promises the wipe is permanent, and one
-discard that reseeds while another does not is two meanings for one word.
+When a discard does happen, it deletes the database and keeps the registry
+entry, so the workspace returns **named and empty**. It does not return seeded:
+`seedIfEmpty` gates on `profs-seeded-workspaces` in `localStorage`, which the
+discard does not touch, and that is deliberate — Réglages promises the wipe is
+permanent, and one discard that reseeds while another does not is two meanings
+for one word.
 
 ### What is lost
 
 **Grilles already graded**, in the database and in an exported file alike.
 
 **`db.version(16)`'s séance backfill**, which gave `startsAt`/`endsAt` to
-séances recorded before they carried times. Nothing is stranded by that: a
-workspace old enough to need it is a workspace that gets discarded rather than
-opened. `backfillSeanceTimes` and `repairSeanceCollisions` stay in
-`src/domain/seance.ts` — they are still `backup.ts`'s and are tested there.
+séances recorded before they carried times. A workspace old enough to need it
+is old enough that its untimed séances are a pre-release artefact, and `sessions`
+is carried forward rather than dropped, so the rows survive without the repair.
+`backfillSeanceTimes` and `repairSeanceCollisions` stay in `src/domain/seance.ts`
+and stay tested — but with the v16 callback gone and the single accepted backup
+format making the import-time repair inert, **neither has a caller**. Whether
+they survive is a question for the branch review, not for this design.
 
 **The upgrade-seam regression tests** in `src/db/index.test.ts` — the v2
 per-class layout, the v9 saved room, the v13 day-keyed journal, the v15 entry.
-They build a database at an earlier version and open it with current code, and
-under a single v1 that is not merely meaningless but impossible: building at v2
-and opening at v1 raises the `VersionError` being classified above. They are
-deleted and replaced by the test named below.
+They build a database at an earlier version and open it with current code,
+which one declaration leaves nothing to say: there are no intermediate versions
+left for a fixture to sit at. They are deleted and replaced by the tests named
+below.
 
 **A backup file is accepted at the current format and no other, as a standing
 rule.** `parseBackup` accepts `z.union([literal(11), literal(12)])` today, and
@@ -378,8 +414,11 @@ cleanly" but "an old database offers a way out", and that is now the only thing
 standing between a version collapse and a bricked workspace.
 
 Schema (`src/db/index.test.ts`): the four upgrade-seam tests are deleted, and
-one replaces them — build a database at a HIGHER version with `fake-indexeddb`,
-open it with current code, and assert the rejection classifies as discardable.
+three replace them — build a v16 database with `fake-indexeddb`, open it with
+current code, and assert (a) the dropped stores are gone from
+`backendDB().objectStoreNames`, which is the assertion the downgrade trap makes
+necessary, (b) every surviving store keeps its rows and nothing rejects, and
+(c) a `VersionError` that does reach a caller still classifies as discardable.
 The table-list test and the wipe test stay, and both gain `criterionLevels`.
 
 Backup (`src/db/backup.test.ts`): a format-11 file and a format-12 file are each

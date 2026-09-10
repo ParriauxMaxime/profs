@@ -63,24 +63,9 @@ describe("the schema", () => {
   });
 });
 
-describe("a workspace built by an earlier version of the app", () => {
-  it("opens rather than bricking, keeping every row in every store the schema still names", async () => {
-    // The schema is a single version now, so an existing database can only
-    // ever be AHEAD of the code. The design predicted a `VersionError`
-    // reaching `RecoveryShell`; DEXIE ABSORBS IT. `dexieOpen` catches
-    // `VersionError`, retries with no version at all, and then patches the
-    // declared schema into whatever it found — the console warns "Schema was
-    // extended without increasing the number passed to db.version()". That is
-    // library behaviour, identical in a browser, not a `fake-indexeddb` quirk:
-    // a raw `indexedDB.open(name, 10)` against a database at 160 really does
-    // fail with `VersionError`, and Dexie really does swallow it.
-    //
-    // So the collapse costs a teacher their grilles, exactly as intended, but
-    // it reaches that outcome by carrying the workspace forward rather than by
-    // discarding it. Task 1's `VersionError` → `corrupt` fix still stands on
-    // its own — see `src/domain/recovery.test.ts` — it simply is not what
-    // saves this.
-    const workspaceId = crypto.randomUUID();
+describe("a workspace built by the chain this declaration replaces", () => {
+  /** A v16 workspace holding a class and a grille scored under the old key. */
+  async function buildV16(workspaceId: string): Promise<void> {
     const old = new Dexie(`profs-${workspaceId}`);
     old.version(16).stores({
       classes: "id, name",
@@ -97,6 +82,39 @@ describe("a workspace built by an earlier version of the app", () => {
       updatedAt: 1,
     });
     old.close();
+  }
+
+  it("really deletes the stores the schema no longer declares", async () => {
+    // Asserted against `backendDB().objectStoreNames` and NOT against
+    // `db.tables`, and the difference is the whole test.
+    //
+    // Numbered BELOW the stored version — `db.version(1)`, which this
+    // declaration briefly was — Dexie never surfaces the `VersionError`: it
+    // catches it, reopens with no version, and patches the declared schema in.
+    // `db.tables` then reads exactly as it does here, so a `db.tables`
+    // assertion passes either way, while `rubricScores` sits in IndexedDB with
+    // its rows. `wipeWorkspace` and the backup's clear list both read
+    // `db.tables`, so a pupil's levels would outlive "supprimer toutes les
+    // données" — the erase `PRIVACY.md` calls permanent.
+    const workspaceId = crypto.randomUUID();
+    await buildV16(workspaceId);
+
+    const fresh = openWorkspaceDb(workspaceId);
+    await fresh.open();
+
+    const stores = Array.from(fresh.backendDB().objectStoreNames);
+    expect(stores).not.toContain("rubricScores");
+    expect(stores).not.toContain("rubricAssessments");
+    expect(stores).toContain("criterionLevels");
+    fresh.close();
+  });
+
+  it("carries every surviving store forward with its rows, and never reaches the recovery shell", async () => {
+    // The upgrade runs forwards, as an upgrade. A grille already graded is
+    // lost because its STORE is dropped, not because the workspace is
+    // discarded — nothing rejects, so `initWorkspace` never rejects either.
+    const workspaceId = crypto.randomUUID();
+    await buildV16(workspaceId);
 
     const fresh = openWorkspaceDb(workspaceId);
     const error = await fresh.open().then(
@@ -105,28 +123,18 @@ describe("a workspace built by an earlier version of the app", () => {
     );
 
     expect(error).toBeNull();
-    // The class survives, and every store the collapsed schema declares is
-    // there to be written to.
     expect(await fresh.classes.count()).toBe(1);
     expect(await fresh.criterionLevels.count()).toBe(0);
-    expect(fresh.tables.map((t) => t.name)).toContain("criterionLevels");
-    // What the collapse cannot do is REMOVE a store: `stores({ x: null })` was
-    // the only mechanism, and there is no version left to say it in. The old
-    // grille stores stay in IndexedDB, out of `db.tables` — which means
-    // `wipeWorkspace` and the backup's clear list, both of which read
-    // `db.tables`, never reach them. Their rows outlive "supprimer toutes les
-    // données"; only deleting the workspace's database removes them.
-    expect(fresh.tables.map((t) => t.name)).not.toContain("rubricScores");
-    expect(Array.from(fresh.backendDB().objectStoreNames)).toContain("rubricScores");
     fresh.close();
   });
 
   it("classifies a VersionError that does reach a caller as discardable", async () => {
-    // The guarantee that stands between a schema change and a blank page,
-    // asserted here at the seam rather than only in the domain: a raw open
-    // below the stored version fails, and that failure must land on the branch
-    // offering the discard — otherwise the panel shows one button that fails
-    // identically, forever, with the pupils still in IndexedDB.
+    // No longer what saves the collapse — Dexie swallows the downgrade, and
+    // the two tests above are what this design rests on. It stands on its own
+    // anyway: a device running a stale service-worker shell after any bump can
+    // still meet a `VersionError`, and it must land on the branch offering the
+    // discard, or the panel shows one button that fails identically, forever,
+    // with the pupils still in IndexedDB.
     const name = `profs-${crypto.randomUUID()}`;
     const ahead = new Dexie(name);
     ahead.version(99).stores({ classes: "id, name" });
