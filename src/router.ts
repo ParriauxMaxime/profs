@@ -31,7 +31,7 @@ export const Router = createRouter(
     // search params rather than path segments because a lesson is one page
     // seen from a different hour, not a different destination.
     Class: "/classes/:classId?:date&:at",
-    ClassStudents: "/classes/:classId/eleves",
+    ClassStudents: "/classes/:classId/eleves?:groupe&:sort&:dir",
     ClassDiary: "/classes/:classId/journal",
     // Kept only so an old link or bookmark to a tab still resolves — each
     // redirects to `Class` in `app.tsx` rather than rendering.
@@ -39,7 +39,10 @@ export const Router = createRouter(
     ClassStudentsLegacy: "/classes/:classId/students",
     ClassBooksLegacy: "/classes/:classId/books",
     ClassDiaryLegacy: "/classes/:classId/diary",
-    Student: "/students/:studentId",
+    // The params describe the LIST the `‹ ›` arrows walk, never the pupil.
+    // A page navigation cannot carry an array, so the URL carries the
+    // description and `studentSequence` rebuilds the order.
+    Student: "/students/:studentId?:q&:classe&:groupe&:sort&:dir",
     Gradebook: "/gradebooks/:gradebookId",
     Entry: "/gradebooks/:gradebookId/entry/:columnId",
     Rubrics: "/gradebooks/:gradebookId/rubrics",

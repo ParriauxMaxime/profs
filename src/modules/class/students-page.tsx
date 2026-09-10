@@ -1,7 +1,9 @@
 import type { Student, StudentGroup } from "@db";
 import { deleteGroup, deleteStudent } from "@db/cascade";
 import { useDb } from "@db/provider";
-import { filterByGroup, groupsForStudent } from "@domain/group";
+import { filterByGroup, groupsForStudent, resolveGroupSelection } from "@domain/group";
+import { compareStudents, STUDENT_SORT_COLUMNS } from "@domain/student-list";
+import { type ColumnSort, paramsFromSorting, sortingFromParams } from "@domain/table-sort";
 import { Link } from "@swan-io/chicane";
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -21,6 +23,16 @@ import { StudentForm } from "./components/student-form";
 const helper = createColumnHelper<Student>();
 
 /**
+ * `compareStudents` wants a `classLabel`, and the roster — one class at a
+ * time — has no such field on `Student`. Every pupil gets the same empty
+ * string, so it never enters the comparison; the helper exists so that
+ * satisfying the shape isn't repeated at every sortable column.
+ */
+function toRosterListStudent(student: Student) {
+  return { ...student, classLabel: "" };
+}
+
+/**
  * The roster: who is in this class, which groups they belong to, and the card
  * that opens on any of them.
  *
@@ -35,7 +47,17 @@ const helper = createColumnHelper<Student>();
  * belongs to a lesson, and this page is not one — a teacher marking today's
  * register does it from the plan, where a session is selected.
  */
-export function ClassStudentsPage({ classId }: { classId: string }) {
+export function ClassStudentsPage({
+  classId,
+  groupe,
+  sort,
+  dir,
+}: {
+  classId: string;
+  groupe?: string;
+  sort?: string;
+  dir?: string;
+}) {
   const { t } = useTranslation();
   const db = useDb();
   const [editing, setEditing] = useState<Student | "new" | null>(null);
@@ -44,8 +66,6 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
   // The pupil whose card is open, held as an id: the table sorts and searches
   // underneath the card, and a row index would open a different pupil.
   const [cardStudentId, setCardStudentId] = useState<string | null>(null);
-  // Held as a group id, never an index — see GroupFilter.
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   // An explicit null distinguishes "no such class" from "still loading":
   // useLiveQuery gives undefined for both, and the page would otherwise sit on
@@ -71,6 +91,18 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
   const groupsList = groups ?? [];
   const membershipsList = memberships ?? [];
 
+  // Every param this page owns, written in one place. A handler naming only
+  // the param it changes silently clears the others — the bug `/students`
+  // already had to fix by centralising its four.
+  const sorting = sortingFromParams(sort, dir, STUDENT_SORT_COLUMNS);
+  const selectedGroupId = resolveGroupSelection(groupsList, groupe ?? null);
+  const replaceParams = (next: { groupe?: string | null; sorting?: ColumnSort[] }) =>
+    Router.replace("ClassStudents", {
+      classId,
+      groupe: (next.groupe === undefined ? selectedGroupId : next.groupe) ?? undefined,
+      ...paramsFromSorting(next.sorting ?? sorting),
+    });
+
   const columns = useMemo(
     () => [
       helper.accessor("lastName", {
@@ -90,8 +122,21 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
             <PupilName student={info.row.original} format="surname" />
           </button>
         ),
+        // The shared comparator, so the rows and the pupil page's `‹ ›`
+        // arrows can never disagree about this list's order.
+        sortingFn: (a, b, columnId) =>
+          compareStudents(toRosterListStudent(a.original), toRosterListStudent(b.original), [
+            { id: columnId, desc: false },
+          ]),
       }),
-      helper.accessor("firstName", { header: () => t("student.firstName"), size: 20 }),
+      helper.accessor("firstName", {
+        header: () => t("student.firstName"),
+        size: 20,
+        sortingFn: (a, b, columnId) =>
+          compareStudents(toRosterListStudent(a.original), toRosterListStudent(b.original), [
+            { id: columnId, desc: false },
+          ]),
+      }),
       helper.display({
         id: "groups",
         header: () => t("group.title"),
@@ -162,7 +207,7 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
         <GroupFilter
           groups={groups}
           selectedGroupId={selectedGroupId}
-          onSelect={setSelectedGroupId}
+          onSelect={(groupId) => replaceParams({ groupe: groupId })}
         />
       )}
 
@@ -241,7 +286,7 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
                       body={t("group.confirmDeleteBody", { count })}
                       onConfirm={async () => {
                         await deleteGroup(db, group.id);
-                        if (selectedGroupId === group.id) setSelectedGroupId(null);
+                        if (selectedGroupId === group.id) replaceParams({ groupe: null });
                       }}
                     />
                   </div>
@@ -284,6 +329,8 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
         getRowId={(student) => student.id}
         globalSearchFields={["lastName", "firstName"]}
         emptyMessage={t("class.noStudents")}
+        sorting={sorting}
+        onSortingChange={(next) => replaceParams({ sorting: next })}
       />
 
       {cardStudent && (
@@ -291,6 +338,11 @@ export function ClassStudentsPage({ classId }: { classId: string }) {
           key={cardStudent.id}
           student={cardStudent}
           session={null}
+          listParams={{
+            classe: classId,
+            groupe: selectedGroupId ?? undefined,
+            ...paramsFromSorting(sorting),
+          }}
           onClose={() => setCardStudentId(null)}
         />
       )}

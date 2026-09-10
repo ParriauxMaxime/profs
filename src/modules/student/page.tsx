@@ -19,7 +19,16 @@ import { Router } from "../../router";
 import { ConfirmButton } from "../design-system/components/confirm-button";
 import { PupilName } from "../design-system/components/pupil-name";
 
-export function StudentPage({ studentId }: { studentId: string }) {
+export function StudentPage({
+  studentId,
+}: {
+  studentId: string;
+  q?: string;
+  classe?: string;
+  groupe?: string;
+  sort?: string;
+  dir?: string;
+}) {
   const { t, i18n } = useTranslation();
   const db = useDb();
   // Counts only. The timeline below stays complete: a behaviour log is a

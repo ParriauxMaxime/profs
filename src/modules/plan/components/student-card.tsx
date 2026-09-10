@@ -12,6 +12,7 @@ import {
   BEHAVIOUR_TYPES,
   type BehaviourType,
 } from "@domain/behaviour";
+import type { StudentListParams } from "@domain/student-list";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useRef, useState } from "react";
@@ -46,6 +47,7 @@ export function StudentCard({
   onClose,
   onMove,
   onUnseat,
+  listParams,
 }: {
   student: Student;
   session?: Session | null;
@@ -56,6 +58,11 @@ export function StudentCard({
   onMove?: () => void;
   /** Only offered when they actually hold a place. */
   onUnseat?: () => void;
+  /**
+   * The list the pupil page's `‹ ›` arrows should walk, when this card was
+   * opened from one. Absent on the seating plan, which is not a list.
+   */
+  listParams?: StudentListParams;
 }) {
   const { t } = useTranslation();
   const db = useDb();
@@ -130,7 +137,10 @@ export function StudentCard({
             <span className="break-words font-semibold text-lg">
               <PupilName student={student} />
             </span>
-            <Link to={Router.Student({ studentId: student.id })} className="text-accent text-sm">
+            <Link
+              to={Router.Student({ studentId: student.id, ...listParams })}
+              className="text-accent text-sm"
+            >
               {t("student.timeline")}
             </Link>
           </div>

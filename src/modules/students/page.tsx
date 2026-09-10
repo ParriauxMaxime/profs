@@ -1,5 +1,6 @@
 import type { Student } from "@db";
 import { useDb } from "@db/provider";
+import { compareStudents, STUDENT_SORT_COLUMNS } from "@domain/student-list";
 import { type ColumnSort, paramsFromSorting, sortingFromParams } from "@domain/table-sort";
 import { Link } from "@swan-io/chicane";
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
@@ -20,13 +21,6 @@ import { PupilName } from "../design-system/components/pupil-name";
  * (`SchoolClass` over `class`, `Desk` over `Table`).
  */
 type StudentRow = Student & { classLabel: string };
-
-/**
- * The columns a URL may name in `?sort=`. Listed explicitly rather than derived
- * from `columns`, because TanStack fills an accessor column's `id` in itself
- * and a definition here carries `undefined` until it does.
- */
-const SORTABLE_COLUMNS = ["lastName", "firstName", "classLabel"];
 
 const helper = createColumnHelper<StudentRow>();
 
@@ -69,6 +63,35 @@ export function StudentsPage({
     }));
   }, [data]);
 
+  // Held as a class ID, never an index, and a class that no longer exists
+  // reads as "Toutes" rather than as an empty list — the same rule
+  // `resolveGroupSelection` applies to the group filter. Tolerant of `data`
+  // still loading (`?.`) because this, `sorting` and `listParams` below must
+  // all be computed before `columns`, and `columns` is a hook that has to run
+  // on every render — including the one where `data` isn't back yet — or React
+  // sees a different number of hooks between renders.
+  const selectedClassId = classe && data?.classes.some((c) => c.id === classe) ? classe : null;
+
+  // A `?sort=` naming a column that does not exist falls back to the default
+  // order rather than sorting by a phantom column — the same resolve-or-ignore
+  // rule `?classe` follows just above. Memoized because `sortingFromParams`
+  // returns a fresh array every call, and both `listParams` below and
+  // DataTable's own `sorting` prop need a stable reference to avoid
+  // recomputing or re-rendering on every pass.
+  const sorting = useMemo(() => sortingFromParams(sort, dir, STUDENT_SORT_COLUMNS), [sort, dir]);
+
+  // What the pupil page needs to rebuild this exact list for its arrows.
+  // Memoized so the `columns` memo below — which depends on it — does not
+  // recompute on every render, only when the list actually changes shape.
+  const listParams = useMemo(
+    () => ({
+      q: q || undefined,
+      classe: selectedClassId ?? undefined,
+      ...paramsFromSorting(sorting),
+    }),
+    [q, selectedClassId, sorting],
+  );
+
   const columns = useMemo(
     () => [
       helper.accessor("lastName", {
@@ -79,38 +102,42 @@ export function StudentsPage({
         // what the teacher typed rather than the capitals CSS renders.
         cell: (info) => (
           <Link
-            to={Router.Student({ studentId: info.row.original.id })}
+            to={Router.Student({ studentId: info.row.original.id, ...listParams })}
             className="font-medium hover:underline"
           >
             <PupilName student={info.row.original} format="surname" />
           </Link>
         ),
+        // The shared comparator, so the rows and the pupil page's `‹ ›`
+        // arrows can never disagree about this list's order.
+        sortingFn: (a, b, columnId) =>
+          compareStudents(a.original, b.original, [{ id: columnId, desc: false }]),
       }),
-      helper.accessor("firstName", { header: () => t("student.firstName"), size: 35 }),
+      helper.accessor("firstName", {
+        header: () => t("student.firstName"),
+        size: 35,
+        sortingFn: (a, b, columnId) =>
+          compareStudents(a.original, b.original, [{ id: columnId, desc: false }]),
+      }),
       helper.accessor("classLabel", {
         header: () => t("students.columnClass"),
         size: 25,
         cell: (info) => <span className="text-text-muted">{info.getValue()}</span>,
+        sortingFn: (a, b, columnId) =>
+          compareStudents(a.original, b.original, [{ id: columnId, desc: false }]),
       }),
     ],
-    [t],
+    // `listParams` is a dependency, not an omission: a memo that skipped it
+    // would capture whatever `listParams` was on the render that first built
+    // the surname's `Link`, handing every later pupil the wrong `‹ ›` list.
+    [t, listParams],
   );
 
   if (!data) return <p className="text-text-muted">{t("common.loading")}</p>;
 
-  // Held as a class ID, never an index, and a class that no longer exists
-  // reads as "Toutes" rather than as an empty list — the same rule
-  // `resolveGroupSelection` applies to the group filter.
-  const selectedClassId = classe && data.classes.some((c) => c.id === classe) ? classe : null;
-
   const visibleRows = selectedClassId
     ? rows.filter((row) => row.classId === selectedClassId)
     : rows;
-
-  // A `?sort=` naming a column that does not exist falls back to the default
-  // order rather than sorting by a phantom column — the same resolve-or-ignore
-  // rule `?classe` follows just above.
-  const sorting = sortingFromParams(sort, dir, SORTABLE_COLUMNS);
 
   // ONE place that knows every param this page owns. There are four now, and a
   // handler naming only the one it changes silently clears the others — a bug
@@ -139,7 +166,7 @@ export function StudentsPage({
         onGlobalFilterChange={(value) => replaceParams({ q: value })}
         sorting={sorting}
         onSortingChange={(next) => replaceParams({ sorting: next })}
-        onRowClick={(student) => Router.push("Student", { studentId: student.id })}
+        onRowClick={(student) => Router.push("Student", { studentId: student.id, ...listParams })}
         // The class filter runs before DataTable ever sees the rows, so an
         // empty result for a chosen class is not "no pupils at all" — pick
         // the message that matches which one actually happened.
