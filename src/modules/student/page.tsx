@@ -3,6 +3,7 @@ import { sessionsForClass } from "@db/sessions";
 import { neighbours, studentSequence } from "@domain/student-list";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useTranslation } from "react-i18next";
+import { BehaviourBlock } from "./components/behaviour-block";
 import { CarnetSection } from "./components/carnet-section";
 import { PresenceBlock } from "./components/presence-block";
 import { StudentHeader } from "./components/student-header";
@@ -134,6 +135,8 @@ export function StudentPage({
       )}
 
       <PresenceBlock student={student} sessions={sessions} />
+
+      <BehaviourBlock student={student} sessions={sessions} />
     </div>
   );
 }
