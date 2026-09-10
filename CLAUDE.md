@@ -266,7 +266,7 @@ A teacher thinks in 3°B, not in carnets and rosters, so a class is **one page**
 
 **The URL names a slot, not a row** — `/classes/:classId?date=…&at=…`, the day at local midnight and minutes from midnight. It has to: Aujourd'hui links to a lesson that has no row yet, and a link that could only name a row would be dead until someone recorded something. `resolveSlot` (`src/domain/seance.ts`) falls back to the day's first séance when the time matches nothing, because a lesson moved from 10h to 11h leaves older links naming an hour nothing sits at, and an empty screen is a worse answer than the day's first lesson. What is recorded is filed against the day the strip is SHOWING (`seanceDay`), which ends at the URL's own day before it ever reaches the clock — falling back to today from a day holding no slot at all would mark attendance under today while the screen said 3 September.
 
-`ClassPage` loads the class and its pupils **once** and passes them down; a child that re-queried would flash "Chargement…" over a class already on screen. The **group filter is not here** — it lives on Élèves, with the roster it narrows, since that is the only screen left that reads one. It never narrowed the seats even when it was here, because filtering seats leaves holes in a room. The pupils are sorted by `compareStudents`, not by Dexie: the register on screen is the list the pupil card's arrows walk, and `sortBy("lastName")` is code-unit order, which puts Béal where a French reader does not look for it.
+`ClassPage` loads the class and its pupils **once** and passes them down; a child that re-queried would flash "Chargement…" over a class already on screen. The **group filter is not here** — it lives on Élèves and in the gradebook grid, with the rosters they narrow. It never narrowed the seats even when it was here, because filtering seats leaves holes in a room. The pupils are sorted by `compareStudents`, not by Dexie: the register on screen is the list the pupil card's arrows walk, and `sortBy("lastName")` is code-unit order, which puts Béal where a French reader does not look for it.
 
 **A salle is an upgrade to the register, never a prerequisite for it.** With no room in the workspace the seating region becomes a `RosterRegister`: the same pupils, the same tap opening the same `StudentCard`, the same marks. Attendance is a property of a séance, not of a chair, and a teacher who never draws a seating plan must still be able to use the app every day. The gesture is deliberately identical on both surfaces — marks set inline on a list and through a card on a plan would be two ways to record one fact, which is the duplication this app keeps refusing.
 
@@ -373,7 +373,7 @@ of a class, so the table reversed each class's internal surname order while the
 arrows kept it ascending. The second is `LIST_DEFAULT_SORT`. With no `?sort`,
 `sortingFromParams` answers `[]`, TanStack leaves the row model untouched, and
 the rows come out in Dexie's `orderBy("lastName")` — UTF-16 code-unit order,
-which disagrees with the collator on 243 of the seeded pool's 357 surnames.
+which disagrees with the collator on 248 of the seeded pool's 359 surnames.
 Both pages hand the table that default instead of `[]`. It stays out of the
 URL: `paramsFromSorting` drops both params when nothing is sorted, and a
 default spelled into every link is state that controls nothing.
