@@ -128,8 +128,10 @@ on screen.
 Photo through `PhotoInput`, the name through `PupilName`, the class as a link,
 the arrows and the position in the list, **Modifier** and **Supprimer**.
 
-The page owns the pupil entirely. `Supprimer` is a `ConfirmButton` whose body
-names the cascade — grades, attendance, behaviour, seat — and on confirm the
+The page owns the pupil entirely. **Modifier** reuses `StudentForm`, which
+edits surname, first name and notes — it does not move a pupil between classes,
+and neither does the roster's, so nothing is lost by reusing it. `Supprimer` is
+a `ConfirmButton` whose body names the cascade — grades, attendance, behaviour, seat — and on confirm the
 page navigates to the class roster with `Router.replace`, because a page cannot
 remain on a pupil who no longer exists.
 
