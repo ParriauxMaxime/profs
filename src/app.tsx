@@ -116,6 +116,7 @@ function Routes({ route }: { route: AppRoute }) {
       return (
         <ClassStudentsPage
           classId={route.params.classId}
+          q={route.params.q}
           groupe={route.params.groupe}
           sort={route.params.sort}
           dir={route.params.dir}

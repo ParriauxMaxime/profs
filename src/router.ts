@@ -31,7 +31,7 @@ export const Router = createRouter(
     // search params rather than path segments because a lesson is one page
     // seen from a different hour, not a different destination.
     Class: "/classes/:classId?:date&:at",
-    ClassStudents: "/classes/:classId/eleves?:groupe&:sort&:dir",
+    ClassStudents: "/classes/:classId/eleves?:q&:groupe&:sort&:dir",
     ClassDiary: "/classes/:classId/journal",
     // Kept only so an old link or bookmark to a tab still resolves — each
     // redirects to `Class` in `app.tsx` rather than rendering.

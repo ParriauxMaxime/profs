@@ -49,6 +49,11 @@ interface DataTableProps<T> {
   columns: ColumnDef<T, unknown>[];
   data: T[];
   emptyMessage?: string;
+  /**
+   * The row's own fields the search reads — fields of `T`, not column ids. A
+   * page may search something it does not draw, which is why these are read
+   * off the row rather than resolved through the table's columns.
+   */
   globalSearchFields?: (keyof T & string)[];
   searchPlaceholder?: string;
   /**
@@ -178,8 +183,15 @@ export function DataTable<T>({
     },
     globalFilterFn: (row, _columnId, filterValue) => {
       if (!globalSearchFields || !filterValue) return true;
+      // Read off `row.original`, never `row.getValue`. `getValue` resolves a
+      // COLUMN id and answers undefined for a field no column draws — so a
+      // search field that is not also a column matched nothing, silently. The
+      // roster searches the class name without showing a Classe column, and
+      // has to: `studentSequence` searches it, and a query the two read
+      // differently narrows the rows and the arrows to different pupils.
+      const source = row.original as Record<string, unknown>;
       const values = globalSearchFields.flatMap((f) => {
-        const v = row.getValue(f as string);
+        const v = source[f];
         if (Array.isArray(v)) return v as string[];
         return [v as string | undefined];
       });
