@@ -21,8 +21,12 @@ import { PupilName } from "../../design-system/components/pupil-name";
  * behind a triangle is a note nobody opens. The cost, that a conseil de classe
  * is a room with colleagues in it, is accepted in the design.
  *
- * The arrows are drawn only when this pupil is actually in a list. Reached from
- * a seat on the plan there is none, and drawing them would invent one.
+ * The arrows are drawn whenever there is a real list to walk: the one the
+ * caller named in `listParams`, or — when a card names none, as a seat on the
+ * plan or the salle-less register do — the pupil's own class, which
+ * `StudentCard` supplies instead of leaving the params empty. Either way the
+ * list is one the teacher was actually looking at, never one this page
+ * invented; only a link that carries no context at all draws nothing.
  */
 export function StudentHeader({
   student,
@@ -51,6 +55,11 @@ export function StudentHeader({
 
   const go = (studentId: string | null): void => {
     if (studentId === null) return;
+    // This header instance survives the step — it is not remounted, so an
+    // open form would otherwise silently follow onto the next pupil. Their
+    // own key on `StudentForm` keeps that from corrupting data, but a form a
+    // teacher didn't open is still wrong to leave open.
+    setEditing(false);
     Router.push("Student", { studentId, ...listParams });
   };
 

@@ -84,6 +84,7 @@ export function StudentPage({
 
   if (
     student === undefined ||
+    schoolClass === undefined ||
     sessions === undefined ||
     classmates === undefined ||
     sequence === undefined
@@ -96,7 +97,7 @@ export function StudentPage({
     <div className="flex flex-col gap-6">
       <StudentHeader
         student={student}
-        schoolClass={schoolClass ?? null}
+        schoolClass={schoolClass}
         studentCount={classmates.length}
         listParams={listParams}
         position={neighbours(sequence, student.id)}
