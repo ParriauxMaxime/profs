@@ -187,23 +187,24 @@ export function useSeatLabel(): (
   student: Student,
   attendance: AttendanceValue | null,
   events: BehaviourEvent[],
-  priorYellows: BehaviourEvent[],
   escalated: boolean,
   seances: number,
+  windowYellows: number,
 ) => string {
   const { t } = useTranslation();
 
-  return (student, attendance, events, priorYellows, escalated, seances) => {
+  return (student, attendance, events, escalated, seances, windowYellows) => {
     const parts = [`${student.lastName} ${student.firstName}`];
     if (attendance) parts.push(t(`attendance.${attendance}`));
     for (const type of new Set(events.map((event) => event.type))) {
       const count = events.filter((event) => event.type === type).length;
       parts.push(`${t(`behaviour.${type}`)} × ${count}`);
     }
-    // The hollow cards are shape alone on screen; the count of them is the
-    // word that stands for it.
-    const windowYellows =
-      priorYellows.length + events.filter((event) => event.type === "yellow").length;
+    // The hollow cards are shape alone on screen; `windowYellows` — read from
+    // the same `escalationContext` result they are built from, not
+    // recomputed here — is the word that stands for them. Off is off: the
+    // context short-circuits to an empty window for a disabled rule, so this
+    // count is already zero and needs no guard of its own.
     if (windowYellows > 0) {
       parts.push(t("escalation.windowCount", { count: windowYellows, seances }));
     }

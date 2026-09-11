@@ -150,6 +150,13 @@ export function PlanPage({
       return {
         priorYellows: windowYellows.filter((event) => event.sessionId !== session?.id),
         escalated: isEscalated(windowYellows.length, rule),
+        // The window's whole count, prior plus current — the same number the
+        // rule itself is judged against, and already zero when the rule is
+        // off, since `escalationContext` short-circuits to an empty map. The
+        // label reads this rather than re-deriving it from `priorYellows` and
+        // `events` separately, so it cannot claim a window the rule isn't
+        // tracking.
+        windowYellowCount: windowYellows.length,
       };
     },
     [escalation, session?.id, rule],
@@ -344,9 +351,9 @@ export function PlanPage({
                       seated,
                       attendanceOf?.get(seated.id) ?? null,
                       eventsOf?.get(seated.id) ?? [],
-                      facts?.priorYellows ?? [],
                       facts?.escalated ?? false,
                       rule.seances,
+                      facts?.windowYellowCount ?? 0,
                     )
                   : undefined;
                 return {
