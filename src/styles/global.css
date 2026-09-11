@@ -406,3 +406,27 @@ h3 {
     background-image: none;
   }
 }
+
+/* The automatic red card's entrance. It is one of exactly two animations in
+   this app, and it is deliberately short: the overlay dwells 2.5s and then
+   leaves on its own, so the motion has to be finished well before a teacher
+   would think about tapping it away. */
+@keyframes escalation-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6) rotate(-6deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes escalation-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
