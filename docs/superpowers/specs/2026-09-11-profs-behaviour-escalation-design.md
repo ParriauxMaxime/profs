@@ -152,9 +152,10 @@ no crossing test, because the rule keeps firing.
 The overlay is a `position: fixed` element and emphatically **not** a
 `<dialog>` — blocking dialogs are banned here, and they freeze the browser
 automation these screens are verified with. The card scales and settles in with
-the pupil's surname in capitals through `PupilName`, holds about 2.5s, and fades
-on its own. A tap anywhere cuts it short. `prefers-reduced-motion` collapses the
-motion to a plain fade of the same dwell.
+the pupil's surname in capitals through `PupilName`, holds about 2.5s, and then
+takes itself off. A tap anywhere cuts it short. `prefers-reduced-motion`
+collapses the ENTRANCE to a plain fade of the same dwell. (As built, there is no
+exit animation: the entrance is the only keyframe, and dismissal unmounts.)
 
 Auto-dismissal is the point: a teacher mid-lesson never has to find a button,
 and a tablet cannot be left sitting on a red card instead of on the register. An
