@@ -1,7 +1,8 @@
 import "fake-indexeddb/auto";
-import { hasBeenSeeded } from "@domain/workspaces";
+import { clearSeeded, hasBeenSeeded } from "@domain/workspaces";
 import { openWorkspaceDb } from ".";
 import { resetToFixture, seedIfEmpty } from "./seed";
+import { readEscalation } from "./settings";
 
 describe("seedIfEmpty", () => {
   beforeEach(() => {
@@ -236,6 +237,18 @@ describe("seedIfEmpty", () => {
         expect(criterionIds.has(level.criterionId)).toBe(true);
       }
     }
+    db.close();
+  });
+
+  it("seeds the escalation rule at two yellows over two séances", async () => {
+    const db = openWorkspaceDb(`seed-escalation-${crypto.randomUUID()}`);
+    const workspaceId = `ws-escalation-${crypto.randomUUID()}`;
+    await seedIfEmpty(db, workspaceId);
+
+    expect(await readEscalation(db)).toEqual({ enabled: true, seances: 2, yellows: 2 });
+    expect(await db.settings.count()).toBe(1);
+
+    clearSeeded(workspaceId);
     db.close();
   });
 });

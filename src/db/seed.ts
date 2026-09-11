@@ -2,6 +2,7 @@ import { ATTENDANCE_VALUES } from "@domain/attendance";
 import { avatarSvg, hasAvatar } from "@domain/avatar";
 import { BEHAVIOUR_TYPES } from "@domain/behaviour";
 import { addDays, nextDay } from "@domain/calendar";
+import { DEFAULT_ESCALATION } from "@domain/escalation";
 import { defaultGradebookName } from "@domain/gradebook/naming";
 import { DEFAULT_PERIOD_NAMES } from "@domain/gradebook/period";
 import { buildRoom, DEFAULT_TEMPLATE, type RoomTemplate } from "@domain/room-templates";
@@ -12,6 +13,7 @@ import { readTermStart, writeTermStart } from "@domain/term";
 import { clearSeeded, hasBeenSeeded, markSeeded } from "@domain/workspaces";
 import type { AppDatabase } from ".";
 import { FIRST_NAMES, LAST_NAMES } from "./seed-names";
+import { WORKSPACE_SETTINGS_ID } from "./settings";
 
 /**
  * Coprime to `LAST_NAMES.length` (357 = 3 × 7 × 17; 101 is prime), so striding
@@ -684,6 +686,7 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       db.studentGroups,
       db.groupMembers,
       db.scheduleEntries,
+      db.settings,
     ],
     async () => {
       await db.classes.bulkAdd(classes);
@@ -705,6 +708,16 @@ export async function seedIfEmpty(db: AppDatabase, workspaceId: string): Promise
       await db.studentGroups.bulkAdd(studentGroups);
       await db.groupMembers.bulkPut(groupMembers);
       await db.scheduleEntries.bulkAdd(scheduleEntries);
+
+      // The teacher who asked for this runs two-over-two, and that is what a
+      // demo school should demonstrate. A workspace created through
+      // `createWorkspace` never reaches here — it is marked seeded
+      // immediately — and reads `DEFAULT_ESCALATION` through the absent-row
+      // fallback instead, which is the same rule by a different road.
+      await db.settings.put({
+        id: WORKSPACE_SETTINGS_ID,
+        escalation: DEFAULT_ESCALATION,
+      });
     },
   );
 
