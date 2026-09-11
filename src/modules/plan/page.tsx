@@ -129,8 +129,10 @@ export function PlanPage({
 
   /**
    * The escalation window for the whole room — two queries, not one per seat.
-   * The rule's fields go into the dependency array individually because
-   * `useEscalationRule` returns a fresh object on every live-query tick.
+   * The rule's fields go into the dependency array individually, naming the
+   * exact values this read depends on, so an unrelated re-render — or a
+   * future change to what `useEscalationRule` returns — cannot silently
+   * change how often this re-runs.
    */
   const escalation = useLiveQuery(
     () => escalationContext(db, classId, session?.id ?? null, rule),

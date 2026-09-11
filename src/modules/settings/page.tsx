@@ -187,13 +187,13 @@ export function SettingsPage() {
         <ToggleGroup>
           <ToggleOption
             selected={escalation.enabled}
-            onSelect={() => void writeEscalation(db, { ...escalation, enabled: true })}
+            onSelect={() => void writeEscalation(db, { enabled: true })}
           >
             {t("escalation.on")}
           </ToggleOption>
           <ToggleOption
             selected={!escalation.enabled}
-            onSelect={() => void writeEscalation(db, { ...escalation, enabled: false })}
+            onSelect={() => void writeEscalation(db, { enabled: false })}
           >
             {t("escalation.off")}
           </ToggleOption>
@@ -214,13 +214,22 @@ export function SettingsPage() {
               value={draftYellows ?? String(escalation.yellows)}
               onChange={(e) => setDraftYellows(e.target.value)}
               onBlur={() => {
+                // A blur with no preceding onChange leaves the draft null —
+                // the teacher tabbed or tapped through without typing a
+                // digit. `Number(null)` reads as 0, which `clampRule` lifts
+                // to the floor, so clamping here unconditionally would
+                // silently overwrite a real rule with the floor every time a
+                // field is merely focused and released.
+                if (draftYellows === null) return;
                 const next = clampRule({ ...escalation, yellows: Number(draftYellows) });
                 // The clamped string, not null: falling back to the
                 // render-time `escalation.yellows` here would flash the OLD
                 // value until the write resolves and useLiveQuery re-renders.
                 // The effect above clears this once the stored value moves.
                 setDraftYellows(String(next.yellows));
-                if (next.yellows !== escalation.yellows) void writeEscalation(db, next);
+                if (next.yellows !== escalation.yellows) {
+                  void writeEscalation(db, { yellows: next.yellows });
+                }
               }}
             />
           </label>
@@ -236,13 +245,22 @@ export function SettingsPage() {
               value={draftSeances ?? String(escalation.seances)}
               onChange={(e) => setDraftSeances(e.target.value)}
               onBlur={() => {
+                // A blur with no preceding onChange leaves the draft null —
+                // the teacher tabbed or tapped through without typing a
+                // digit. `Number(null)` reads as 0, which `clampRule` lifts
+                // to the floor, so clamping here unconditionally would
+                // silently overwrite a real rule with the floor every time a
+                // field is merely focused and released.
+                if (draftSeances === null) return;
                 const next = clampRule({ ...escalation, seances: Number(draftSeances) });
                 // The clamped string, not null: falling back to the
                 // render-time `escalation.seances` here would flash the OLD
                 // value until the write resolves and useLiveQuery re-renders.
                 // The effect above clears this once the stored value moves.
                 setDraftSeances(String(next.seances));
-                if (next.seances !== escalation.seances) void writeEscalation(db, next);
+                if (next.seances !== escalation.seances) {
+                  void writeEscalation(db, { seances: next.seances });
+                }
               }}
             />
           </label>
@@ -252,7 +270,11 @@ export function SettingsPage() {
             backwards. */}
         <p className="text-sm text-text-faint">
           {escalation.enabled
-            ? t("escalation.rule", {
+            ? // MIN_ESCALATION_SEANCES is 1, and "1 séances" is not French —
+              // a dedicated key rather than an i18next plural, because
+              // `count` is already spent on `yellows` and cannot also drive
+              // agreement on `seances`.
+              t(escalation.seances === 1 ? "escalation.ruleSingleSeance" : "escalation.rule", {
                 yellows: escalation.yellows,
                 seances: escalation.seances,
               })

@@ -337,11 +337,14 @@
     "yellowsLabel": "Avertissements",
     "seancesLabel": "Dernières séances",
     "rule": "{{yellows}} avertissements sur {{seances}} séances donnent un carton rouge.",
+    "ruleSingleSeance": "{{yellows}} avertissements en une seule séance donnent un carton rouge.",
     "ruleOff": "Aucun carton rouge automatique.",
     "redCard": "Carton rouge automatique",
     "overlayTitle": "Carton rouge",
     "windowCount_one": "{{count}} avertissement sur les {{seances}} dernières séances",
-    "windowCount_other": "{{count}} avertissements sur les {{seances}} dernières séances"
+    "windowCount_other": "{{count}} avertissements sur les {{seances}} dernières séances",
+    "windowCountSingleSeance_one": "{{count}} avertissement sur cette séance",
+    "windowCountSingleSeance_other": "{{count}} avertissements sur cette séance"
   },
   "rubric": {
     "templates": "Modèles de grille",

@@ -20,6 +20,24 @@ export async function readEscalation(db: AppDatabase): Promise<EscalationRule> {
   return clampRule(row.escalation);
 }
 
-export async function writeEscalation(db: AppDatabase, rule: EscalationRule): Promise<void> {
-  await db.settings.put({ id: WORKSPACE_SETTINGS_ID, escalation: clampRule(rule) });
+/**
+ * A PATCH, not a full rule — merged against the stored row inside its own
+ * transaction. Réglages has four writers of this one row (two toggles, two
+ * number fields), and a `put` built from a render-time snapshot is the same
+ * bug `writeGrade` and `toggleAttendance` were written to avoid: toggling
+ * the switch right after typing a number blurs the field first, so two
+ * `put`s land from the same stale `escalation` and whichever resolves second
+ * silently drops what the other one just wrote.
+ */
+export async function writeEscalation(
+  db: AppDatabase,
+  patch: Partial<EscalationRule>,
+): Promise<void> {
+  await db.transaction("rw", db.settings, async () => {
+    const current = await readEscalation(db);
+    await db.settings.put({
+      id: WORKSPACE_SETTINGS_ID,
+      escalation: clampRule({ ...current, ...patch }),
+    });
+  });
 }

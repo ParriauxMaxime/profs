@@ -206,7 +206,16 @@ export function useSeatLabel(): (
     // context short-circuits to an empty window for a disabled rule, so this
     // count is already zero and needs no guard of its own.
     if (windowYellows > 0) {
-      parts.push(t("escalation.windowCount", { count: windowYellows, seances }));
+      // "1 séances" is not French, and `count` is already spent on
+      // `windowYellows` — a dedicated key for a one-séance window rather
+      // than an i18next plural, since `count` can only drive agreement on
+      // one number at a time.
+      parts.push(
+        t(seances === 1 ? "escalation.windowCountSingleSeance" : "escalation.windowCount", {
+          count: windowYellows,
+          seances,
+        }),
+      );
     }
     // And the derived red is colour alone, so it says its own name here.
     if (escalated) parts.push(t("escalation.redCard"));

@@ -10,9 +10,13 @@ import { useLiveQuery } from "dexie-react-hooks";
  * switching école re-opens the database, and a live query that forgets it goes
  * on answering with the previous school's row.
  *
- * The default stands in while the query is in flight. That is the same answer
- * an absent row gives, and it is only ever read by a surface that draws
- * nothing until it has counts to draw.
+ * The default stands in while the query is in flight, which is the same
+ * answer an absent row gives. That window is a microtask wide — before the
+ * live query resolves — but `StudentCard.addBehaviour` reads `rule.enabled`
+ * from it to decide whether to evaluate and announce, so a tap that lands
+ * inside it is judged against the default rather than the stored one; the
+ * card has to already be on screen for a tap to reach it at all, which is
+ * what keeps that window narrow rather than closed.
  */
 export function useEscalationRule(): EscalationRule {
   const db = useDb();

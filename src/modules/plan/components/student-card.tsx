@@ -109,9 +109,10 @@ export function StudentCard({
    *
    * A live query, so deleting one of the yellows below re-reads it and the
    * line goes away — which is the whole reason the red is derived rather than
-   * written. The rule's three fields are in the dependency array individually:
-   * `useEscalationRule` rebuilds its object on every live-query tick, and
-   * passing the object would re-run this read forever.
+   * written. The rule's three fields are in the dependency array
+   * individually, naming the exact values this read depends on, so an
+   * unrelated re-render cannot re-run it and a future change to the hook's
+   * identity cannot either.
    */
   const standing = useLiveQuery(async () => {
     if (!session || !rule.enabled) return null;
@@ -278,10 +279,15 @@ export function StudentCard({
                 className={standing.escalated ? "font-semibold text-sm" : "text-sm text-text-muted"}
                 style={standing.escalated ? { color: "var(--behaviour-red)" } : undefined}
               >
-                {t("escalation.windowCount", {
-                  count: standing.yellows.length,
-                  seances: rule.seances,
-                })}
+                {/* "1 séances" is not French, and `count` is already spent
+                    on the yellow count — a dedicated key for a one-séance
+                    window rather than an i18next plural on `seances` too. */}
+                {t(
+                  rule.seances === 1
+                    ? "escalation.windowCountSingleSeance"
+                    : "escalation.windowCount",
+                  { count: standing.yellows.length, seances: rule.seances },
+                )}
                 {standing.escalated ? ` — ${t("escalation.redCard")}` : ""}
               </p>
             )}

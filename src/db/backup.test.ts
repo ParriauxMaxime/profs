@@ -600,10 +600,11 @@ describe("export completeness", () => {
   it("restores every table, so nothing is exported and then dropped on the way back", async () => {
     const db = openWorkspaceDb(`backup-restore-${crypto.randomUUID()}`);
     await seedIfEmpty(db, `backup-restore-${crypto.randomUUID()}`);
-    // The demo school has no discipline rule of its own: without this, the
-    // settings table would sit at zero rows both before and after, and the
-    // "every table really held rows" assertion below would prove nothing
-    // about it.
+    // The seeded rule IS the default (`DEFAULT_ESCALATION`), so writing it
+    // unchanged would prove only that the settings ROW survives a round trip,
+    // not that its VALUES do — a bug that dropped a field on the way through
+    // would read back as the same default and pass silently. Writing a
+    // non-default rule here makes the values themselves the thing under test.
     await writeEscalation(db, { enabled: true, seances: 4, yellows: 3 });
 
     const before: Record<string, number> = {};
@@ -635,9 +636,11 @@ describe("importing twice", () => {
     // schema version is covered the day it is declared.
     const db = openWorkspaceDb(`backup-double-${crypto.randomUUID()}`);
     await seedIfEmpty(db, `backup-double-${crypto.randomUUID()}`);
-    // The demo school carries no discipline rule of its own, so without this
-    // the settings table would sit at zero both times and the "every table
-    // really held rows" assertion below would prove nothing about it.
+    // The seeded rule IS the default (`DEFAULT_ESCALATION`), so writing it
+    // unchanged here would prove only that the settings ROW survives, not
+    // that its VALUES do. A non-default rule makes a double import that
+    // silently reset a field to the default visible instead of passing by
+    // coincidence.
     await writeEscalation(db, { enabled: false, seances: 3, yellows: 2 });
     await db.scheduleEntries.add({
       id: "sch1",
@@ -753,9 +756,17 @@ describe("the settings store in a backup", () => {
     db.close();
   });
 
-  it("refuses a format-13 file", () => {
-    const stale = { version: 13, exportedAt: 1, classes: [], students: [] };
+  it("refuses a format-13 file", async () => {
+    // Built from a real export with only the version overwritten, so every
+    // OTHER required key is present — the version literal is the only reason
+    // this throws. The old fixture was missing every store but two, which
+    // would have refused a format-14 file just as readily and proved nothing
+    // about the version check itself.
+    const db = openWorkspaceDb(`backup-stale-${crypto.randomUUID()}`);
+    const backup = JSON.parse(JSON.stringify(await exportWorkspace(db)));
+    const stale = { ...backup, version: 13 };
     expect(() => parseBackup(stale)).toThrow();
+    db.close();
   });
 
   it("leaves no second settings row after a double import", async () => {

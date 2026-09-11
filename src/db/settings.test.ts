@@ -48,6 +48,18 @@ describe("the escalation setting", () => {
     db.close();
   });
 
+  it("merges a patch against the stored row rather than replacing it", async () => {
+    // The bug this guards: a `put` built from a render-time snapshot drops
+    // whatever another surface wrote since that snapshot was taken. Two
+    // sequential PATCHES — the shape every call site now sends — must
+    // compose, each keeping what the other did not touch.
+    const db = openWorkspaceDb(`settings-patch-${crypto.randomUUID()}`);
+    await writeEscalation(db, { enabled: true, seances: 4, yellows: 3 });
+    await writeEscalation(db, { yellows: 5 });
+    expect(await readEscalation(db)).toEqual({ enabled: true, seances: 4, yellows: 5 });
+    db.close();
+  });
+
   it("falls back to the default for a row carrying no rule at all", async () => {
     const db = openWorkspaceDb(`settings-husk-${crypto.randomUUID()}`);
     // What a hand-edited backup could put there.
