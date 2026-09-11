@@ -22,10 +22,11 @@ import type {
   Student,
   StudentGroup,
   Subject,
+  WorkspaceSettings,
 } from "./types";
 
 export interface WorkspaceBackup {
-  version: 13;
+  version: 14;
   exportedAt: number;
   classes: SchoolClass[];
   students: Student[];
@@ -46,6 +47,7 @@ export interface WorkspaceBackup {
   studentGroups: StudentGroup[];
   groupMembers: GroupMember[];
   scheduleEntries: ScheduleEntry[];
+  settings: WorkspaceSettings[];
 }
 
 /**
@@ -60,6 +62,11 @@ export interface WorkspaceBackup {
  * looks like a whole one — which is the ruling a format-10 file already got
  * for its day-keyed journal.
  *
+ * Format 13 is refused for a narrower reason than 12 was: it names no store
+ * that has disappeared, but it carries no `settings` row, and a workspace
+ * whose discipline rule silently reverted to the default on import is the
+ * half-import this function exists to refuse.
+ *
  * The number stays monotonic rather than resetting with the schema. It now
  * carries no history, since nothing older is accepted, but a file written
  * today must not read as older than one written last week to anyone who opens
@@ -68,7 +75,7 @@ export interface WorkspaceBackup {
  * The rule for the next schema change: bump this literal, write no upgrade.
  */
 const backupSchema = z.object({
-  version: z.literal(13),
+  version: z.literal(14),
   exportedAt: z.number(),
   classes: z.array(z.object({ id: z.string() }).loose()),
   students: z.array(z.object({ id: z.string() }).loose()),
@@ -128,6 +135,7 @@ const backupSchema = z.object({
       .loose(),
   ),
   scheduleEntries: z.array(z.object({ id: z.string() }).loose()),
+  settings: z.array(z.object({ id: z.string() }).loose()),
 });
 
 /**
@@ -158,6 +166,7 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     studentGroups,
     groupMembers,
     scheduleEntries,
+    settings,
   ] = await Promise.all([
     db.classes.toArray(),
     db.students.toArray(),
@@ -178,10 +187,11 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     db.studentGroups.toArray(),
     db.groupMembers.toArray(),
     db.scheduleEntries.toArray(),
+    db.settings.toArray(),
   ]);
 
   return {
-    version: 13,
+    version: 14,
     exportedAt: Date.now(),
     classes,
     students: students.map(({ photo: _photo, ...rest }) => rest),
@@ -215,6 +225,7 @@ export async function exportWorkspace(db: AppDatabase): Promise<WorkspaceBackup>
     studentGroups,
     groupMembers,
     scheduleEntries,
+    settings,
   };
 }
 
@@ -285,6 +296,7 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     db.studentGroups,
     db.groupMembers,
     db.scheduleEntries,
+    db.settings,
   ];
 
   await db.transaction("rw", tables, async () => {
@@ -308,5 +320,6 @@ export async function importWorkspace(db: AppDatabase, backup: unknown): Promise
     await db.studentGroups.bulkAdd(data.studentGroups);
     await db.groupMembers.bulkPut(data.groupMembers);
     await db.scheduleEntries.bulkAdd(data.scheduleEntries);
+    await db.settings.bulkPut(data.settings);
   });
 }

@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 import { openWorkspaceDb } from ".";
 import { BackupOverCapacityError, exportWorkspace, importWorkspace, parseBackup } from "./backup";
 import { seedIfEmpty } from "./seed";
+import { readEscalation, writeEscalation } from "./settings";
 import { wipeWorkspace } from "./workspace";
 
 /**
@@ -106,7 +107,7 @@ describe("workspace backup", () => {
     // asserting nothing about the version at all.
     await expect(
       importWorkspace(db, {
-        version: 14,
+        version: 15,
         exportedAt: 0,
         classes: [],
         students: [],
@@ -127,6 +128,7 @@ describe("workspace backup", () => {
         desks: [],
         seatingPlans: [],
         assignments: [],
+        settings: [],
       }),
     ).rejects.toThrow();
 
@@ -173,9 +175,9 @@ describe("workspace backup", () => {
     db.close();
   });
 
-  it("exports at version 13", async () => {
-    const db = openWorkspaceDb(`backup-v13-${crypto.randomUUID()}`);
-    expect((await exportWorkspace(db)).version).toBe(13);
+  it("exports at version 14", async () => {
+    const db = openWorkspaceDb(`backup-v14-${crypto.randomUUID()}`);
+    expect((await exportWorkspace(db)).version).toBe(14);
     db.close();
   });
 
@@ -305,7 +307,7 @@ describe("workspace backup", () => {
     });
     await db.groupMembers.put({ groupId: "g1", studentId: "p1" });
     const backup = await exportWorkspace(db);
-    expect(backup.version).toBe(13);
+    expect(backup.version).toBe(14);
     expect(backup.sessions).toHaveLength(1);
     expect(backup.attendance).toHaveLength(1);
     expect(backup.rubricTemplates).toHaveLength(1);
@@ -598,6 +600,11 @@ describe("export completeness", () => {
   it("restores every table, so nothing is exported and then dropped on the way back", async () => {
     const db = openWorkspaceDb(`backup-restore-${crypto.randomUUID()}`);
     await seedIfEmpty(db, `backup-restore-${crypto.randomUUID()}`);
+    // The demo school has no discipline rule of its own: without this, the
+    // settings table would sit at zero rows both before and after, and the
+    // "every table really held rows" assertion below would prove nothing
+    // about it.
+    await writeEscalation(db, { enabled: true, seances: 4, yellows: 3 });
 
     const before: Record<string, number> = {};
     for (const table of db.tables) before[table.name] = await table.count();
@@ -628,6 +635,10 @@ describe("importing twice", () => {
     // schema version is covered the day it is declared.
     const db = openWorkspaceDb(`backup-double-${crypto.randomUUID()}`);
     await seedIfEmpty(db, `backup-double-${crypto.randomUUID()}`);
+    // The demo school carries no discipline rule of its own, so without this
+    // the settings table would sit at zero both times and the "every table
+    // really held rows" assertion below would prove nothing about it.
+    await writeEscalation(db, { enabled: false, seances: 3, yellows: 2 });
     await db.scheduleEntries.add({
       id: "sch1",
       classId: (await db.classes.toArray())[0].id,
@@ -663,7 +674,7 @@ describe("class-size ceiling on import", () => {
   /** A minimal, schema-valid backup carrying `count` pupils in one class. */
   function backupWithRoster(count: number) {
     return {
-      version: 13,
+      version: 14,
       exportedAt: Date.now(),
       classes: [{ id: "c1", name: "3°B", createdAt: 1, updatedAt: 1 }],
       students: Array.from({ length: count }, (_, i) => ({
@@ -691,6 +702,7 @@ describe("class-size ceiling on import", () => {
       desks: [],
       seatingPlans: [],
       assignments: [],
+      settings: [],
     };
   }
 
@@ -721,6 +733,38 @@ describe("class-size ceiling on import", () => {
 
     expect(await db.students.count()).toBe(before);
     expect(await db.classes.count()).toBeGreaterThan(0);
+    db.close();
+  });
+});
+
+describe("the settings store in a backup", () => {
+  it("exports the workspace's rule and reads it back", async () => {
+    const db = openWorkspaceDb(`backup-settings-${crypto.randomUUID()}`);
+    await writeEscalation(db, { enabled: true, seances: 4, yellows: 3 });
+
+    const backup = await exportWorkspace(db);
+    expect(backup.version).toBe(14);
+    expect(backup.settings).toEqual([
+      { id: "workspace", escalation: { enabled: true, seances: 4, yellows: 3 } },
+    ]);
+
+    await importWorkspace(db, parseBackup(JSON.parse(JSON.stringify(backup))));
+    expect(await readEscalation(db)).toEqual({ enabled: true, seances: 4, yellows: 3 });
+    db.close();
+  });
+
+  it("refuses a format-13 file", () => {
+    const stale = { version: 13, exportedAt: 1, classes: [], students: [] };
+    expect(() => parseBackup(stale)).toThrow();
+  });
+
+  it("leaves no second settings row after a double import", async () => {
+    const db = openWorkspaceDb(`backup-settings-twice-${crypto.randomUUID()}`);
+    await writeEscalation(db, { enabled: false, seances: 3, yellows: 2 });
+    const backup = parseBackup(JSON.parse(JSON.stringify(await exportWorkspace(db))));
+    await importWorkspace(db, backup);
+    await importWorkspace(db, backup);
+    expect(await db.settings.count()).toBe(1);
     db.close();
   });
 });
