@@ -9,8 +9,17 @@ import {
 import { deleteRubricTemplate, deleteSubject } from "@db/cascade";
 import { useDb } from "@db/provider";
 import { resetToFixture } from "@db/seed";
+import { readEscalation, writeEscalation } from "@db/settings";
 import { wipeWorkspace } from "@db/workspace";
 import { MAX_STUDENTS_PER_CLASS } from "@domain/class-size";
+import {
+  clampRule,
+  DEFAULT_ESCALATION,
+  MAX_ESCALATION_SEANCES,
+  MAX_ESCALATION_YELLOWS,
+  MIN_ESCALATION_SEANCES,
+  MIN_ESCALATION_YELLOWS,
+} from "@domain/escalation";
 import { fromDateInputValue, readTermStart, toDateInputValue, writeTermStart } from "@domain/term";
 import { THEME_CHOICES } from "@domain/theme";
 import { useActiveWorkspaceId } from "@domain/workspaces";
@@ -19,7 +28,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ConfirmButton } from "../design-system/components/confirm-button";
-import { ToggleOption } from "../design-system/components/primitives";
+import { ToggleGroup, ToggleOption } from "../design-system/components/primitives";
 import { useTheme } from "../shared/use-theme";
 import { RubricTemplateForm } from "./components/rubric-template-form";
 import { SubjectForm } from "./components/subject-form";
@@ -56,6 +65,14 @@ export function SettingsPage() {
 
   const subjects = useLiveQuery(() => db.subjects.toArray(), [db]);
   const templates = useLiveQuery(() => db.rubricTemplates.toArray(), [db]);
+  const escalation = useLiveQuery(() => readEscalation(db), [db]) ?? DEFAULT_ESCALATION;
+  /**
+   * The two numbers as typed, so a teacher going from 2 to 10 is not clamped
+   * back to the floor by the "1" they pass through. Null means "showing the
+   * stored value"; a string means they are mid-edit. Written on BLUR.
+   */
+  const [draftYellows, setDraftYellows] = useState<string | null>(null);
+  const [draftSeances, setDraftSeances] = useState<string | null>(null);
 
   async function onExport(): Promise<void> {
     const backup = await exportWorkspace(db);
@@ -151,6 +168,78 @@ export function SettingsPage() {
             </ToggleOption>
           ))}
         </div>
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h2 className="font-semibold text-lg">{t("escalation.title")}</h2>
+        <p className="text-sm text-text-muted">{t("escalation.hint")}</p>
+
+        <ToggleGroup>
+          <ToggleOption
+            selected={escalation.enabled}
+            onSelect={() => void writeEscalation(db, { ...escalation, enabled: true })}
+          >
+            {t("escalation.on")}
+          </ToggleOption>
+          <ToggleOption
+            selected={!escalation.enabled}
+            onSelect={() => void writeEscalation(db, { ...escalation, enabled: false })}
+          >
+            {t("escalation.off")}
+          </ToggleOption>
+        </ToggleGroup>
+
+        {/* Disabled rather than hidden while the rule is off: a teacher turning
+            it back on should find the numbers they set, not a row that appeared
+            from nowhere. */}
+        <div className="flex flex-wrap gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-sm text-text-muted">{t("escalation.yellowsLabel")}</span>
+            <input
+              type="number"
+              className="field max-w-28"
+              min={MIN_ESCALATION_YELLOWS}
+              max={MAX_ESCALATION_YELLOWS}
+              disabled={!escalation.enabled}
+              value={draftYellows ?? String(escalation.yellows)}
+              onChange={(e) => setDraftYellows(e.target.value)}
+              onBlur={() => {
+                const next = clampRule({ ...escalation, yellows: Number(draftYellows) });
+                setDraftYellows(null);
+                if (next.yellows !== escalation.yellows) void writeEscalation(db, next);
+              }}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-sm text-text-muted">{t("escalation.seancesLabel")}</span>
+            <input
+              type="number"
+              className="field max-w-28"
+              min={MIN_ESCALATION_SEANCES}
+              max={MAX_ESCALATION_SEANCES}
+              disabled={!escalation.enabled}
+              value={draftSeances ?? String(escalation.seances)}
+              onChange={(e) => setDraftSeances(e.target.value)}
+              onBlur={() => {
+                const next = clampRule({ ...escalation, seances: Number(draftSeances) });
+                setDraftSeances(null);
+                if (next.seances !== escalation.seances) void writeEscalation(db, next);
+              }}
+            />
+          </label>
+        </div>
+
+        {/* The rule in a sentence, so two numbers in two boxes cannot be read
+            backwards. */}
+        <p className="text-sm text-text-faint">
+          {escalation.enabled
+            ? t("escalation.rule", {
+                yellows: escalation.yellows,
+                seances: escalation.seances,
+              })
+            : t("escalation.ruleOff")}
+        </p>
       </section>
 
       <section className="flex flex-col gap-2">
