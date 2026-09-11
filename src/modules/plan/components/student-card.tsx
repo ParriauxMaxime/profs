@@ -3,6 +3,7 @@ import { attendanceKey } from "@db";
 import { toggleAttendance } from "@db/attendance";
 import { logBehaviour } from "@db/behaviour";
 import { deleteBehaviourEvent } from "@db/cascade";
+import { evaluateEscalation } from "@db/escalation";
 import { useDb } from "@db/provider";
 import { setStudentNotes, setStudentPhoto } from "@db/students";
 import { ATTENDANCE_VALUES, type AttendanceValue } from "@domain/attendance";
@@ -21,6 +22,8 @@ import { Router } from "../../../router";
 import { ConfirmButton } from "../../design-system/components/confirm-button";
 import { PhotoInput } from "../../design-system/components/photo-input";
 import { PupilName } from "../../design-system/components/pupil-name";
+import { useAnnounceRedCard } from "../../shared/components/escalation-provider";
+import { useEscalationRule } from "../../shared/use-escalation-rule";
 
 /**
  * The live-entry surface: opened from a seat or from a roster row, closed by
@@ -98,6 +101,28 @@ export function StudentCard({
     [db, session?.id, student.id],
   );
 
+  const rule = useEscalationRule();
+  const announce = useAnnounceRedCard();
+
+  /**
+   * Where this pupil stands against the rule, for the lesson on screen.
+   *
+   * A live query, so deleting one of the yellows below re-reads it and the
+   * line goes away — which is the whole reason the red is derived rather than
+   * written. The rule's three fields are in the dependency array individually:
+   * `useEscalationRule` rebuilds its object on every live-query tick, and
+   * passing the object would re-run this read forever.
+   */
+  const standing = useLiveQuery(async () => {
+    if (!session || !rule.enabled) return null;
+    return evaluateEscalation(db, {
+      classId: student.classId,
+      studentId: student.id,
+      sessionId: session.id,
+      rule,
+    });
+  }, [db, session?.id, student.id, student.classId, rule.enabled, rule.seances, rule.yellows]);
+
   // The séance this card records against, created if the teacher is the first
   // to touch this lesson. Null when there is no lesson at all — the roster,
   // where attendance has deliberately no path.
@@ -113,14 +138,28 @@ export function StudentCard({
 
   const addBehaviour = async (type: BehaviourType): Promise<void> => {
     if (record === null) return;
+    const sessionId = await record();
     await logBehaviour(db, {
-      sessionId: await record(),
+      sessionId,
       studentId: student.id,
       classId: student.classId,
       type,
       comment,
     });
     setComment("");
+    // Read AFTER the write, and against `sessionId` rather than `session` from
+    // this render — the séance may have been brought into being by the line
+    // above. No "crossing" test: the rule keeps firing as the window slides,
+    // so a third yellow over a still-qualifying window announces again.
+    if (type === "yellow" && rule.enabled) {
+      const { escalated } = await evaluateEscalation(db, {
+        classId: student.classId,
+        studentId: student.id,
+        sessionId,
+        rule,
+      });
+      if (escalated) announce(student);
+    }
   };
 
   return (
@@ -231,6 +270,21 @@ export function StudentCard({
 
           <div className="flex flex-col gap-2">
             <span className="font-medium text-sm text-text-muted">{t("behaviour.title")}</span>
+            {/* The only place the rule explains itself in words, which is what
+                lets the seat tile stay silent. Hidden at zero: a teacher who
+                has handed in nothing does not need telling so. */}
+            {standing && standing.yellows.length > 0 && (
+              <p
+                className={standing.escalated ? "font-semibold text-sm" : "text-sm text-text-muted"}
+                style={standing.escalated ? { color: "var(--behaviour-red)" } : undefined}
+              >
+                {t("escalation.windowCount", {
+                  count: standing.yellows.length,
+                  seances: rule.seances,
+                })}
+                {standing.escalated ? ` — ${t("escalation.redCard")}` : ""}
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
               {BEHAVIOUR_TYPES.map((type) => (
                 <button
