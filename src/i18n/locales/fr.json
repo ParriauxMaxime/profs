@@ -329,6 +329,20 @@
     "monthEvents_one": "{{count}} événement",
     "monthEvents_other": "{{count}} événements"
   },
+  "escalation": {
+    "title": "Cartons automatiques",
+    "hint": "Un carton rouge automatique quand un élève accumule assez d'avertissements sur les dernières séances.",
+    "on": "Activé",
+    "off": "Désactivé",
+    "yellowsLabel": "Avertissements",
+    "seancesLabel": "Dernières séances",
+    "rule": "{{yellows}} avertissements sur {{seances}} séances donnent un carton rouge.",
+    "ruleOff": "Aucun carton rouge automatique.",
+    "redCard": "Carton rouge automatique",
+    "overlayTitle": "Carton rouge",
+    "windowCount_one": "{{count}} avertissement sur les {{seances}} dernières séances",
+    "windowCount_other": "{{count}} avertissements sur les {{seances}} dernières séances"
+  },
   "rubric": {
     "templates": "Modèles de grille",
     "newTemplate": "Nouveau modèle",

@@ -329,6 +329,20 @@
     "monthEvents_one": "{{count}} event",
     "monthEvents_other": "{{count}} events"
   },
+  "escalation": {
+    "title": "Automatic cards",
+    "hint": "An automatic red card when a pupil collects enough warnings over recent lessons.",
+    "on": "On",
+    "off": "Off",
+    "yellowsLabel": "Warnings",
+    "seancesLabel": "Recent lessons",
+    "rule": "{{yellows}} warnings over {{seances}} lessons make a red card.",
+    "ruleOff": "No automatic red cards.",
+    "redCard": "Automatic red card",
+    "overlayTitle": "Red card",
+    "windowCount_one": "{{count}} warning over the last {{seances}} lessons",
+    "windowCount_other": "{{count}} warnings over the last {{seances}} lessons"
+  },
   "rubric": {
     "templates": "Rubric templates",
     "newTemplate": "New template",
