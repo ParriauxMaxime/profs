@@ -25,7 +25,7 @@ import { THEME_CHOICES } from "@domain/theme";
 import { useActiveWorkspaceId } from "@domain/workspaces";
 import { LOCALES, type Locale, loadLocale, saveLocale } from "@i18n";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ConfirmButton } from "../design-system/components/confirm-button";
 import { ToggleGroup, ToggleOption } from "../design-system/components/primitives";
@@ -73,6 +73,16 @@ export function SettingsPage() {
    */
   const [draftYellows, setDraftYellows] = useState<string | null>(null);
   const [draftSeances, setDraftSeances] = useState<string | null>(null);
+  // Keyed on the STORED value rather than "does the draft now match it": a
+  // clamp can equal the old stored value before the write lands (typing 99
+  // over a stored 10 clamps to 10), so that comparison would clear the draft
+  // at the wrong moment. A change in the stored value — from this write
+  // landing, or from an import, a wipe, another surface — is the honest
+  // signal that the field can go back to tracking it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: escalation.yellows is a reset trigger, not a value read in the body — any change must clear the stale draft.
+  useEffect(() => setDraftYellows(null), [escalation.yellows]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: escalation.seances is a reset trigger, not a value read in the body — any change must clear the stale draft.
+  useEffect(() => setDraftSeances(null), [escalation.seances]);
 
   async function onExport(): Promise<void> {
     const backup = await exportWorkspace(db);
@@ -205,7 +215,11 @@ export function SettingsPage() {
               onChange={(e) => setDraftYellows(e.target.value)}
               onBlur={() => {
                 const next = clampRule({ ...escalation, yellows: Number(draftYellows) });
-                setDraftYellows(null);
+                // The clamped string, not null: falling back to the
+                // render-time `escalation.yellows` here would flash the OLD
+                // value until the write resolves and useLiveQuery re-renders.
+                // The effect above clears this once the stored value moves.
+                setDraftYellows(String(next.yellows));
                 if (next.yellows !== escalation.yellows) void writeEscalation(db, next);
               }}
             />
@@ -223,7 +237,11 @@ export function SettingsPage() {
               onChange={(e) => setDraftSeances(e.target.value)}
               onBlur={() => {
                 const next = clampRule({ ...escalation, seances: Number(draftSeances) });
-                setDraftSeances(null);
+                // The clamped string, not null: falling back to the
+                // render-time `escalation.seances` here would flash the OLD
+                // value until the write resolves and useLiveQuery re-renders.
+                // The effect above clears this once the stored value moves.
+                setDraftSeances(String(next.seances));
                 if (next.seances !== escalation.seances) void writeEscalation(db, next);
               }}
             />
