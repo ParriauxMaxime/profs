@@ -30,7 +30,11 @@ describe("the escalation setting", () => {
   it("clamps on the way in, so no stored rule is inexpressible", async () => {
     const db = openWorkspaceDb(`settings-clamp-${crypto.randomUUID()}`);
     await writeEscalation(db, { enabled: true, seances: 0, yellows: 1 });
-    expect(await readEscalation(db)).toEqual({ enabled: true, seances: 1, yellows: 2 });
+    // Read the row directly rather than through `readEscalation`, which
+    // re-clamps on every read regardless — that would pass even if
+    // `writeEscalation` stored the raw, unclamped rule.
+    const row = await db.settings.get(WORKSPACE_SETTINGS_ID);
+    expect(row?.escalation).toEqual({ enabled: true, seances: 1, yellows: 2 });
     db.close();
   });
 
