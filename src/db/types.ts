@@ -1,5 +1,6 @@
 import type { AttendanceValue } from "@domain/attendance";
 import type { BehaviourType } from "@domain/behaviour";
+import type { EscalationRule } from "@domain/escalation";
 import type { CalculationSpec } from "@domain/gradebook/calculation";
 import type { ColumnType } from "@domain/gradebook/column";
 import type { GradeValue } from "@domain/gradebook/grade";
@@ -314,4 +315,20 @@ export interface ScheduleEntry {
   roomId?: string;
   createdAt: number;
   updatedAt: number;
+}
+
+/**
+ * The workspace's own preferences — one row, id `"workspace"`.
+ *
+ * A store rather than a field on something existing, so the next preference
+ * lands in it without another version bump. It is in the DATABASE rather than
+ * in `localStorage` beside the theme and the term anchor because it is a rule
+ * about the établissement's discipline, not about this device: the JSON export
+ * carries it, so a teacher restoring onto their tablet gets the same rule
+ * instead of a silently different one. A red card that means two things on two
+ * devices is worse than no automation.
+ */
+export interface WorkspaceSettings {
+  id: string;
+  escalation: EscalationRule;
 }

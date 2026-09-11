@@ -20,6 +20,7 @@ import type {
   Student,
   StudentGroup,
   Subject,
+  WorkspaceSettings,
 } from "./types";
 
 export type {
@@ -42,6 +43,7 @@ export type {
   Student,
   StudentGroup,
   Subject,
+  WorkspaceSettings,
 } from "./types";
 
 export type AppDatabase = Dexie & {
@@ -64,6 +66,7 @@ export type AppDatabase = Dexie & {
   studentGroups: EntityTable<StudentGroup, "id">;
   groupMembers: Table<GroupMember, [string, string]>;
   scheduleEntries: EntityTable<ScheduleEntry, "id">;
+  settings: EntityTable<WorkspaceSettings, "id">;
 };
 
 /** The compound primary key of a cell. */
@@ -131,7 +134,7 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
    * `seatingPlans` one plan per class per salle, and `assignments` one pupil
    * in two chairs — invariants that used to live only in careful code.
    */
-  db.version(17).stores({
+  db.version(18).stores({
     classes: "id, name",
     students: "id, classId, lastName",
     subjects: "id, name",
@@ -155,6 +158,11 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
     studentGroups: "id, classId",
     groupMembers: "[groupId+studentId], groupId, studentId",
     scheduleEntries: "id, classId, weekday, roomId",
+    // The workspace's own preferences, one row. Additive — no upgrade
+    // function, per the standing rule. The `.upgrade()` below rides along to
+    // 18 and is idempotent: a workspace already at 17 carries `startsAt` on
+    // every séance, so `repairSeanceCollisions` changes nothing there.
+    settings: "id",
   });
   /**
    * The one upgrade callback, and it is the same exception `db.version(16)`
@@ -174,7 +182,7 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
    * this is what "unless a field becomes required under rows with dependents"
    * looks like when it happens, not a licence to write one by habit.
    */
-  db.version(17).upgrade(async (tx) => {
+  db.version(18).upgrade(async (tx) => {
     // Repaired as a WHOLE collection, never row by row: `backfillSeanceTimes`
     // alone cannot see that two untimed séances of one class on one day floor
     // to the same hour, and the first `resolveSlot` match would strand the

@@ -30,6 +30,7 @@ describe("the schema", () => {
         "scheduleEntries",
         "seatingPlans",
         "sessions",
+        "settings",
         "students",
         "studentGroups",
         "subjects",

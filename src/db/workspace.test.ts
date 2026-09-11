@@ -133,6 +133,10 @@ describe("wipeWorkspace", () => {
       createdAt: 1,
       updatedAt: 1,
     });
+    await db.settings.add({
+      id: "workspace",
+      escalation: { enabled: true, seances: 2, yellows: 2 },
+    });
 
     // Every table really was seeded — a wipe over empty tables proves nothing.
     // Counted as "holds rows" rather than "holds exactly one": `columns` holds
