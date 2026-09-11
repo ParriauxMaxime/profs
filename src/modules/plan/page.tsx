@@ -1,4 +1,5 @@
 import type { Assignment, BehaviourEvent, Desk, Session, Student } from "@db";
+import { escalationContext } from "@db/escalation";
 import {
   applyPlacement,
   assignmentsForPlan,
@@ -10,6 +11,7 @@ import { useDb } from "@db/provider";
 import { desksForRoom, listRooms } from "@db/rooms";
 import { readActiveRoom, resolveActiveRoom, writeActiveRoom } from "@domain/active-room";
 import type { AttendanceValue } from "@domain/attendance";
+import { isEscalated } from "@domain/escalation";
 import { type HeldPupil, resolvePlacement } from "@domain/room";
 import { Link } from "@swan-io/chicane";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -18,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import { Router } from "../../router";
 import { Modal } from "../design-system/components/modal";
 import { RoomCanvas } from "../rooms/components/room-canvas";
+import { useEscalationRule } from "../shared/use-escalation-rule";
 import { useEscape } from "../shared/use-escape";
 import { useMediaQuery } from "../shared/use-media-query";
 import { SeatOccupant, useSeatLabel } from "./components/seat-occupant";
@@ -121,6 +124,36 @@ export function PlanPage({
     }
     return byStudent;
   }, [db, session?.id]);
+
+  const rule = useEscalationRule();
+
+  /**
+   * The escalation window for the whole room — two queries, not one per seat.
+   * The rule's fields go into the dependency array individually because
+   * `useEscalationRule` returns a fresh object on every live-query tick.
+   */
+  const escalation = useLiveQuery(
+    () => escalationContext(db, classId, session?.id ?? null, rule),
+    [db, classId, session?.id, rule.enabled, rule.seances, rule.yellows],
+  );
+
+  /**
+   * What one seat says about the rule.
+   *
+   * Built once and used by BOTH the tile and its accessible name, so the
+   * drawing and the word it stands for cannot drift — the pairing
+   * `useSeatLabel` exists to enforce.
+   */
+  const seatFacts = useCallback(
+    (studentId: string) => {
+      const windowYellows = escalation?.yellowsByStudent.get(studentId) ?? [];
+      return {
+        priorYellows: windowYellows.filter((event) => event.sessionId !== session?.id),
+        escalated: isEscalated(windowYellows.length, rule),
+      };
+    },
+    [escalation, session?.id, rule],
+  );
 
   const rooms = useLiveQuery(() => listRooms(db), [db]);
   // The salles this class is already seated in, fullest first — what
@@ -286,11 +319,14 @@ export function PlanPage({
                     </span>
                   );
                 }
+                const facts = seatFacts(student.id);
                 return (
                   <SeatOccupant
                     student={student}
                     attendance={attendanceOf?.get(student.id) ?? null}
                     events={eventsOf?.get(student.id) ?? []}
+                    priorYellows={facts.priorYellows}
+                    escalated={facts.escalated}
                   />
                 );
               }}
@@ -302,11 +338,15 @@ export function PlanPage({
                 // position only, so the words they stand for live here. A seat
                 // with something in hand says what a tap will do instead:
                 // that is the gesture being offered, and it outranks a report.
+                const facts = seated ? seatFacts(seated.id) : null;
                 const label = seated
                   ? seatLabel(
                       seated,
                       attendanceOf?.get(seated.id) ?? null,
                       eventsOf?.get(seated.id) ?? [],
+                      facts?.priorYellows ?? [],
+                      facts?.escalated ?? false,
+                      rule.seances,
                     )
                   : undefined;
                 return {

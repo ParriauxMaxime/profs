@@ -1,12 +1,27 @@
 import type { BehaviourEvent, Student } from "@db";
 import { ATTENDANCE_COLORS, type AttendanceValue } from "@domain/attendance";
-import { BEHAVIOUR_COLORS } from "@domain/behaviour";
+import { BEHAVIOUR_COLORS, type BehaviourType } from "@domain/behaviour";
 import { useTranslation } from "react-i18next";
 import { PupilName } from "../../design-system/components/pupil-name";
 import { PupilDisc } from "./pupil-disc";
 
-/** Beyond this the cards stop being countable and become "+n". */
-const MAX_CARDS = 3;
+/**
+ * Four, not three, and it is one run rather than two.
+ *
+ * The tile now carries three kinds of thing — the window's earlier yellows, this
+ * séance's events, and the derived red — and two runs with two overflow counts
+ * on a 44px tile is a puzzle rather than a reading. Over budget, slots are
+ * dropped from the LEFT and `+n` goes there, so the newest events and the red
+ * are never what falls off.
+ */
+const MAX_CARDS = 4;
+
+interface SeatCard {
+  key: string;
+  /** `prior` draws hollow; the other two draw filled. */
+  kind: "prior" | "current" | "derived";
+  type: BehaviourType;
+}
 
 /**
  * What a seat says about a pupil without being opened.
@@ -47,15 +62,44 @@ export function SeatOccupant({
   student,
   attendance,
   events,
+  priorYellows,
+  escalated,
 }: {
   student: Student;
   /** This pupil's mark for the séance on screen, or null when nobody marked. */
   attendance: AttendanceValue | null;
   /** Their events for that same séance, oldest first. */
   events: BehaviourEvent[];
+  /**
+   * Their yellows from the EARLIER séances of the escalation window, oldest
+   * first. Only yellows, and only from inside the window: these are precisely
+   * what the rule is counting, so the seat reads as the rule itself — two
+   * hollow plus one solid IS the red. A past green or a past mot dans le
+   * carnet would be history this tile was never for, and with a budget of four
+   * it would push out the one fact the history exists to carry.
+   */
+  priorYellows: BehaviourEvent[];
+  /** Whether the rule says this pupil is at red right now. */
+  escalated: boolean;
 }) {
-  const cards = events.slice(0, MAX_CARDS);
-  const overflow = events.length - cards.length;
+  const all: SeatCard[] = [
+    ...priorYellows.map((event) => ({
+      key: event.id,
+      kind: "prior" as const,
+      type: event.type,
+    })),
+    ...events.map((event) => ({ key: event.id, kind: "current" as const, type: event.type })),
+    // Last in the run, hard against the face — the consequence, closest to the
+    // person. It draws as an ORDINARY red card: at 9px, "red" is the entire
+    // message, and marking it as derived would cost more pixels than the
+    // distinction buys. The word lives in `useSeatLabel` instead, which is
+    // where the attendance pill already puts its own.
+    ...(escalated
+      ? [{ key: "derived-red", kind: "derived" as const, type: "red" as BehaviourType }]
+      : []),
+  ];
+  const overflow = Math.max(0, all.length - MAX_CARDS);
+  const cards = all.slice(overflow);
 
   return (
     <>
@@ -66,26 +110,40 @@ export function SeatOccupant({
           ring={attendance ? ATTENDANCE_COLORS[attendance] : undefined}
         />
 
-        {events.length > 0 && (
+        {cards.length > 0 && (
           <span className="-top-1 -left-3 absolute flex items-start gap-[1px]">
-            {cards.map((event) => (
-              <span
-                key={event.id}
-                className="block h-[13px] w-[9px] rounded-[1px]"
-                style={{
-                  background: BEHAVIOUR_COLORS[event.type],
-                  boxShadow: "0 0 0 1px rgb(255 255 255 / 80%), 0 1px 2px var(--room-shadow)",
-                }}
-              />
-            ))}
             {overflow > 0 && (
               <span
-                className="ml-[1px] font-bold text-[9px] leading-none"
+                className="mr-[1px] font-bold text-[9px] leading-none"
                 style={{ color: "var(--desk-ink)" }}
               >
                 +{overflow}
               </span>
             )}
+            {cards.map((card) => (
+              <span
+                key={card.key}
+                className="block h-[13px] w-[9px] rounded-[1px]"
+                style={
+                  card.kind === "prior"
+                    ? {
+                        // Hollow, not literally dashed: a dashed stroke on a
+                        // 9×13px box is about four dashes and reads as noise at
+                        // the scale a room shrinks to — the same argument that
+                        // turned the behaviour dot into a rectangle. The inset
+                        // ring is the border; the outer ring is the white
+                        // separation every card on this tile carries.
+                        background: "color-mix(in srgb, var(--behaviour-yellow) 22%, transparent)",
+                        boxShadow:
+                          "inset 0 0 0 1px var(--behaviour-yellow), 0 0 0 1px rgb(255 255 255 / 80%)",
+                      }
+                    : {
+                        background: BEHAVIOUR_COLORS[card.type],
+                        boxShadow: "0 0 0 1px rgb(255 255 255 / 80%), 0 1px 2px var(--room-shadow)",
+                      }
+                }
+              />
+            ))}
           </span>
         )}
 
@@ -129,16 +187,28 @@ export function useSeatLabel(): (
   student: Student,
   attendance: AttendanceValue | null,
   events: BehaviourEvent[],
+  priorYellows: BehaviourEvent[],
+  escalated: boolean,
+  seances: number,
 ) => string {
   const { t } = useTranslation();
 
-  return (student, attendance, events) => {
+  return (student, attendance, events, priorYellows, escalated, seances) => {
     const parts = [`${student.lastName} ${student.firstName}`];
     if (attendance) parts.push(t(`attendance.${attendance}`));
     for (const type of new Set(events.map((event) => event.type))) {
       const count = events.filter((event) => event.type === type).length;
       parts.push(`${t(`behaviour.${type}`)} × ${count}`);
     }
+    // The hollow cards are shape alone on screen; the count of them is the
+    // word that stands for it.
+    const windowYellows =
+      priorYellows.length + events.filter((event) => event.type === "yellow").length;
+    if (windowYellows > 0) {
+      parts.push(t("escalation.windowCount", { count: windowYellows, seances }));
+    }
+    // And the derived red is colour alone, so it says its own name here.
+    if (escalated) parts.push(t("escalation.redCard"));
     return parts.join(" — ");
   };
 }
