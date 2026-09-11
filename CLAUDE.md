@@ -40,7 +40,7 @@ Three layers, and review enforces the boundaries.
 
 Two decimal formatters, and picking the wrong one is a data bug. `formatDecimal` rounds to two decimals, for **display**. `formatDecimalExact` preserves full stored precision, for **seeding an editor**, so that opening a cell and committing it unchanged cannot silently rewrite the value. Both take the app's locale, never the browser's.
 
-**`src/db/`** — Dexie. `openWorkspaceDb(workspaceId)` opens `profs-<id>`; each workspace is its own database. Nineteen tables in ONE `db.version(17)` declaration, with a single `.upgrade()` callback for the séance backfill — read `src/db/index.ts` for the current shape rather than a list here. `provider.tsx` exposes `useDb()`; `init.ts` runs once before first render; `seed.ts` creates the demo school; `backup.ts` does JSON export/import; `cascade.ts` owns every multi-table delete.
+**`src/db/`** — Dexie. `openWorkspaceDb(workspaceId)` opens `profs-<id>`; each workspace is its own database. Twenty tables in ONE `db.version(18)` declaration, with a single `.upgrade()` callback for the séance backfill — read `src/db/index.ts` for the current shape rather than a list here. `provider.tsx` exposes `useDb()`; `init.ts` runs once before first render; `seed.ts` creates the demo school; `backup.ts` does JSON export/import; `cascade.ts` owns every multi-table delete.
 
 A grille is a `GradeColumn` of `type: "rubric"`, not a row of its own. Its critères are embedded in `GradeColumn.criteria`, the same fork `calculation` already used: a criterion is never queried, listed or deleted except through its column, so embedding avoids a join for something always read whole; a level is written and cleared one cell at a time, which is what a compound key is for — `criterionLevels`, keyed `[columnId+criterionId+studentId]`. `setColumnCriteria` copies a template's criteria with **fresh** UUIDs: shared ids would make a level written against one column silently readable from another, and improving a template later could never reach a grid already graded.
 
@@ -361,6 +361,147 @@ has one.
 
 The class's Journal is `DiaryPage`, which takes the `classId` it reads and has no class selector — the archive of one class, reached from that class. There is no cross-class journal: `/diary` and its drawer entry were removed, on the judgement that a teacher looks back at 3°B from 3°B, and that reading every class's séances at once answered a question nobody was asking. `SeanceNote` stays where it is, since the class page writes the day's note inline through it.
 
+### Yellow cards escalate, and the red is derived
+
+A practising teacher tested the app and came back with a mechanic he already
+runs in his classroom: **Y cartons jaunes over the last X séances read as a
+carton rouge.** Two over two, in his case, which is what `DEFAULT_ESCALATION`
+holds and what `seed.ts` writes into a new school. The design is
+`docs/superpowers/specs/2026-09-11-profs-behaviour-escalation-design.md`, and
+its spine is one observation that almost every decision below follows from: the
+rule is not new information the app has to collect. Every yellow is already a
+row. The rule is a way of **reading** the rows there already are.
+
+**So the red is derived, never stored, and `logBehaviour` writes nothing new.**
+`src/domain/escalation.ts` holds the whole arithmetic and no I/O. This is the
+posture `studentAverage` already takes, and it is taken for the reason a stored
+average is refused: the answer depends on inputs that keep moving. Lower the
+threshold in January and a stored red from October would silently stop
+following from its own yellows. Delete one of the two yellows behind it — a
+mis-tap, corrected the way this app corrects every behaviour event — and the
+red would sit there as an orphan, still exported, still counted, describing an
+escalation that no longer exists. Deriving it means the rule and its conclusion
+cannot disagree, because there is only one of them. It also keeps the log
+honest about what it is: a `BehaviourEvent` records what a teacher
+**observed**, and a red the app inferred is not an observation. Nothing here
+adds a row, so the append-only invariant is untouched and `countByType`, the
+pupil page's Comportement timeline and the JSON export all stay a record of
+what was seen.
+
+**The window is the CLASS's last X séances, the one on screen included.**
+`escalationWindow` orders them by `date` then `startsAt` and slices back from
+the current id; a séance the list does not hold yields an empty window, which
+is the case that matters in practice — a lesson where nothing has been recorded
+has no row at all, so there is nothing to count and nobody is at red. A
+per-pupil window skipping that pupil's absences would be fairer to an absentee
+and was rejected twice over: it would depend on attendance being marked, which
+is lazy and routinely incomplete, and it would mean two pupils sitting in the
+same room were judged on different stretches of the term. *Deux sur deux* has
+to mean the same thing in every seat or it is not a rule, it is a mood. Walking
+the **timetable** back X lessons was rejected for the reason nothing in this app
+is materialised from a timetable: a holiday, a strike, a cancellation or a sick
+day would each silently eat a slot of the window.
+
+**The rule is stateless, and no yellow is ever consumed.** A pupil is at red
+whenever their yellows in the CURRENT window reach Y, and the window simply
+slides: a yellow in séance 1 and one in séance 2 fires, and a third in séance 3
+fires again while séance 2's is still inside. A *slate wiped clean*
+alternative, where yellows that already produced a red stop counting, needs a
+record of which ones were spent — stored state, which is exactly what deriving
+was chosen to avoid — and the stateless answer says the truer thing anyway:
+this pupil is still at two yellows in two lessons. `StudentCard` therefore runs
+no crossing test. It re-evaluates after each yellow and announces whenever the
+answer is yes.
+
+**`MIN_ESCALATION_YELLOWS` is 2**, and both floors live in the domain rather
+than in the settings form, so a hand-edited import cannot install a rule the app
+refuses to express. One yellow making a red is not an escalation — it is
+renaming the button, and it would throw the fullscreen animation on every
+single tap. `seances` floors at 1, both cap at 10, and `clampRule` runs on the
+way OUT of the database as well as in, because a row can arrive from a backup
+that never went through `writeEscalation`.
+
+**The rule is a database row, not `localStorage`.** One `settings` row,
+`id: "workspace"`, read through `readEscalation`; an absent row reads as
+`DEFAULT_ESCALATION`, so a wiped workspace and one created before this existed
+both behave. It deliberately does not sit beside the theme and the term anchor,
+because those describe *this device* and this describes the établissement's
+discipline. The consequence that decides it is the export: a teacher restoring
+onto their tablet gets the rule they set rather than a silently different one,
+and a carton rouge that means two things on two devices is worse than no
+automation at all. A `settings` store rather than a field on something
+existing, so the next preference lands in it without another version bump.
+Per-class rules were cut — sixteen classes would be sixteen copies of the
+settings UI, and what was asked for was one control in Réglages.
+
+**Two queries for a whole room, never one per seat.** `escalationContext`
+(`src/db/escalation.ts`) reads the class's séances, then the window's events by
+`sessionId`, and returns them grouped by pupil; a class is up to a hundred
+pupils and this runs on a tablet. `evaluateEscalation` narrows that same result
+to one pupil rather than asking a narrower question, so the tap and the tile can
+never disagree about who is at red. Neither writes anything.
+
+**The seat draws one run of four slots**, left to right: the window's earlier
+yellows hollow, this séance's events solid, the derived red last and hard
+against the face. Over budget, slots are dropped from the **left** and the `+n`
+goes there, so the newest events and the red are never what falls off — one
+counter and not two, because two runs with two overflow counts on a 44px tile
+is a puzzle rather than a reading. **Only yellows appear from prior séances,
+and only from inside the window**: they are precisely what the rule is
+counting, so the tile reads as the rule itself — two hollow plus one solid IS
+the red. A past green or a past *mot dans le carnet* would be history this tile
+was never for, and against a budget of four it would routinely push out the one
+fact the history exists to carry. **Hollow rather than literally dashed**: a
+dashed stroke on a 9×13px box is about four dashes and reads as noise at the
+scale a room shrinks to, the same argument that turned the behaviour dot into a
+rectangle in the first place. **The derived red draws as an ordinary red
+card**, because at 9px *red* is the entire message and marking it as derived
+would cost more pixels than the distinction buys; the word *carton rouge
+automatique* goes into `useSeatLabel` instead, which is where the attendance
+pill already puts its own. That label takes the window count as a NUMBER from
+the same `escalationContext` result the hollow cards are built from rather than
+recomputing it — which is what makes the rule-off case correct, since the
+context short-circuits to an empty window and the count is already zero.
+
+**The pupil card is the one place the rule explains itself in words** — *2
+avertissements sur les 2 dernières séances*, going red and gaining *carton
+rouge automatique* when it fires — and that is what lets the tile stay silent.
+Both it and the seat's derived red are live queries, so deleting one of the
+yellows in the list below it walks the line back and clears the tile with no
+reload.
+
+**The overlay is not a dialog, and it leaves on its own.** Blocking dialogs are
+banned here and freeze the browser automation these screens are verified with,
+so `RedCardOverlay` is an ordinary `position: fixed` element carrying
+`role="status"`: it scales in with the pupil's surname across the whole screen,
+holds about 2.5s and then takes itself off — a tap or Escape cuts it short, and
+`prefers-reduced-motion` collapses the entrance to a plain fade. Auto-dismissal is
+the point — a teacher mid-lesson never has to find a button, and a tablet
+cannot be left sitting on a red card instead of on the register. There is
+deliberately **no *Annuler*** on it, even though the moment after a mis-tap is
+exactly when a wrong red is most likely: the undo already sits one tap away in
+the card's own event list, and a surface whose whole merit is that it needs no
+interaction should not grow a control. `EscalationProvider` mounts ONE overlay
+for the app, from `AdminLayout`, because the pupil card is opened from a seat
+and from the salle-less roster register both, and each mounting its own would
+put two red cards on screen the day a third surface appears.
+
+Réglages carries the setting as *Cartons automatiques*: a `ToggleGroup` for
+on/off, two number fields committed on **blur** rather than per keystroke, and
+the rule restated as a sentence beneath, so two numbers in two boxes cannot be
+read backwards. The fields are **disabled rather than hidden** while the rule
+is off — a teacher turning it back on should find the numbers they set, not a
+row that appeared from nowhere.
+
+**Two costs, recorded rather than hidden.** With the rule off, a seat and a
+pupil card say nothing about escalation at all: no hollow cards, no window
+count, no derived red. That is deliberate rather than an omission — the rule is
+what gives the window its meaning, and drawing the last two lessons' yellows
+against no threshold would be history the tile was never for. And the automatic
+red cannot be deleted, because there is nothing to delete; the correction is to
+remove one of the yellows behind it, which is the honest gesture anyway, since
+the red was never the thing that happened.
+
 ### The pupil page is a synthesis, and the séance is the row
 
 `/students/:studentId` is built for one moment: the **conseil de classe**. Every
@@ -519,7 +660,7 @@ The rule that replaces the old one: **a séance with no attendance and no behavi
 
 **A lesson names a class and a matière, never a carnet.** `ScheduleEntry` carried an optional `gradebookId` that the form asked for and NOTHING read — Aujourd'hui and the hour grid both colour by `subjectId`, and the grid a lesson was to open onto was never built. It was redundant twice over: a `Gradebook` is itself `(classId, subjectId, name)`, so the picker asked the teacher to re-declare an association the two fields above it in the same form had already made. Where it was not redundant it was wrong — a class holding two carnets of one matière ("Écrit" and "Oral") would have had one of them pinned to every Monday 10h for the year, from a form filled in September. If a screen ever wants the grid, it resolves `(classId, subjectId)` on read and, finding two, lands on the class's Carnets rather than guessing.
 
-Nothing enforces one carnet per (class, matière), and nothing should: a bivalent teacher's 3°B holds two carnets of two matières, and Écrit/Oral is a real way to keep one. `db.version(15)` — since folded into the single `db.version(17)` this codebase now declares — dropped the entry's `gradebookId` index; the field itself needed no version, since `.stores()` declares indexes rather than fields, and an existing row simply kept an unread property. This changed no backup format number — `scheduleEntries` is validated `.loose()`, so a dropped index changes nothing about what is exported. (The format did move later, to **13** — see below.)
+Nothing enforces one carnet per (class, matière), and nothing should: a bivalent teacher's 3°B holds two carnets of two matières, and Écrit/Oral is a real way to keep one. `db.version(15)` — since folded into the single `db.version(18)` this codebase now declares — dropped the entry's `gradebookId` index; the field itself needed no version, since `.stores()` declares indexes rather than fields, and an existing row simply kept an unread property. This changed no backup format number — `scheduleEntries` is validated `.loose()`, so a dropped index changes nothing about what is exported. (The format did move later, to **13** — see below.)
 
 `entriesForDay` in `src/domain/schedule.ts` is the form every SCREEN needs, because the term anchor is optional and a teacher may never have set one. With none it selects the `weekCycle === "all"` entries for that weekday rather than guessing a parity — a teacher without a term start still sees what happens every week, and never sees week A's lessons on a day the app cannot name. It is one function because it was two, copied into Aujourd'hui and the class page, and a parity rule kept in two places eventually disagrees with itself.
 
@@ -581,9 +722,9 @@ This app has no network and cannot be that record. **Naming** keeps the distinct
 
 A note is a **field on `Session`** — `Session.note`, free text, written and read whole — and not a store of its own. The reasoning is `GradeColumn.criteria`'s: there is exactly one note per séance, always read with its séance and cleared whole, which is what a field is for; a `CriterionLevel` is written one cell at a time, which is what a compound key is for. `setSessionNote` (`src/db/sessions.ts`) **clears** the field on blank text rather than storing `""`, the same rule `writeGrade` applies to a grade with neither value nor note — a husk survives every export and makes "does this séance have a note?" answer yes for a lesson that has none.
 
-One note per **séance**, not per class per day. The day-keyed `DiaryEntry` this replaced was dropped by `db.version(14).stores({ diaryEntries: null })` — a version since folded into the single `db.version(17)` this codebase now declares — with no upgrade function and every existing entry lost, per the standing rule that schema changes are disposable. What the old key protected against still holds: a note must never be pinned to a clock, or moving a lesson from 10h to 11h would leave its text matching no lesson. The answer is that a note is keyed to the **séance**, which moves with it, rather than to a time — and a class taught twice in a day now carries two notes, which is what a teacher means by them.
+One note per **séance**, not per class per day. The day-keyed `DiaryEntry` this replaced was dropped by `db.version(14).stores({ diaryEntries: null })` — a version since folded into the single `db.version(18)` this codebase now declares — with no upgrade function and every existing entry lost, per the standing rule that schema changes are disposable. What the old key protected against still holds: a note must never be pinned to a clock, or moving a lesson from 10h to 11h would leave its text matching no lesson. The answer is that a note is keyed to the **séance**, which moves with it, rather than to a time — and a class taught twice in a day now carries two notes, which is what a teacher means by them.
 
-The backup format is **13**, and it alone is accepted. What replaced the accumulating union of literals `parseBackup` used to check — 11, then 12 — is one rule stated once: a format is importable only while every store it names still exists. A version-12 file still names `rubricAssessments`, a store this schema no longer has, so its grilles have nowhere to land; half-importing it would leave a workspace that looks whole and is not, which is the same ruling a version-10 file already got for its day-keyed journal. Both are refused whole. `repairSeanceCollisions` no longer has a caller here: it ran once on a format-11 import to time a séance that predated `startsAt`/`endsAt`, and with only format 13 accepted, every imported séance already carries both.
+The backup format is **14**, and it alone is accepted. What replaced the accumulating union of literals `parseBackup` used to check — 11, then 12 — is one rule stated once: a format is importable only while every store it names still exists. A version-12 file still names `rubricAssessments`, a store this schema no longer has, so its grilles have nowhere to land; half-importing it would leave a workspace that looks whole and is not, which is the same ruling a version-10 file already got for its day-keyed journal. Both are refused whole. **Format 13 is refused for a narrower reason than 12 was:** it names no store that has disappeared, but it carries no `settings` row, and a workspace whose discipline rule silently reverted to the default on import is exactly the half-import this rule exists to refuse — a carton rouge automatique meaning two yellows on the tablet the file came from and something else on the one it lands on. `repairSeanceCollisions` no longer has a caller here: it ran once on a format-11 import to time a séance that predated `startsAt`/`endsAt`, and with only format 14 accepted, every imported séance already carries both.
 
 `deleteScheduleEntry` deliberately leaves the séances alone — the lesson happened, and taking it off next term's timetable must not erase what was written about it. `deleteSession` does cascade its attendance and its behaviour events, which is why the strip puts it behind a `ConfirmButton` keyed by séance id — an armed delete must not survive onto the neighbour when the teacher taps another lesson.
 
@@ -706,7 +847,7 @@ Management (create, rename, delete) lives in Réglages rather than the drawer: a
 - **A `calculation` column stores nothing.** Its value — `mean`, `sum`, `bestOf` or `count` over chosen numeric columns — is derived on read by `evaluateCalculation`, never written as a grade row. This is deliberate: French marking already expresses weighting through `column.weight`, so a calculation feeding `studentAverage` would duplicate that mechanism while risking a silently wrong bulletin, the one failure this app cannot afford. `isNumericColumn` stays false for it, `parseGradeValue` refuses it, and `EditableCell` renders it read-only. A calculation may not reference another, so no cycle can exist. `deleteColumn` prunes the deleted id out of every `sourceColumnIds` in the same transaction — otherwise a calculation would change meaning while still rendering a plausible number.
 - **Stored values are raw domain strings.** Only the *display* is translated — attendance labels live under the top-level `attendance.*` key in both locale files, never inside `gradebook`. Never persist a translated label.
 - **Attendance is a property of a session, not a gradebook column type.** A lesson happened on a date to a class, and that fact must not be recordable in two places. Attendance lives in the `attendance` table, keyed to a `Session`, and is set from the pupil card — opened from a seat on the plan, or from a row of the roster register when the workspace has no salle. There is no second, inline path.
-- **Behaviour events are append-only.** A `BehaviourEvent` is never edited in place — `deleteBehaviourEvent` is the only correction, and a new observation is always a new row. A behaviour log records what was observed when; it is not a mutable field.
+- **Behaviour events are append-only.** A `BehaviourEvent` is never edited in place — `deleteBehaviourEvent` is the only correction, and a new observation is always a new row. A behaviour log records what was observed when; it is not a mutable field. The automatic carton rouge does not bend this, because it is never written: it is DERIVED on read from the yellows already in the table, so `countByType`, the pupil page's Comportement timeline and the JSON export all stay a record of what a teacher actually observed. See *Yellow cards escalate, and the red is derived* above.
 - **A class holds at most `MAX_STUDENTS_PER_CLASS` (100) pupils.** Every write site that can grow a roster enforces the ceiling — `student-form.tsx`, `csv-import.tsx` and `parseBackup` — since a rule only one of three sites knows is a rule the other two don't have. `parseBackup` refuses an over-capacity file whole, and does so before `importWorkspace` clears every table, so a refusal costs the teacher nothing.
 - **Rubrics never feed an average.** A `RubricLevel` (1–4) is not a mark out of 20, and no conversion exists deliberately (`docs/BACKLOG.md` #1). `isNumericColumn("rubric")` is `false`, and `studentAverage`, `classStats` and `CriterionLevel` share no code path. The means and distributions in `domain/rubric.ts` are for reading a grid, never for a bulletin, and the grid says so in the UI. An opt-in barème — a teacher stating a level-to-mark conversion and letting a grille count toward the moyenne — has been designed for and deliberately not built: it is the direction that would change this, and it is left exactly where it was.
 
@@ -746,7 +887,7 @@ Management (create, rename, delete) lives in Réglages rather than the drawer: a
 
 ### Schema changes are disposable, not migrated
 
-The Dexie schema is ONE `db.version(17).stores({...})` declaration, collapsed from a chain of sixteen bumps: the app is not released, so there was nothing deployed for that chain to migrate, and the current shape could only be read by replaying fifteen diffs. A stale workspace still gets wiped by "supprimer toutes les données" in Réglages, not upgraded. `backup.ts` takes the same posture: a file at any format but the current one is rejected outright by `WorkspaceBackup`'s schema check, since importing it half-populated would be worse than refusing it. **The rule for the next change is unchanged: add a table or a field, bump to 18, write no upgrade function.**
+The Dexie schema is ONE `db.version(18).stores({...})` declaration, collapsed from a chain of sixteen bumps: the app is not released, so there was nothing deployed for that chain to migrate, and the current shape could only be read by replaying fifteen diffs. A stale workspace still gets wiped by "supprimer toutes les données" in Réglages, not upgraded. `backup.ts` takes the same posture: a file at any format but the current one is rejected outright by `WorkspaceBackup`'s schema check, since importing it half-populated would be worse than refusing it. **The rule for the next change is unchanged: add a table or a field, bump to 19, write no upgrade function.** 18 is the last change that obeyed it — `settings: "id"` added to the one `.stores()`, nothing else touched, and no upgrade function written — and the `.upgrade()` callback below rode along to 18 rather than staying behind at 17, which it can because it is idempotent: a workspace already at 17 carries `startsAt` and `endsAt` on every séance, so `repairSeanceCollisions` finds nothing to repair and the `modify` it drives is a no-op.
 
 That rule had only ever been exercised by bumps that *added* a table, and it does not cover a changed primary key. Dexie refuses one outright, throwing `UpgradeError: Not yet support for changing primary key` while opening the database; `init.ts` has no catch, so every teacher with an existing workspace would hit a blank screen — not wiped, **bricked**, with their data still in IndexedDB and no route to the wipe in Réglages. The sanctioned way is two versions, not one: drop the store to `null` in its own version (`db.version(7).stores({ seats: null, seatingLayouts: null })`), then declare the new shape in the version after.
 
@@ -756,9 +897,9 @@ That rule had only ever been exercised by bumps that *added* a table, and it doe
 
 **The one `.upgrade()` callback in the codebase is a deliberate exception rather than a reversal, and it is the same exception `db.version(16)` made in the chain this declaration replaces.** A séance's `startsAt` became required, with a new `endsAt` alongside it — the field-level equivalent of the changed-primary-key case above, and the drop-and-redeclare move fails it the same way. `attendance` and `behaviourEvents` are both keyed to `sessions.id`; dropping `sessions` destroys every séance and leaves a term of attendance and behaviour as rows nothing reads, nothing counts, and every export still carries — the invisible-orphan failure `cascade.ts` exists to prevent, produced this time by the rule meant to keep the schema simple. So the declaration keeps the store and repairs every row instead, through `repairSeanceCollisions` (`src/domain/seance.ts`): a missing `startsAt` is floored from `createdAt` — the hour a séance was created in is the hour it was taught in, since all four things that create one happen during the lesson — and a missing `endsAt` follows it by `DEFAULT_SEANCE_MINUTES`. That per-row rule alone is not enough: two untimed séances of one class on one day created in the same hour would floor to the identical `startsAt`, and `resolveSlot` — which matches by `startsAt` and always returns the first — would strand the second forever, present only in the export. `repairSeanceCollisions` repairs the whole day's group at once so the earliest-created row keeps its hour and any later collision is nudged a minute forward instead. It now has one real caller, the upgrade — `parseBackup`'s call is gone, since with a single accepted backup format every imported séance already carries times. The rule this bends is not abandoned: it still stands for every change that ADDS a table or a field. What it does not cover is a field becoming required underneath rows that carry dependents.
 
-The regression tests that used to run new code against an old row — the v2 per-class layout, the v9 saved room, the v13 day-keyed journal entry, the v15 séance collisions — are gone: a single declaration leaves no intermediate version for such a fixture to sit at. One test replaces them in `src/db/index.test.ts`, built against a fixture at the schema this declaration supersedes: it asserts that every store the declaration drops is absent from `db.backendDB().objectStoreNames` — the raw IndexedDB store list, never `db.tables`, which is the distinction the downgrade trap below makes necessary — while `sessions`, `attendance` and `behaviourEvents` survive with an untimed séance repaired and reachable. **This seam is still the blind spot: nothing else in the suite runs new code against an old row.** Every future schema change wants such a fixture, one per store whose shape moves.
+The regression tests that used to run new code against an old row — the v2 per-class layout, the v9 saved room, the v13 day-keyed journal entry, the v15 séance collisions — are gone: a single declaration leaves no intermediate version for such a fixture to sit at. One test replaces them in `src/db/index.test.ts`, built against a fixture at `db.version(16)`, the last schema of the chain this declaration collapsed: it asserts that every store the declaration drops is absent from `db.backendDB().objectStoreNames` — the raw IndexedDB store list, never `db.tables`, which is the distinction the downgrade trap below makes necessary — while `sessions`, `attendance` and `behaviourEvents` survive with an untimed séance repaired and reachable. **This seam is still the blind spot: nothing else in the suite runs new code against an old row.** Every future schema change wants such a fixture, one per store whose shape moves.
 
-**The number is 17, and 1 would have been a silent bug, because Dexie CATCHES a downgrade.** A declared version LOWER than the one a workspace is already at provokes a real `VersionError` from IndexedDB, but `dexieOpen` catches it, reopens with no version at all, and patches the declared schema into whatever it finds — a console warning, never a rejection. The database opens, `db.tables` reads exactly as it would at the right number, and the stores the declaration means to drop are **not** deleted: they stay in IndexedDB, outside `db.tables`, and therefore outside `wipeWorkspace`, which reads `db.tables` directly. A term of pupils' rubric levels would survive "supprimer toutes les données", invisible and unreachable, against a `PRIVACY.md` that calls that erase permanent — measured against Dexie 4 in Chrome, not only reasoned about against `fake-indexeddb`. 17 is nothing more than the next integer above the chain it replaces, but it is the whole reason a collapse is safe: any number equal to or lower than a workspace's own would silently leave its dropped stores behind instead of deleting them.
+**The number is 18, and 1 would have been a silent bug, because Dexie CATCHES a downgrade.** A declared version LOWER than the one a workspace is already at provokes a real `VersionError` from IndexedDB, but `dexieOpen` catches it, reopens with no version at all, and patches the declared schema into whatever it finds — a console warning, never a rejection. The database opens, `db.tables` reads exactly as it would at the right number, and the stores the declaration means to drop are **not** deleted: they stay in IndexedDB, outside `db.tables`, and therefore outside `wipeWorkspace`, which reads `db.tables` directly. A term of pupils' rubric levels would survive "supprimer toutes les données", invisible and unreachable, against a `PRIVACY.md` that calls that erase permanent — measured against Dexie 4 in Chrome, not only reasoned about against `fake-indexeddb`. 18 is nothing more than the next integer above the declaration before it, but being ABOVE is the whole reason a collapse is safe: any number equal to or lower than a workspace's own would silently leave its dropped stores behind instead of deleting them.
 
 You do **not** need to touch `wipeWorkspace` when adding a table — it reads `db.tables`. You **do** need to add it to `backup.ts` by hand, on both the export side and `importWorkspace`'s clear list, since both build a literal array rather than reading `db.tables`, and to seed a row for it into the wipe test and the schema table-list test. Those two will fail until you do; that is the guard, not an oversight. The backup case earned its own guard the hard way: the day-keyed journal store, since dropped in v14, was missing from export and import for a whole commit while every backup test passed, because the double-import test compares row counts across two imports and a table missing *entirely* keeps its count on both passes.
 
@@ -938,5 +1079,6 @@ The service worker's `SHELL` is the boot path and nothing else, because `addAll`
 - `docs/superpowers/specs/2026-09-02-profs-phase6-class-hub.md` — why the flat gradebook list was removed
 - `docs/superpowers/specs/2026-09-03-profs-room-layouts-design.md` — the room-as-room design and the schema's primary-key change
 - `docs/superpowers/specs/2026-09-09-profs-dated-week-home-design.md` — the front door as a dated week, and why a séance's start and end became required
+- `docs/superpowers/specs/2026-09-11-profs-behaviour-escalation-design.md` — why Y jaunes over X séances make a rouge, and why that rouge is derived rather than stored
 - `docs/BACKLOG.md` — post-v1 features requested by a practising teacher, with the privacy questions each raises
 - `../open-setlist/` — the sibling project this stack was copied from; when a pattern here is unclear, its equivalent file is usually the answer

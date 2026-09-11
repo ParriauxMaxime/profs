@@ -1,6 +1,6 @@
 # profs — yellow cards that escalate (design)
 
-Status: designed, not implemented.
+Status: implemented.
 Builds on the behaviour log described in `CLAUDE.md` under *Invariants worth
 knowing* (**behaviour events are append-only**) and on the séance model from
 `2026-09-09-profs-dated-week-home-design.md` (every séance carries a start).

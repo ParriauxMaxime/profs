@@ -120,7 +120,7 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
    * A term of pupils' levels would survive "supprimer toutes les données", and
    * `PRIVACY.md` promises that erase is permanent.
    *
-   * At 17 the upgrade runs forwards, as an upgrade: Dexie diffs this
+   * At 18 the upgrade runs forwards, as an upgrade: Dexie diffs this
    * declaration against the stored schema, DELETES the stores that are gone —
    * `rubricAssessments`, `rubricScores`, and the older casualties before them
    * — and carries every surviving store forward with its rows untouched. A
@@ -128,7 +128,7 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
    * the workspace is discarded, and nothing reaches `RecoveryShell`.
    *
    * The rule for the next change is unchanged: add a table or a field, bump to
-   * 18, write no upgrade function.
+   * 19, write no upgrade function.
    *
    * `&` marks a unique index. `desks` refuses two tables on one square,
    * `seatingPlans` one plan per class per salle, and `assignments` one pupil
@@ -178,7 +178,7 @@ export function openWorkspaceDb(workspaceId: string): AppDatabase {
    * so the repair survives with it.
    *
    * One `.stores()` and one `.upgrade()` is still one version. The rule for
-   * the next change is unchanged: bump to 18, and write no upgrade function —
+   * the next change is unchanged: bump to 19, and write no upgrade function —
    * this is what "unless a field becomes required under rows with dependents"
    * looks like when it happens, not a licence to write one by habit.
    */

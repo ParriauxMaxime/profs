@@ -34,11 +34,11 @@ export function hourOfDay(ms: number): number {
  * it. It cannot see siblings, so it cannot know whether the hour it invents
  * collides with another séance of the same class on the same day — that is
  * `repairSeanceCollisions`, below, which wraps it and is what the one real
- * caller uses: the schema's `db.version(17)` upgrade.
+ * caller uses: the schema's `db.version(18)` upgrade.
  *
  * It used to be two callers. `backup.ts` ran the same repair on import, for a
  * format-11 file whose séances carried no times; with one backup format
- * accepted and every format-13 séance already timed, that call was inert and
+ * accepted and every format-14 séance already timed, that call was inert and
  * is gone.
  */
 export function backfillSeanceTimes(row: {
@@ -66,7 +66,7 @@ interface SeanceTimeRow {
  *
  * Pure, and in the domain, because a repair rule this exacting belongs beside
  * its own tests rather than inline in a caller. It has one real caller now,
- * the `db.version(17)` upgrade: `parseBackup` used to call it too, for a
+ * the `db.version(18)` upgrade: `parseBackup` used to call it too, for a
  * format-11 file whose séances predated `startsAt`/`endsAt`, but with only
  * the current backup format accepted, every imported séance already carries
  * both and that call was removed.
